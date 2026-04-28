@@ -85,7 +85,6 @@ function noopKeyStore(logger: ILogger) {
   };
 }
 
-
 function makeSignalRepository(ctx: SocketContext) {
   return {
     decryptMessage: async (opts: {
@@ -175,7 +174,6 @@ function makeSignalRepository(ctx: SocketContext) {
     },
   };
 }
-
 
 function makeWsEmitter(getClient: () => WasmWhatsAppClient | undefined) {
   const ws = new EventEmitter();
@@ -336,6 +334,14 @@ const makeWASocket = (config: UserFacingSocketConfig) => {
 
     if (account) {
       cachedAccount = account;
+    }
+
+    const deviceOs = browserName === "Android" ? "Android" : osName;
+
+    // Android browser slot flips the noise-handshake identity to
+    // `UserAgent.platform = ANDROID` (no `web_info`), mirroring upstream
+    if (browserName === "Android") {
+      await client.setClientProfile({ preset: "android", osVersion: deviceOs });
     }
 
     if (isRawNodeEnabled()) {

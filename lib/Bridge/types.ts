@@ -18,7 +18,6 @@ export interface CanonicalDisconnected {
   type: "disconnected";
 }
 
-
 export interface CanonicalQR {
   type: "qr";
   code: string;
@@ -83,10 +82,11 @@ export interface CanonicalMessage {
   id: string;
   timestamp: number;
   pushName?: string;
-  
+
   participantAlt?: string;
-  
+
   remoteJidAlt?: string;
+  isViewOnce?: boolean;
   messageProto: WAProto.IMessage;
 }
 
@@ -130,7 +130,6 @@ export interface CanonicalChatPresence {
   state: string;
 }
 
-
 export interface CanonicalGroupParticipant {
   jid: string;
   phoneNumber?: string;
@@ -168,7 +167,6 @@ export type CanonicalGroupAction =
   | { type: "delete"; reason?: string }
   | { type: "link"; linkType: string }
   | { type: "unlink"; unlinkType: string; unlinkReason?: string }
-  
   | { type: "unknown"; rawType: string };
 
 export interface CanonicalGroupUpdate {
@@ -224,9 +222,9 @@ export type CanonicalCallActionType =
 export interface CanonicalCallAction {
   type: CanonicalCallActionType;
   callId: string;
-  
+
   callerPn?: string;
-  
+
   isVideo?: boolean;
 }
 
@@ -283,7 +281,7 @@ export interface CanonicalMexNotification {
 export interface CanonicalNoop {
   type: "noop";
   bridgeType: string;
-  
+
   detail?: string;
 }
 

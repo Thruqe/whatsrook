@@ -23,7 +23,6 @@ import type { SocketContext } from "./types.ts";
 const DEF_CALLBACK_PREFIX = "CB:";
 const DEF_TAG_PREFIX = "TAG:";
 
-
 const emitCBEvents = (ctx: SocketContext, node: BinaryNode) => {
   const { ws } = ctx;
   const l0 = node.tag;
@@ -62,6 +61,7 @@ const canonicalMessageToWAMessage = (m: CanonicalMessage): WAMessage => {
   }) as WAMessage;
   if (m.participantAlt) wm.key.participantAlt = m.participantAlt;
   if (m.remoteJidAlt) wm.key.remoteJidAlt = m.remoteJidAlt;
+  if (m.isViewOnce) wm.key.isViewOnce = true;
   return wm;
 };
 
@@ -71,7 +71,7 @@ export const makeEventHandler = (
     onPairSuccess?: (data: {
       platform?: string;
       businessName?: string;
-    }) => void;
+    }) => void | Promise<void>;
   },
 ) => {
   const { ev } = ctx;
@@ -107,15 +107,6 @@ export const makeEventHandler = (
         const { id, lid, businessName, platform } = evt;
         ctx.setUser({ id, lid });
         callbacks?.onPairSuccess?.({ platform, businessName });
-        // Synthetic `creds.update` so upstream-style auth code
-        // (`ev.on('creds.update', saveCreds)` /
-        // `eventManager.register(...)`) gets a single tick to persist
-        // its post-pair state. The bridge owns the real creds.
-        ev.emit("creds.update", {
-          registered: true,
-          me: { id, lid, name: businessName },
-          platform,
-        });
         return;
       }
 
