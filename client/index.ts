@@ -1,10 +1,4 @@
-import {
-  Boom,
-  Browsers,
-  makeWASocket,
-  useBridgeStore,
-  DisconnectReason,
-} from "../lib";
+import { Boom, makeWASocket, useBridgeStore, DisconnectReason } from "../lib";
 import process from "node:process";
 import readline from "node:readline";
 import P from "pino";
@@ -30,7 +24,7 @@ const logger = P({
   },
 });
 
-logger.level = "trace";
+logger.level = "silent";
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -49,7 +43,6 @@ const startSock = async () => {
   const sock = makeWASocket({
     logger,
     auth: { store: state },
-    browser: Browsers.android("13"),
   });
 
   sock.ev.process(async (events) => {
