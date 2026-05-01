@@ -11,7 +11,7 @@ import readline from "node:readline";
 import calls from "./calls";
 import serialize from "./serialize";
 import { logger } from "./util";
-import { loadCommands, matchCommand } from "./plugin";
+import { getCommands, loadCommands, matchCommand } from "./plugin";
 
 logger.level = "silent";
 
@@ -34,6 +34,7 @@ const startSock = async () => {
   const sock = makeWASocket({
     logger,
     auth: { store: state },
+    emitOwnEvents: false,
   });
 
   sock.ev.process(async (events) => {
@@ -81,8 +82,15 @@ const startSock = async () => {
           const msg = serialize(raw, sock);
           if (!msg || !msg.body) continue;
 
+          const eventCommands = getCommands().filter(
+            (cmd) => cmd.event === true,
+          );
+          for (const eventCmd of eventCommands) {
+            await eventCmd.func(msg);
+          }
+
           const cmd = matchCommand(msg);
-          if (cmd) {
+          if (cmd && !cmd.event) {
             await cmd.func(msg);
           }
         }
