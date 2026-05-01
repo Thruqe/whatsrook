@@ -13,8 +13,12 @@ export interface Command {
 
 const commands: Command[] = [];
 
-export function registerCommand(cmd: Command): void {
-  commands.push(cmd);
+export function registerCommand(cmd: Command | Command[]): void {
+  if (Array.isArray(cmd)) {
+    commands.push(...cmd);
+  } else {
+    commands.push(cmd);
+  }
 }
 
 export function getCommands(): Command[] {
