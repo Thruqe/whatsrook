@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { registerCommand, getCommands } from "../plugin";
 import type { Command } from "../plugin";
 import type { SerializedMessage } from "../serialize";
+import { config } from "../util";
 
 const FANCY_MAP: Record<string, string> = {
   a: "ᴀ",
@@ -98,8 +99,8 @@ registerCommand({
     const totalRam = os.totalmem();
     const usedRam = totalRam - os.freemem();
 
-    let text =
-      `╭━━━〔 ${fancy("menu")} 〕━━━\n` +
+    let text = //@ts-ignore
+      `╭━━━〔 ${config?.features?.bot_name} 〕━━━\n` +
       `┃ \`\`\`${fancy("user")} : ${pushName}\`\`\`\n` +
       `┃ \`\`\`${fancy("plugins")} : ${commands.length}\`\`\`\n` +
       `┃ \`\`\`${fancy("runtime")} : ${runtime(process.uptime())}\`\`\`\n` +

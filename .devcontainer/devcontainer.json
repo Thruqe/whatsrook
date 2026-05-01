@@ -10,7 +10,11 @@
 
   "customizations": {
     "vscode": {
-      "extensions": ["esbenp.prettier-vscode", "yy0931.vscode-sqlite3-editor"],
+      "extensions": [
+        "esbenp.prettier-vscode",
+        "yy0931.vscode-sqlite3-editor",
+        "tamasfe.even-better-toml"
+      ],
       "settings": {
         "editor.defaultFormatter": "esbenp.prettier-vscode",
         "editor.formatOnSave": true
