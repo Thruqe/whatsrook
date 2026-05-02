@@ -4,3 +4,4 @@ node_modules
 *.db-wal
 *.lock
 logs.txt
+tmp
