@@ -726,30 +726,24 @@ export const generateWAMessageFromContent = (
     }
 
     if (contextInfo && innerMessage[key]) {
-      //@ts-ignore
-      innerMessage[key].contextInfo = contextInfo;
+      (innerMessage[key] as any).contextInfo = contextInfo;
     }
   }
 
   if (
-    // if we want to send a disappearing message
     !!options?.ephemeralExpiration &&
-    // and it's not a protocol message -- delete, toggle disappear message
     key !== "protocolMessage" &&
-    // already not converted to disappearing message
     key !== "ephemeralMessage" &&
-    // newsletters don't support ephemeral messages
     !isJidNewsletter(jid)
   ) {
-    //@ts-ignore
-    innerMessage[key].contextInfo = {
-      ...((innerMessage[key] as Record<string, unknown>).contextInfo as Record<
-        string,
-        unknown
-      >),
-      expiration: options.ephemeralExpiration || WA_DEFAULT_EPHEMERAL,
-      //ephemeralSettingTimestamp: options.ephemeralOptions.eph_setting_ts?.toString()
-    };
+    const target = innerMessage[key];
+
+    if (target) {
+      (target as any).contextInfo = {
+        ...(target as any).contextInfo,
+        expiration: options.ephemeralExpiration || WA_DEFAULT_EPHEMERAL,
+      };
+    }
   }
 
   message = WAProto.Message.create(message);
