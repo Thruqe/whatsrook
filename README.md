@@ -59,7 +59,6 @@ The container utilizes a `config.toml` file for application settings. Ensure thi
 docker run -d \
   --name zevbot-prod \
   -v $(pwd)/config.toml:/app/config.toml \
-  -v $(pwd)/auth_info_baileys:/app/auth_info_baileys \
   ghcr.io/zevlion/zevbot:latest
 ```
 
