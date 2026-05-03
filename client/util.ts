@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import { exec } from "node:child_process";
 import { writeFileSync, unlinkSync, readFileSync } from "node:fs";
 import { parse } from "smol-toml";
-import { getAudioDuration } from "../lib";
+import { getAudioDuration, type WAMessage } from "../lib";
 
 interface BotConfig {
   metadata: {
@@ -149,3 +149,14 @@ export async function toMp4(input: string | Buffer): Promise<MediaOutput> {
     } catch {}
   }
 }
+
+export const extractText = (msg: WAMessage) => {
+  return (
+    msg.message?.conversation ||
+    msg.message?.extendedTextMessage?.text ||
+    msg.message?.imageMessage?.caption ||
+    msg.message?.videoMessage?.caption ||
+    msg.message?.documentMessage?.caption ||
+    ""
+  );
+};
