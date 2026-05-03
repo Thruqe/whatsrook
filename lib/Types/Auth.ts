@@ -5,41 +5,41 @@ import type { Contact } from "./Contact.ts";
 
 export type KeyPair = { public: Uint8Array; private: Uint8Array };
 export type SignedKeyPair = {
-  keyPair: KeyPair;
-  signature: Uint8Array;
-  keyId: number;
-  timestampS?: number;
+	keyPair: KeyPair;
+	signature: Uint8Array;
+	keyId: number;
+	timestampS?: number;
 };
 
 export type ProtocolAddress = {
-  name: string;
-  deviceId: number;
+	name: string;
+	deviceId: number;
 };
 export type SignalIdentity = {
-  identifier: ProtocolAddress;
-  identifierKey: Uint8Array;
+	identifier: ProtocolAddress;
+	identifierKey: Uint8Array;
 };
 
 export type LIDMapping = {
-  pn: string;
-  lid: string;
+	pn: string;
+	lid: string;
 };
 
 export type LTHashState = {
-  version: number;
-  hash: Buffer;
-  indexValueMap: {
-    [indexMacBase64: string]: { valueMac: Uint8Array | Buffer };
-  };
+	version: number;
+	hash: Buffer;
+	indexValueMap: {
+		[indexMacBase64: string]: { valueMac: Uint8Array | Buffer };
+	};
 };
 
 export type AccountSettings = {
-  unarchiveChats: boolean;
+	unarchiveChats: boolean;
 
-  defaultDisappearingMode?: Pick<
-    proto.IConversation,
-    "ephemeralExpiration" | "ephemeralSettingTimestamp"
-  >;
+	defaultDisappearingMode?: Pick<
+		proto.IConversation,
+		"ephemeralExpiration" | "ephemeralSettingTimestamp"
+	>;
 };
 
 /**
@@ -51,35 +51,35 @@ export type AccountSettings = {
  * may reference them.
  */
 export type AuthenticationCreds = {
-  me?: Contact;
-  registered: boolean;
-  platform?: string;
-  noiseKey?: KeyPair;
-  pairingEphemeralKeyPair?: KeyPair;
-  signedIdentityKey?: KeyPair;
-  signedPreKey?: SignedKeyPair;
-  registrationId?: number;
-  advSecretKey?: string;
-  account?: proto.IAdvSignedDeviceIdentity;
-  signalIdentities?: SignalIdentity[];
-  myAppStateKeyId?: string;
-  firstUnuploadedPreKeyId?: number;
-  nextPreKeyId?: number;
-  lastAccountSyncTimestamp?: number;
-  processedHistoryMessages?: Array<{
-    key: { remoteJid?: string; id?: string };
-    messageTimestamp?: number;
-  }>;
-  accountSyncCounter?: number;
-  accountSettings?: AccountSettings;
-  pairingCode?: string;
-  lastPropHash?: string;
-  routingInfo?: Buffer;
-  additionalData?: Record<string, unknown>;
+	me?: Contact;
+	registered: boolean;
+	platform?: string;
+	noiseKey?: KeyPair;
+	pairingEphemeralKeyPair?: KeyPair;
+	signedIdentityKey?: KeyPair;
+	signedPreKey?: SignedKeyPair;
+	registrationId?: number;
+	advSecretKey?: string;
+	account?: proto.IAdvSignedDeviceIdentity;
+	signalIdentities?: SignalIdentity[];
+	myAppStateKeyId?: string;
+	firstUnuploadedPreKeyId?: number;
+	nextPreKeyId?: number;
+	lastAccountSyncTimestamp?: number;
+	processedHistoryMessages?: Array<{
+		key: { remoteJid?: string; id?: string };
+		messageTimestamp?: number;
+	}>;
+	accountSyncCounter?: number;
+	accountSettings?: AccountSettings;
+	pairingCode?: string;
+	lastPropHash?: string;
+	routingInfo?: Buffer;
+	additionalData?: Record<string, unknown>;
 };
 
 export type AuthenticationState = {
-  store?: JsStoreCallbacks & {
-    flush?(): Promise<void>;
-  };
+	store?: JsStoreCallbacks & {
+		flush?(): Promise<void>;
+	};
 };

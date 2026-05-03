@@ -13,20 +13,19 @@
  * `Array.isArray` first if they need to distinguish.
  */
 export const isObject = (x: unknown): x is Record<string, unknown> =>
-	typeof x === 'object' && x !== null && !Array.isArray(x)
+	typeof x === "object" && x !== null && !Array.isArray(x);
 
-
-export const asString = (x: unknown): string | undefined => (typeof x === 'string' ? x : undefined)
-
+export const asString = (x: unknown): string | undefined =>
+	typeof x === "string" ? x : undefined;
 
 export const asNumber = (x: unknown): number | undefined =>
-	typeof x === 'number' && Number.isFinite(x) ? x : undefined
+	typeof x === "number" && Number.isFinite(x) ? x : undefined;
 
+export const asBool = (x: unknown): boolean | undefined =>
+	typeof x === "boolean" ? x : undefined;
 
-export const asBool = (x: unknown): boolean | undefined => (typeof x === 'boolean' ? x : undefined)
-
-
-export const asBoolOr = (x: unknown, fallback: boolean): boolean => asBool(x) ?? fallback
+export const asBoolOr = (x: unknown, fallback: boolean): boolean =>
+	asBool(x) ?? fallback;
 
 /**
  * Bridge JID struct — `user@server`, plus optional `agent`/`device`/
@@ -35,28 +34,26 @@ export const asBoolOr = (x: unknown, fallback: boolean): boolean => asBool(x) ??
  * consumers index and compare).
  */
 export interface BridgeJid {
-	user: string
-	server: string
-	agent?: number
-	device?: number
-	integrator?: number
+	user: string;
+	server: string;
+	agent?: number;
+	device?: number;
+	integrator?: number;
 }
-
 
 export const isBridgeJid = (x: unknown): x is BridgeJid =>
-	isObject(x) && typeof x.user === 'string' && typeof x.server === 'string'
+	isObject(x) && typeof x.user === "string" && typeof x.server === "string";
 
+export const asBridgeJid = (x: unknown): BridgeJid | undefined =>
+	isBridgeJid(x) ? x : undefined;
 
-export const asBridgeJid = (x: unknown): BridgeJid | undefined => (isBridgeJid(x) ? x : undefined)
-
-
-export const bridgeJidToString = (j: BridgeJid): string => `${j.user}@${j.server}`
-
+export const bridgeJidToString = (j: BridgeJid): string =>
+	`${j.user}@${j.server}`;
 
 export const asJidString = (x: unknown): string | undefined => {
-	const j = asBridgeJid(x)
-	return j ? bridgeJidToString(j) : undefined
-}
+	const j = asBridgeJid(x);
+	return j ? bridgeJidToString(j) : undefined;
+};
 
 /**
  * Coerce a timestamp value into unix seconds. Accepts both numbers and ISO
@@ -64,13 +61,13 @@ export const asJidString = (x: unknown): string | undefined => {
  * typed with `ts_seconds`, so being lenient here insulates us from drift.
  */
 export const toUnixSeconds = (raw: unknown): number => {
-	if (typeof raw === 'number' && Number.isFinite(raw)) return raw
-	if (typeof raw === 'string') {
-		const ms = Date.parse(raw)
-		if (Number.isFinite(ms)) return Math.floor(ms / 1000)
+	if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+	if (typeof raw === "string") {
+		const ms = Date.parse(raw);
+		if (Number.isFinite(ms)) return Math.floor(ms / 1000);
 	}
-	return 0
-}
+	return 0;
+};
 
 /**
  * Lowercase a discriminator string defensively — handles both the current
@@ -78,6 +75,6 @@ export const toUnixSeconds = (raw: unknown): number => {
  * might still emit.
  */
 export const normalizeDiscriminator = (x: unknown): string | undefined => {
-	const s = asString(x)
-	return s ? s.toLowerCase() : undefined
-}
+	const s = asString(x);
+	return s ? s.toLowerCase() : undefined;
+};
