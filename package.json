@@ -24,7 +24,6 @@
 		"start": "pm2 start client/index.ts --name 'bot' --interpreter ~/.bun/bin/bun --attach",
 		"stop": "pm2 stop bot",
 		"restart": "pm2 delete bot && bun start",
-		"format": "oxfmt client lib",
-		"lint": "oxlint --fix"
+		"fmt": "oxfmt client lib && oxlint --fix"
 	}
 }
