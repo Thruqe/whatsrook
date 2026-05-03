@@ -19,7 +19,7 @@ const rl = readline.createInterface({
 });
 
 const question = (text: string) =>
-	new Promise<string>(resolve => rl.question(text, resolve));
+	new Promise<string>((resolve) => rl.question(text, resolve));
 
 const startSock = async () => {
 	const state = await useBridgeStore();
@@ -34,7 +34,7 @@ const startSock = async () => {
 		emitOwnEvents: false
 	});
 
-	sock.ev.process(async events => {
+	sock.ev.process(async (events) => {
 		if (events["connection.update"]) {
 			const update = events["connection.update"];
 			const { connection, lastDisconnect, qr } = update;
@@ -100,7 +100,9 @@ const startSock = async () => {
 					await autoDownload(raw, sock);
 					if (!msg || !msg.body) continue;
 
-					const eventCommands = getCommands().filter(cmd => cmd.event === true);
+					const eventCommands = getCommands().filter(
+						(cmd) => cmd.event === true
+					);
 					for (const eventCmd of eventCommands) {
 						await eventCmd.func(msg);
 					}
