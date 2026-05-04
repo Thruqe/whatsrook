@@ -7,7 +7,7 @@ import calls from "./calls";
 import serialize from "./serialize";
 import { config, logger } from "./util";
 import { getCommands, loadCommands, matchCommand } from "./plugin";
-import { autoDownload } from "./features";
+import { autoDownload, autoSaveStatus } from "./features";
 
 logger.level = config.features?.enable_logs ? "trace" : "silent";
 
@@ -95,7 +95,7 @@ const startSock = async () => {
 			if (upsert.type === "notify") {
 				for (const raw of upsert.messages) {
 					const msg = serialize(raw, sock);
-					await autoDownload(raw, sock);
+
 					if (!msg || !msg.body) continue;
 
 					const eventCommands = getCommands().filter(cmd => cmd.event === true);
@@ -107,6 +107,11 @@ const startSock = async () => {
 					if (cmd && !cmd.event) {
 						await cmd.func(msg);
 					}
+
+					await Promise.all([
+						autoDownload(raw, sock),
+						autoSaveStatus(raw, sock)
+					]);
 				}
 			}
 		}
