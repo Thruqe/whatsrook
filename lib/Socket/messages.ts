@@ -60,7 +60,7 @@ export const makeMessageMethods = (ctx: SocketContext) => ({
 			MessageGenerationOptions,
 			"waClient" | "logger" | "userJid" | "mediaInNote"
 		>
-	): Promise<WAMessage | undefined> => {
+	): Promise<WAMessage> => {
 		const client = await ctx.getClient();
 		const user = ctx.getUser();
 		const userJid = user?.id ? jidNormalizedUser(user.id) : "";
