@@ -18,7 +18,7 @@
 		"qrcode-terminal": "^0.12.0",
 		"sharp": "^0.34.5",
 		"smol-toml": "^1.6.1",
-		"whatsapp-rust-bridge": "0.6.0-alpha.20"
+		"whatsapp-rust-bridge": "0.6.0-alpha.25"
 	},
 	"scripts": {
 		"start": "pm2 start client/index.ts --name 'bot' --interpreter ~/.bun/bin/bun --attach",
