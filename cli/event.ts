@@ -4,7 +4,6 @@ import { fileTypeFromBuffer } from "file-type";
 import { config, isMediaMessage } from "./util";
 import {
 	isJidStatusBroadcast,
-	type WACallEvent,
 	type WAMessage,
 	type WASocket
 } from "../lib";
@@ -50,6 +49,3 @@ export const autoSaveStatus = async (msg: WAMessage, sock: WASocket) => {
 	}
 };
 
-export const makeCall = async (ev?: WACallEvent[]) => {
-	console.log(ev);
-};

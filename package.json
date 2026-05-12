@@ -21,9 +21,7 @@
 		"whatsapp-rust-bridge": "0.6.0-alpha.25"
 	},
 	"scripts": {
-		"start": "pm2 start client/base.ts --name 'bot' --interpreter ~/.bun/bin/bun --attach",
-		"stop": "pm2 stop bot",
-		"restart": "pm2 delete bot && bun start",
+		"start": "bun run cli/main.ts",
 		"fmt": "oxfmt client lib && oxlint --fix"
 	}
 }
