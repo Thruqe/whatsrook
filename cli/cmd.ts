@@ -27,7 +27,7 @@ export function getCommands(): Command[] {
 }
 
 export function matchCommand(msg: SerializedMessage): Command | undefined {
-	return commands.find(cmd => {
+	return commands.find((cmd) => {
 		if (cmd.fromMe !== undefined && msg.fromMe !== cmd.fromMe) return false;
 		if (cmd.isGroup !== undefined && msg.isGroup !== cmd.isGroup) return false;
 
@@ -39,14 +39,15 @@ export function matchCommand(msg: SerializedMessage): Command | undefined {
 			}
 		}
 
-		if (cmd.alias?.map(a => a.toLowerCase()).includes(msg.command)) return true;
+		if (cmd.alias?.map((a) => a.toLowerCase()).includes(msg.command))
+			return true;
 
 		return false;
 	});
 }
 
 export async function loadCommands(
-	dir: string = join(import.meta.dir, "features")
+	dir: string = join(import.meta.dir, "features"),
 ) {
 	const glob = new Bun.Glob("**/*.ts");
 	const files = await Array.fromAsync(glob.scan({ cwd: dir, absolute: true }));
@@ -54,8 +55,8 @@ export async function loadCommands(
 	for (const file of files) {
 		const category = basename(file, extname(file));
 		const before = commands.length;
-		await import(file).catch(err =>
-			console.error(`[plugin] Failed to load command file: ${file}\n`, err)
+		await import(file).catch((err) =>
+			console.error(`[plugin] Failed to load command file: ${file}\n`, err),
 		);
 		for (let i = before; i < commands.length; i++) {
 			commands[i]!.category = category;
