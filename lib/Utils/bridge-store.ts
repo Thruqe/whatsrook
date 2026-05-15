@@ -27,15 +27,15 @@ async function openDatabase(dbPath: string): Promise<DbAdapter> {
 				get: (...args: SqlBinding[]) =>
 					stmt.get(...(args as Parameters<typeof stmt.get>)),
 				all: (...args: SqlBinding[]) =>
-					stmt.all(...(args as Parameters<typeof stmt.all>)),
+					stmt.all(...(args as Parameters<typeof stmt.all>))
 			};
 		},
-		close: () => db.close(),
+		close: () => db.close()
 	};
 }
 
 export async function useBridgeStore(
-	dbFile = "auth.db",
+	dbFile = "auth.db"
 ): Promise<NonNullable<AuthenticationState["store"]>> {
 	const db = await openDatabase(dbFile);
 
@@ -58,7 +58,7 @@ export async function useBridgeStore(
 
 		if (!SAFE_TABLE_NAME.test(store)) {
 			throw new Error(
-				`Invalid store name: "${store}". Only alphanumeric characters and underscores are allowed.`,
+				`Invalid store name: "${store}". Only alphanumeric characters and underscores are allowed.`
 			);
 		}
 
@@ -73,9 +73,9 @@ export async function useBridgeStore(
 			get: db.prepare(`SELECT value FROM "${store}" WHERE key = ?`),
 			set: db.prepare(
 				`INSERT INTO "${store}" (key, value) VALUES (?, ?)
-				 ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+				 ON CONFLICT (key) DO UPDATE SET value = excluded.value`
 			),
-			del: db.prepare(`DELETE FROM "${store}" WHERE key = ?`),
+			del: db.prepare(`DELETE FROM "${store}" WHERE key = ?`)
 		};
 
 		stmtCache.set(store, stmts);
@@ -193,6 +193,6 @@ export async function useBridgeStore(
 		async flush(opts?: { close?: boolean }): Promise<void> {
 			flushAll();
 			if (opts?.close) db.close();
-		},
+		}
 	};
 }
