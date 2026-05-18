@@ -17,4 +17,4 @@ COPY cli/ ./cli/
 COPY lib/ ./lib/
 COPY jsconfig.json ./
 USER root
-CMD ["bun", "start"]
+CMD ["bun", "middleware"]

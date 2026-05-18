@@ -19,7 +19,8 @@
 		".": "./lib/index.ts"
 	},
 	"scripts": {
-		"start": "rpm2 start cli/main.ts --interpreter bun --name zevBot --watch --attach",
+		"cli": "rpm2 start cli/main.ts --interpreter bun --name zevBot --watch --attach",
+		"middleware": "rpm2 start cli/middleware.ts --interpreter bun --name zevBot --watch --attach",
 		"fmt": "oxfmt client lib && oxlint --fix"
 	}
 }
