@@ -22,7 +22,7 @@
 		".": "./lib/index.ts"
 	},
 	"scripts": {
-		"start": "bun run cli/main.ts",
+		"start": "rpm2 start cli/main.ts --interpreter bun --name zevBot --watch --attach",
 		"fmt": "oxfmt client lib && oxlint --fix"
 	}
 }

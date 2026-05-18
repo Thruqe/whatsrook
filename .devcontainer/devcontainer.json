@@ -1,27 +1,24 @@
 {
-	"name": "Docker-Development",
-	"image": "mcr.microsoft.com/devcontainers/base:bookworm",
-
+	"name": "ZevBot-Development",
+	"image": "mcr.microsoft.com/devcontainers/base:noble",
 	"remoteEnv": {
 		"LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
 	},
-
 	"mounts": [
-		"source=${localEnv:HOME}/.gitconfig,target=/root/.gitconfig,type=bind,consistency=cached",
-		"source=${localEnv:HOME}/.gnupg,target=/root/.gnupg,type=bind,consistency=cached"
+		"source=${localEnv:HOME}/.gitconfig,target=/root/.gitconfig,type=bind,consistency=cached"
 	],
-
-	"postCreateCommand": "apt-get update && apt-get install -y ffmpeg libwebp-dev curl bash unzip && curl -fsSL https://bun.sh/install | bash",
-
+	"postCreateCommand": "apt-get update && apt-get install -y ffmpeg libwebp-dev curl bash unzip && curl -fsSL https://bun.sh/install | bash && curl -L https://github.com/zevlion/rpm2/releases/download/latest/rpm2 -o rpm2 && chmod +x rpm2 && mv rpm2 /usr/local/bin/rpm2",
 	"customizations": {
 		"vscode": {
-			"extensions": ["esbenp.prettier-vscode", "yy0931.vscode-sqlite3-editor"],
+			"extensions": [
+				"esbenp.prettier-vscode",
+				"yy0931.vscode-sqlite3-editor"
+			],
 			"settings": {
 				"editor.defaultFormatter": "esbenp.prettier-vscode",
 				"editor.formatOnSave": true
 			}
 		}
 	},
-
 	"remoteUser": "root"
 }
