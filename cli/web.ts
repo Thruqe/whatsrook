@@ -5,19 +5,36 @@ import {
 	useBridgeStore,
 	DisconnectReason,
 } from "zevbot";
-import * as qrcode from "qrcode-terminal";
+import { join } from "path";
 
 const logger = createLogger("trace");
 
 const server = Bun.serve({
 	port: process.env.PORT || 3000,
-	fetch(req, server) {
+	async fetch(req, server) {
 		const url = new URL(req.url);
+
 		if (url.pathname === "/ws") {
 			const success = server.upgrade(req);
 			if (success) return undefined;
 			return new Response("WebSocket upgrade failed", { status: 400 });
 		}
+
+		let filePath = join(import.meta.dir, "web", url.pathname);
+		if (url.pathname.endsWith("/")) {
+			filePath = join(filePath, "index.html");
+		}
+
+		const file = Bun.file(filePath);
+		if (await file.exists()) {
+			return new Response(file);
+		}
+
+		const fallbackIndex = Bun.file(join(import.meta.dir, "web", "index.html"));
+		if (await fallbackIndex.exists()) {
+			return new Response(fallbackIndex);
+		}
+
 		return new Response("Not Found", { status: 404 });
 	},
 	websocket: {
@@ -57,16 +74,16 @@ const startSock = async () => {
 			const { connection, lastDisconnect, qr } = update;
 
 			if (qr) {
-				qrcode.generate(qr, { small: true });
+				server.publish("CONNECTION_UPDATE", qr);
 			}
 
 			if (connection === "close") {
 				const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
 
 				if (statusCode === DisconnectReason.loggedOut) {
-					logger.info("Connection Logged Out.");
+					server.publish("CONNECTION_UPDATE", "Connection Logged Out.");
 				} else {
-					logger.info("Connection closed.");
+					server.publish("CONNECTION_UPDATE", "Connection closed.");
 				}
 			}
 		}

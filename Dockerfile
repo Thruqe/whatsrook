@@ -15,6 +15,8 @@ COPY package.json ./
 RUN bun install
 COPY cli/ ./cli/
 COPY lib/ ./lib/
-COPY jsconfig.json ./
+COPY web/ ./web/
+COPY tsconfig.json ./
+RUN bun run build
 USER root
-CMD ["bun", "middleware"]
+CMD ["bun", "run", "web"]
