@@ -13,8 +13,9 @@ ENV PATH="/root/.bun/bin:$PATH"
 WORKDIR /app
 COPY package.json ./
 RUN bun install
-COPY cli/ ./cli/
-COPY lib/ ./lib/
+COPY cli.mts ./
+COPY web.mts ./
+COPY src/ ./src/
 COPY web/ ./web/
 COPY tsconfig.json ./
 RUN bun run build
