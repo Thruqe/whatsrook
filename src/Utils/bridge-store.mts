@@ -35,8 +35,16 @@ async function openDatabase(dbPath: string): Promise<DbAdapter> {
 }
 
 export async function useBridgeStore(
-	file = "session.db"
+	sessionNameOrFile?: string
 ): Promise<NonNullable<AuthenticationState["store"]>> {
+	let file = "session.db";
+	if (sessionNameOrFile) {
+		if (sessionNameOrFile.endsWith(".db")) {
+			file = sessionNameOrFile;
+		} else {
+			file = `session_${sessionNameOrFile}.db`;
+		}
+	}
 	const db = await openDatabase(file);
 
 	db.exec(`PRAGMA journal_mode = WAL`);
