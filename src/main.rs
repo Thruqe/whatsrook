@@ -1,13 +1,8 @@
+mod cli;
+mod ws;
+
 use std::{env, sync::Arc};
-use axum::{
-    Router,
-    extract::{
-        State, WebSocketUpgrade,
-        ws::{Message, WebSocket},
-    },
-    response::IntoResponse,
-    routing::get,
-};
+use axum::{Router, routing::get};
 use tokio::sync::broadcast;
 use tower_http::services::ServeDir;
 use wacore::{pair_code::{PairCodeOptions, PlatformId}, types::events::Event};
@@ -16,46 +11,43 @@ use whatsapp_rust::store::Backend;
 use whatsapp_rust_tokio_transport::TokioWebSocketTransportFactory;
 use whatsapp_rust_ureq_http_client::UreqHttpClient;
 
-#[derive(Clone)]
-struct AppState {
-    whatsapp_events_tx: broadcast::Sender<String>,
-    whatsapp_control_tx: broadcast::Sender<String>,
-}
+use cli::CliArgs;
+use ws::{WsState, ws_handler};
 
-struct CliArgs {
-    session: Option<String>,
-    pair: Option<String>,
-    qrcode: bool,
-    logout: bool,
-}
-
-fn parse_args() -> CliArgs {
-    let args: Vec<String> = env::args().collect();
-
-    let get_value = |flag: &str| -> Option<String> {
-        let index = args.iter().position(|a| a == flag)?;
-        args.get(index + 1).cloned()
-    };
-
-    CliArgs {
-        session: get_value("--session"),
-        pair: get_value("--pair"),
-        qrcode: args.contains(&"--qrcode".to_string()),
-        logout: args.contains(&"--logout".to_string()),
-    }
-}
+const AUTH_DIR: &str = "auth";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let cli = CliArgs::parse();
     let port = env::var("PORT").unwrap_or_else(|_| "3000".to_string());
 
-    let (whatsapp_events_tx, _) = broadcast::channel::<String>(256);
-    let (whatsapp_control_tx, _) = broadcast::channel::<String>(256);
+    tokio::fs::create_dir_all(AUTH_DIR).await?;
 
-    let state = AppState {
-        whatsapp_events_tx: whatsapp_events_tx.clone(),
-        whatsapp_control_tx: whatsapp_control_tx.clone(),
-    };
+    let db_path = format!("{AUTH_DIR}/{}.db", cli.session);
+
+    if cli.logout {
+    println!("Logging out session: {}", cli.session);
+    for suffix in ["", "-shm", "-wal"] {
+        let path = format!("{db_path}{suffix}");
+        match tokio::fs::remove_file(&path).await {
+            Ok(_) => {},
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => eprintln!("Failed to remove {path}: {e}"),
+        }
+    }
+    println!("Session cleared.");
+    return Ok(());
+}
+
+    let db_path_for_signal = db_path.clone();
+    tokio::spawn(async move {
+        shutdown_signal().await;
+        println!("\nShutting down...");
+        cleanup_db(&db_path_for_signal).await;
+        std::process::exit(0);
+    });
+
+    let ws_state = WsState::new();
 
     let serve_dir = ServeDir::new("web")
         .append_index_html_on_directories(true)
@@ -64,74 +56,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .route("/ws", get(ws_handler))
         .fallback_service(serve_dir)
-        .with_state(state);
+        .with_state(ws_state.clone());
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
-    println!("Listening on port {port}");
+    println!("Listening on port {port} | session: {}", cli.session);
 
-    let server_handle = tokio::spawn(async move {
+    tokio::spawn(async move {
         axum::serve(listener, app).await.unwrap();
     });
 
-    start_sock(whatsapp_events_tx, whatsapp_control_tx).await?;
+    start_session(db_path, cli, ws_state.events_tx).await?;
 
-    server_handle.await?;
     Ok(())
 }
 
-async fn ws_handler(
-    ws: WebSocketUpgrade,
-    State(state): State<AppState>,
-) -> impl IntoResponse {
-    ws.on_upgrade(|socket| handle_socket(socket, state))
-}
-
-async fn handle_socket(mut socket: WebSocket, state: AppState) {
-    println!("WebSocket client connected");
-
-    let mut events_rx = state.whatsapp_events_tx.subscribe();
-    let control_tx = state.whatsapp_control_tx.clone();
-
-    loop {
-        tokio::select! {
-            Ok(msg) = events_rx.recv() => {
-                if socket.send(Message::Text(msg.into())).await.is_err() {
-                    break;
-                }
-            }
-
-            Some(Ok(msg)) = socket.recv() => {
-                match msg {
-                    Message::Text(text) => {
-                        let _ = control_tx.send(text.to_string());
-                    }
-                    Message::Close(_) => break,
-                    _ => {}
-                }
-            }
-
-            else => break,
-        }
-    }
-
-    println!("WebSocket client disconnected");
-}
-
-async fn start_sock(
+async fn start_session(
+    db_path: String,
+    cli: CliArgs,
     events_tx: broadcast::Sender<String>,
-    _control_tx: broadcast::Sender<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let cli = parse_args();
-
-    if cli.logout {
-        let session = cli.session.as_deref().unwrap_or("whatsapp");
-        println!("Logging out session: {session}");
-        let _ = tokio::fs::remove_file(format!("{session}.db")).await;
-        println!("Session cleared.");
-        return Ok(());
-    }
-
-    let db_path = format!("{}.db", cli.session.as_deref().unwrap_or("whatsapp"));
     let backend: Arc<dyn Backend> = Arc::new(SqliteStore::new(&db_path).await?);
 
     let mut builder = Bot::builder()
@@ -151,40 +94,38 @@ async fn start_sock(
         });
     }
 
+    let show_qr = cli.qrcode;
+    let session = cli.session.clone();
+
     let mut bot = builder
         .on_event(move |event, _client| {
             let tx = events_tx.clone();
-            let show_qr = cli.qrcode;
+            let sname = session.clone();
             async move {
-                let connection_update_msg = match &event {
+                let update = match &event {
                     Event::PairingQrCode { code, .. } => {
-                        if show_qr {
-                            println!("QR Code:\n{code}");
-                        }
+                        if show_qr { println!("[{sname}] QR:\n{code}"); }
                         Some(code.clone())
                     }
                     Event::PairSuccess(_) => {
-                        println!("Paired successfully!");
+                        println!("[{sname}] Paired successfully!");
                         Some("Paired successfully!".to_string())
                     }
                     Event::PairError(_) => {
-                        println!("Pairing failed.");
+                        println!("[{sname}] Pairing failed.");
                         Some("Pairing failed.".to_string())
                     }
                     Event::LoggedOut(_) => {
-                        println!("Logged out.");
+                        println!("[{sname}] Logged out.");
                         Some("Connection Logged Out.".to_string())
                     }
-                    Event::Disconnected(_) => {
-                        Some("Connection closed.".to_string())
-                    }
+                    Event::Disconnected(_) => Some("Connection closed.".to_string()),
                     _ => None,
                 };
 
-                if let Some(msg) = connection_update_msg {
+                if let Some(msg) = update {
                     let _ = tx.send(msg);
                 }
-
                 if let Ok(json) = serde_json::to_string(&event) {
                     let _ = tx.send(json);
                 }
@@ -195,4 +136,40 @@ async fn start_sock(
 
     bot.run().await?.await?;
     Ok(())
+}
+
+async fn cleanup_db(db_path: &str) {
+    for suffix in ["-shm", "-wal"] {
+        let path = format!("{db_path}{suffix}");
+        match tokio::fs::remove_file(&path).await {
+            Ok(_) => {},
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => eprintln!("Failed to remove {path}: {e}"),
+        }
+    }
+}
+
+
+async fn shutdown_signal() {
+    use tokio::signal;
+
+    let ctrl_c = async {
+        signal::ctrl_c().await.expect("failed to listen for Ctrl+C");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
 }
