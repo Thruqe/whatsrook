@@ -12,14 +12,16 @@ impl CliArgs {
         let args: Vec<String> = env::args().collect();
 
         if args.contains(&"-h".to_string()) || args.contains(&"--help".to_string()) {
-            println!("Usage: zevBot --session <phone_number> [OPTIONS]
+            println!(
+                "Usage: zevBot --session <phone_number> [OPTIONS]
 
 Options:
   --session <phone>   Phone number used to identify the session (required)
   --pair <phone>      Request a pair code for the given phone number
   --qrcode            Print the QR code to stdout for scanning
   --logout            Remove the session auth files and exit
-  -h, --help          Show this help message");
+  -h, --help          Show this help message"
+            );
             std::process::exit(0);
         }
 
