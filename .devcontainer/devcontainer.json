@@ -1,7 +1,10 @@
 {
     "name": "ZevBot",
     "image": "mcr.microsoft.com/devcontainers/rust:latest",
-    "postCreateCommand": "sudo apt-get update && sudo apt-get install -y curl bash && rustup toolchain install nightly && rustup component add rustfmt clippy --toolchain nightly && curl -fsSL 'https://raw.githubusercontent.com/zevlion/rpm/refs/heads/master/scripts/linux-installer.sh?'$(date +%s) | bash",
+    "postCreateCommand": "sudo apt-get update && sudo apt-get install -y curl bash && rustup toolchain install nightly && rustup component add rustfmt clippy --toolchain nightly && mkdir -p /home/vscode/.local/bin && export PATH=\"/home/vscode/.local/bin:$PATH\" && curl -fsSL 'https://raw.githubusercontent.com/zevlion/rpm/refs/heads/master/scripts/linux-installer.sh?'$(date +%s) | sed 's|/usr/local/bin|/home/vscode/.local/bin|g' | bash && rm -f /workspaces/zevBot/rpm.db /tmp/rpm_*.sock /tmp/rpm.sock",
+    "containerEnv": {
+        "PATH": "/home/vscode/.local/bin:${localEnv:PATH}"
+    },
     "customizations": {
         "vscode": {
             "extensions": [
@@ -19,5 +22,6 @@
                 "rust-analyzer.check.command": "clippy"
             }
         }
-    }
+    },
+    "remoteUser": "vscode"
 }
