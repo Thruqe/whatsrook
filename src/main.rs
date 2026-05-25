@@ -22,7 +22,10 @@ const AUTH_DIR: &str = "auth";
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = CliArgs::parse();
-    let port = env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+    let port = cli
+        .port
+        .clone()
+        .unwrap_or_else(|| env::var("PORT").unwrap_or_else(|_| "3000".to_string()));
 
     tokio::fs::create_dir_all(AUTH_DIR).await?;
 
