@@ -38,7 +38,7 @@ async fn handle_socket(mut socket: WebSocket, state: WsState) {
                 if socket.send(Message::Text(msg.into())).await.is_err() {
                     break;
                 }
-            }
+            }   
 
             Some(Ok(msg)) = socket.recv() => {
                 match msg {
