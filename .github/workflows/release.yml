@@ -70,16 +70,30 @@ jobs:
     if: needs.check-version.outputs.changed != 'true'
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
       - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
           name: release-binary
+      - name: Get Commit Info
+        id: commit-info
+        run: |
+          echo "subject=$(git log -1 --format='%s')" >> $GITHUB_OUTPUT
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          git log -1 --format='%b' >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
       - name: Publish Alpha Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: alpha
-          name: "Alpha Build (Commit: ${{ github.sha }})"
+          name: "Alpha Build — ${{ steps.commit-info.outputs.subject }}"
+          body: |
+            **Commit:** ${{ github.sha }}
+
+            ${{ steps.commit-info.outputs.body }}
           prerelease: true
+          make_latest: false
           files: zevBot-linux-amd64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -89,14 +103,14 @@ jobs:
     if: needs.check-version.outputs.changed == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Download Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: release-binary
       - name: Checkout Code for Tagging
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-binary
       - name: Create Git Tag
         run: |
           git config --global user.name "github-actions[bot]"
