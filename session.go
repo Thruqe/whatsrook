@@ -14,7 +14,7 @@ import (
 )
 
 func runSession(ctx context.Context, client *whatsmeow.Client, cli CliArgs, hub *Hub) error {
-	client.AddEventHandler(func(evt interface{}) {
+	client.AddEventHandler(func(evt any) {
 		handleWAEvent(evt, cli, hub)
 	})
 
@@ -74,7 +74,7 @@ func runSession(ctx context.Context, client *whatsmeow.Client, cli CliArgs, hub 
 	}
 }
 
-func handleWAEvent(evt interface{}, cli CliArgs, hub *Hub) {
+func handleWAEvent(evt any, cli CliArgs, hub *Hub) {
 	switch v := evt.(type) {
 	case *events.QR:
 		// handled via qrChan above, but just in case
