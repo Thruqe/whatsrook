@@ -60,7 +60,6 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c := &wsClient{conn: conn, send: make(chan EventMessage, 64)}
 	c := &wsClient{
 		conn: conn,
 		send: make(chan EventMessage, 64),
