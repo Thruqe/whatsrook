@@ -12,7 +12,6 @@ import (
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
-	protoBuilder "google.golang.org/protobuf/proto"
 )
 
 // Bot holds shared state so handleControl can access both client and hub.
@@ -34,13 +33,13 @@ func (b *Bot) run(ctx context.Context) error {
 	switch b.cli.Client {
 	case ClientAndroid:
 		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_ANDROID_PHONE.Enum()
-		store.DeviceProps.Os = protoBuilder.String("Android")
+		store.DeviceProps.Os = new("Android")
 	case ClientIos:
 		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_IOS_PHONE.Enum()
-		store.DeviceProps.Os = protoBuilder.String("iOS")
+		store.DeviceProps.Os = new("iOS")
 	default: // ClientChrome
 		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_CHROME.Enum()
-		store.DeviceProps.Os = protoBuilder.String("Linux")
+		store.DeviceProps.Os = new("Linux")
 	}
 
 	if b.client.Store.ID == nil {
@@ -216,7 +215,7 @@ func (b *Bot) handleControl(ctx context.Context, ctrl ControlMessage) EventMessa
 		if p.QuoteID != nil && p.QuoteSender != nil {
 			msg = waE2E.Message{
 				ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-					Text: protoBuilder.String(p.Text),
+					Text: new(p.Text),
 					ContextInfo: &waE2E.ContextInfo{
 						StanzaID:    p.QuoteID,
 						Participant: p.QuoteSender,
@@ -224,7 +223,7 @@ func (b *Bot) handleControl(ctx context.Context, ctrl ControlMessage) EventMessa
 				},
 			}
 		} else {
-			msg = waE2E.Message{Conversation: protoBuilder.String(p.Text)}
+			msg = waE2E.Message{Conversation: new(p.Text)}
 		}
 		resp, err := b.client.SendMessage(ctx, jid, &msg)
 		if err != nil {
