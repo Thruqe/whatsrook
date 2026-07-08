@@ -17,7 +17,10 @@ func init() {
 
 func handleFacebook(ctx *Context) error {
 	if len(ctx.Args) == 0 {
-		return sendText(ctx, "Usage: !facebook <url>")
+		return sendText(ctx, "_Usage: !facebook <url>_")
+	}
+	if !isFacebookURL(ctx.Args[0]) {
+		return sendText(ctx, "_Invaild facebook url!_")
 	}
 	data, err := ember.Fetch(ctx.Ctx, ctx.Args[0])
 	if err != nil {

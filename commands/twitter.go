@@ -8,19 +8,19 @@ import (
 
 func init() {
 	Register(&Command{
-		Name:        "youtube",
-		Aliases:     []string{"yt"},
-		Description: "Download a YouTube video/short",
-		Handler:     handleYouTube,
+		Name:        "twitter",
+		Aliases:     []string{"x"},
+		Description: "Download a TikTok video",
+		Handler:     handleTwitter,
 	})
 }
 
-func handleYouTube(ctx *Context) error {
+func handleTwitter(ctx *Context) error {
 	if len(ctx.Args) == 0 {
-		return sendText(ctx, "_Usage: !youtube <url>_")
+		return sendText(ctx, "Usage: !twitter <url>")
 	}
-	if !isYouTubeURL(ctx.Args[0]) {
-		return sendText(ctx, "_Invaild youtube url!_")
+	if !isTwitterURL(ctx.Args[0]) {
+		return sendText(ctx, "_Invaild twitter url!_")
 	}
 	data, err := ember.Fetch(ctx.Ctx, ctx.Args[0])
 	if err != nil {

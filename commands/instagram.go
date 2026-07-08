@@ -17,7 +17,10 @@ func init() {
 
 func handleInstagram(ctx *Context) error {
 	if len(ctx.Args) == 0 {
-		return sendText(ctx, "Usage: !instagram <url>")
+		return sendText(ctx, "_Usage: !instagram <url>_")
+	}
+	if !isInstagramURL(ctx.Args[0]) {
+		return sendText(ctx, "_Invaild instagram url!_")
 	}
 	data, err := ember.Fetch(ctx.Ctx, ctx.Args[0])
 	if err != nil {
