@@ -4,10 +4,17 @@
     "remoteEnv": {
         "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
     },
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:1": {
+            "configureZshAsDefaultShell": false,
+            "upgradePackages": false,
+            "username": "vscode"
+        }
+    },
     "mounts": [
-        "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached"
+        "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig_shared,type=bind,consistency=cached"
     ],
-    "postCreateCommand": "sudo apt-get update && sudo apt-get install -y curl bash && sudo chown -R vscode:vscode /workspaces/zevBot && rustup toolchain install nightly && rustup component add rustfmt clippy --toolchain nightly && curl -fsSL 'https://raw.githubusercontent.com/zevlion/rpm/refs/heads/master/scripts/linux-installer.sh?'$(date +%s) | bash",
+    "postCreateCommand": "sudo apt-get update && sudo apt-get install -y curl bash && rustup toolchain install nightly && rustup component add rustfmt clippy --toolchain nightly && curl -fsSL 'https://raw.githubusercontent.com/zevlion/rpm/refs/heads/master/scripts/linux-installer.sh?'$(date +%s) | bash && git config --global include.path /home/vscode/.gitconfig_shared",
     "customizations": {
         "vscode": {
             "extensions": [
