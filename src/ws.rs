@@ -1,5 +1,8 @@
 use axum::{
-    extract::{State, WebSocketUpgrade, ws::{Message, WebSocket}},
+    extract::{
+        State, WebSocketUpgrade,
+        ws::{Message, WebSocket},
+    },
     response::IntoResponse,
 };
 use tokio::sync::broadcast;
@@ -14,14 +17,14 @@ impl WsState {
     pub fn new() -> Self {
         let (events_tx, _) = broadcast::channel::<String>(256);
         let (control_tx, _) = broadcast::channel::<String>(256);
-        Self { events_tx, control_tx }
+        Self {
+            events_tx,
+            control_tx,
+        }
     }
 }
 
-pub async fn ws_handler(
-    ws: WebSocketUpgrade,
-    State(state): State<WsState>,
-) -> impl IntoResponse {
+pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<WsState>) -> impl IntoResponse {
     ws.on_upgrade(|socket| handle_socket(socket, state))
 }
 
