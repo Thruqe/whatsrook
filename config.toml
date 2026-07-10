@@ -1,0 +1,20 @@
+[metadata]
+author = "zєνℓισи"
+primary_platform = "linux"
+supported_platform = "linux"
+
+[auth]
+strategy = "qr" # Alternative "pairing_code"
+qr_timeout_ms = 60000
+
+[connection]
+reconnect_on_failure = true
+max_retries = 5
+proxy_url = ""
+
+[media]
+auto_download = false # ["image", "video"]
+
+[features]
+enable_logs = true  # Disable for better performance
+bot_name = "zєνвσт"

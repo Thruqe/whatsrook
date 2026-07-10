@@ -1,12 +1,40 @@
 import P from "pino";
-import { exec } from "node:child_process";
-import { promisify } from "node:util";
-import { writeFileSync, unlinkSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { promisify } from "node:util";
+import { exec } from "node:child_process";
+import { writeFileSync, unlinkSync, readFileSync } from "node:fs";
+import { parse } from "smol-toml";
 import { getAudioDuration } from "../lib";
 
+interface BotConfig {
+  metadata: {
+    author: string;
+    primary_platform: string;
+    supported_platform: string;
+  };
+  auth: {
+    strategy: "pairing_code" | "qr";
+    qr_timeout_ms: number;
+  };
+  connection: {
+    reconnect_on_failure: boolean;
+    max_retries: number;
+    proxy_url: string;
+  };
+  media: {
+    auto_download: boolean;
+  };
+  features: {
+    enable_logs: boolean;
+    bot_name: string;
+  };
+}
+
 const execPromise = promisify(exec);
+
+const rawConfig = readFileSync("./config.toml", "utf-8");
+export const config = parse(rawConfig) as unknown as BotConfig;
 
 export const logger = P({
   level: "trace",
