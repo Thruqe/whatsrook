@@ -16,15 +16,11 @@
 		"/run/user/1000/gnupg/S.gpg-agent:/root/.gnupg/S.gpg-agent"
 	],
 
-	"postCreateCommand": "apt-get update && apt-get install -y ffmpeg libwebp-dev curl bash python3 python3-pip && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && chmod a+rx /usr/local/bin/yt-dlp && curl -fsSL https://bun.sh/install | bash && curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash && export NVM_DIR=\"$HOME/.nvm\" && [ -s \"$NVM_DIR/nvm.sh\" ] && \\. \"$NVM_DIR/nvm.sh\" && nvm install node && npm i -g pm2",
+	"postCreateCommand": "apt-get update && apt-get install -y ffmpeg libwebp-dev curl bash unzip && curl -fsSL https://bun.sh/install | bash",
 
 	"customizations": {
 		"vscode": {
-			"extensions": [
-				"esbenp.prettier-vscode",
-				"yy0931.vscode-sqlite3-editor",
-				"tamasfe.even-better-toml"
-			],
+			"extensions": ["esbenp.prettier-vscode", "yy0931.vscode-sqlite3-editor"],
 			"settings": {
 				"editor.defaultFormatter": "esbenp.prettier-vscode",
 				"editor.formatOnSave": true
