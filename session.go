@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/Thruqe/zevBot/commands"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCompanionReg"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -184,6 +185,11 @@ func (b *Bot) handleWAEvent(evt any) {
 		from := v.Info.Sender.String()
 		msgID := v.Info.ID
 		slog.Info("message", "from", from, "text", text)
+
+		if commands.Dispatch(context.Background(), b.client, v) {
+			return // don't broadcast raw text if it was a command
+		}
+
 		b.hub.Broadcast(EventMessage{
 			Kind: EventIncomingMessage,
 			Payload: map[string]any{
