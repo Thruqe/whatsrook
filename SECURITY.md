@@ -1,13 +1,35 @@
-## Security and Acceptable Use Policy
+# Security Policy
 
-### 1. Cryptographic and Authentication Material Management
-Contributors must ensure that all forms of authentication information, including cryptographic keys, session tokens, and user credentials, are persistently stored utilizing industry-standard encrypted storage mechanisms. Under no circumstances should raw authentication data be committed to the repository, hardcoded within the source files, or logged in plaintext outputs. All developers are required to utilize environmental variables and secure secret management utilities to handle sensitive configuration parameters.
+## 1. Credentials and Secrets
 
-### 2. Memory Integrity and Application Stability
-Given the execution requirements of continuous messaging clients, developers must exercise rigorous memory management protocols within their contributions. Code submissions must be thoroughly evaluated to prevent memory leaks, improper resource allocation, and unchecked pointer dereferences. All submitted code must gracefully handle object lifecycle management and memory deallocation to maintain the optimal performance and availability of the software over extended operational periods.
+Never commit or hardcode credentials — API keys, session tokens, auth data, or anything sensitive. Don't log them in plaintext either.
 
-### 3. Prohibition of Social Engineering Vectors
-The architectural intent of this application is strictly to facilitate automated utility and programmatic communication. Developers and users are categorically prohibited from integrating or deploying logic designed to deceive, manipulate, or coerce individuals into divulging confidential information. Any programmatic attempt to execute phishing campaigns, pretexting, or other deceptive social engineering practices is a direct violation of the software's operational mandate.
+- Use environment variables or a proper secret manager for config.
+- Store persisted auth data (sessions, tokens) encrypted at rest.
 
-### 4. Acceptable Operational Use and Anti-Harassment
-This software interfaces directly with the WhatsApp network and its human user base, requiring operators to strictly adhere to ethical deployment guidelines. The application shall not be configured, deployed, or modified to facilitate the stalking, non-consensual monitoring, or harassment of any individual. Furthermore, utilizing the software to disseminate threats, abusive content, or unsolicited malicious payloads is strictly forbidden and actively discouraged by the project maintainers.
+## 2. Memory Safety and Stability
+
+WhatsRook runs as a long-lived messaging client, so contributions need to be memory-safe:
+
+- No memory leaks or unbounded resource growth
+- No unchecked pointer dereferences
+- Proper cleanup of connections, goroutines, and object lifecycles
+
+Code that could degrade performance or stability over long uptimes won't be merged as-is.
+
+## 3. No Social Engineering
+
+WhatsRook exists to enable legitimate automation, not deception. Contributions or usage that build phishing flows, pretexting, or any logic designed to trick people into giving up private information are not allowed and will be rejected.
+
+## 4. Acceptable Use
+
+WhatsRook talks directly to real people over WhatsApp — treat that responsibly.
+
+Do not use it to:
+- Stalk or covertly monitor someone
+- Harass, threaten, or send abusive content
+- Send unsolicited spam or malicious payloads
+
+## Reporting a Vulnerability
+
+If you find a security issue, please open an issue or contact the maintainers directly rather than disclosing it publicly.
