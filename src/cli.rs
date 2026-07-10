@@ -7,6 +7,7 @@ pub struct CliArgs {
     pub auth_dir: Option<String>,
     pub qrcode: bool,
     pub logout: bool,
+    pub debug: bool,
 }
 
 impl CliArgs {
@@ -24,6 +25,7 @@ Options:
   --auth-dir <path>     Directory to store session auth files (default: ./auth)
   --qrcode              Print the QR code to stdout for scanning
   --logout              Remove the session auth files and exit
+  --debug               Enable debug logging
   -h, --help            Show this help message"
             );
             std::process::exit(0);
@@ -46,6 +48,7 @@ Options:
             auth_dir: get_value("--auth-dir"),
             qrcode: args.contains(&"--qrcode".to_string()),
             logout: args.contains(&"--logout".to_string()),
+            debug: args.contains(&"--debug".to_string()),
         }
     }
 }
