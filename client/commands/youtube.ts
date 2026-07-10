@@ -401,7 +401,7 @@ registerCommand([
 				searchState.delete(jid);
 
 				const url = `https://www.youtube.com/watch?v=${selected?.id}`;
-				mediaTypeState.set(jid, { url, title: selected?.title! });
+				mediaTypeState.set(jid, { url, title: selected?.title ?? "" });
 
 				await msg.client.sendMessage(jid, {
 					text: `*${selected?.title}*\n\nWhat would you like?\n\n*1* - Video\n*2* - Audio`
