@@ -3,5 +3,3 @@ node_modules
 *.db-shm
 *.db-wal
 *.lock
-logs.txt
-tmp

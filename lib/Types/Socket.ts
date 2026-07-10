@@ -23,11 +23,11 @@ export type SocketConfig = {
 
 	connectTimeoutMs: number;
 
-	defaultQueryTimeoutMs: number | undefined;
+	defaultQueryTimeoutMs?: number;
 
 	keepAliveIntervalMs: number;
 
-	logger: ILogger;
+	logger?: ILogger;
 
 	version: WAVersion;
 
