@@ -5,22 +5,26 @@
         "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
     },
     "mounts": [
-        "source=${localEnv:HOME}/.gitconfig,target=/root/.gitconfig,type=bind,consistency=cached"
+        "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached"
     ],
-    "postCreateCommand": "apt-get update && apt-get install -y ffmpeg libwebp-dev curl bash && curl -fsSL 'https://raw.githubusercontent.com/zevlion/rpm/refs/heads/master/scripts/linux-installer.sh?'$(date +%s) | bash",
+    "postCreateCommand": "sudo apt-get update && sudo apt-get install -y curl bash && sudo chown -R vscode:vscode /workspaces/zevBot && rustup toolchain install nightly && rustup component add rustfmt clippy --toolchain nightly && curl -fsSL 'https://raw.githubusercontent.com/zevlion/rpm/refs/heads/master/scripts/linux-installer.sh?'$(date +%s) | bash",
     "customizations": {
         "vscode": {
             "extensions": [
                 "rust-lang.rust-analyzer",
-                "yy0931.vscode-sqlite3-editor"
+                "yy0931.vscode-sqlite3-editor",
+                "ms-vscode.live-server",
+                "esbenp.prettier-vscode",
             ],
             "settings": {
                 "editor.formatOnSave": true,
                 "[rust]": {
-                    "editor.defaultFormatter": "rust-lang.rust-analyzer"
-                }
+                    "editor.defaultFormatter": "rust-lang.rust-analyzer",
+                    "editor.formatOnSave": true
+                },
+                "rust-analyzer.check.command": "clippy"
             }
         }
     },
-    "remoteUser": "root"
+    "remoteUser": "vscode"
 }

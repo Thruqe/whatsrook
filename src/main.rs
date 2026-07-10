@@ -1,13 +1,16 @@
 mod cli;
 mod ws;
 
-use std::{env, sync::Arc};
 use axum::{Router, routing::get};
+use std::{env, sync::Arc};
 use tokio::sync::broadcast;
 use tower_http::services::ServeDir;
-use wacore::{pair_code::{PairCodeOptions, PlatformId}, types::events::Event};
-use whatsapp_rust::{TokioRuntime, bot::Bot, store::SqliteStore};
+use wacore::{
+    pair_code::{PairCodeOptions, PlatformId},
+    types::events::Event,
+};
 use whatsapp_rust::store::Backend;
+use whatsapp_rust::{TokioRuntime, bot::Bot, store::SqliteStore};
 use whatsapp_rust_tokio_transport::TokioWebSocketTransportFactory;
 use whatsapp_rust_ureq_http_client::UreqHttpClient;
 
@@ -26,18 +29,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_path = format!("{AUTH_DIR}/{}.db", cli.session);
 
     if cli.logout {
-    println!("Logging out session: {}", cli.session);
-    for suffix in ["", "-shm", "-wal"] {
-        let path = format!("{db_path}{suffix}");
-        match tokio::fs::remove_file(&path).await {
-            Ok(_) => {},
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => eprintln!("Failed to remove {path}: {e}"),
+        println!("Logging out session: {}", cli.session);
+        for suffix in ["", "-shm", "-wal"] {
+            let path = format!("{db_path}{suffix}");
+            match tokio::fs::remove_file(&path).await {
+                Ok(_) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => eprintln!("Failed to remove {path}: {e}"),
+            }
         }
+        println!("Session cleared.");
+        return Ok(());
     }
-    println!("Session cleared.");
-    return Ok(());
-}
 
     let db_path_for_signal = db_path.clone();
     tokio::spawn(async move {
@@ -104,7 +107,9 @@ async fn start_session(
             async move {
                 let update = match &event {
                     Event::PairingQrCode { code, .. } => {
-                        if show_qr { println!("[{sname}] QR:\n{code}"); }
+                        if show_qr {
+                            println!("[{sname}] QR:\n{code}");
+                        }
                         Some(code.clone())
                     }
                     Event::PairSuccess(_) => {
@@ -142,13 +147,12 @@ async fn cleanup_db(db_path: &str) {
     for suffix in ["-shm", "-wal"] {
         let path = format!("{db_path}{suffix}");
         match tokio::fs::remove_file(&path).await {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(e) => eprintln!("Failed to remove {path}: {e}"),
         }
     }
 }
-
 
 async fn shutdown_signal() {
     use tokio::signal;
