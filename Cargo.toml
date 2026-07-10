@@ -12,6 +12,5 @@ wacore = "0.5"
 waproto = "0.5"
 tokio = { version = "1.48", features = ["full"] }
 axum = { version = "0.8", features = ["ws"] }
-tower-http = { version = "0.6", features = ["fs"] }
 serde_json = "1"
 tokio-stream = "0.1"
