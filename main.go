@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/Thruqe/zevBot/store/sqlstore"
+	"github.com/Thruqe/whatsrook/store/sqlstore"
 	_ "github.com/mattn/go-sqlite3"
 	"go.mau.fi/whatsmeow"
 	waLog "go.mau.fi/whatsmeow/util/log"

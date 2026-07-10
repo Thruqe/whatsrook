@@ -44,7 +44,7 @@ func parseArgs() CliArgs {
 
 	for _, a := range args {
 		if a == "-h" || a == "--help" {
-			fmt.Print(`Usage: zevBot --session <phone_number> [OPTIONS]
+			fmt.Print(`Usage: whatsrook --session <phone_number> [OPTIONS]
 
 Options:
   --session <phone>     Phone number used to identify the session (required)

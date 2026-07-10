@@ -3,7 +3,7 @@ package commands
 import (
 	"fmt"
 
-	"github.com/Thruqe/zevBot/ember"
+	"github.com/Thruqe/whatsrook/ember"
 )
 
 func init() {
