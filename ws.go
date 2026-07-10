@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -75,10 +76,18 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 
 	// writer goroutine
 	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
+			case <-ticker.C:
+				// Send a keep-alive ping so upstream proxies can detect dead connections
+				if err := conn.Ping(ctx); err != nil {
+					cancel()
+					return
+				}
 			case msg := <-c.send:
 				if err := wsjson.Write(ctx, conn, msg); err != nil {
 					cancel()
