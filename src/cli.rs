@@ -4,6 +4,7 @@ pub struct CliArgs {
     pub session: String,
     pub pair: Option<String>,
     pub port: Option<String>,
+    pub auth_dir: Option<String>,
     pub qrcode: bool,
     pub logout: bool,
 }
@@ -17,12 +18,13 @@ impl CliArgs {
                 "Usage: zevBot --session <phone_number> [OPTIONS]
 
 Options:
-  --session <phone>   Phone number used to identify the session (required)
-  --pair <phone>      Request a pair code for the given phone number
-  --port <port>       Specify the HTTP/WebSocket port
-  --qrcode            Print the QR code to stdout for scanning
-  --logout            Remove the session auth files and exit
-  -h, --help          Show this help message"
+  --session <phone>     Phone number used to identify the session (required)
+  --pair <phone>        Request a pair code for the given phone number
+  --port <port>         Specify the HTTP/WebSocket port
+  --auth-dir <path>     Directory to store session auth files (default: ./auth)
+  --qrcode              Print the QR code to stdout for scanning
+  --logout              Remove the session auth files and exit
+  -h, --help            Show this help message"
             );
             std::process::exit(0);
         }
@@ -41,6 +43,7 @@ Options:
             session,
             pair: get_value("--pair"),
             port: get_value("--port"),
+            auth_dir: get_value("--auth-dir"),
             qrcode: args.contains(&"--qrcode".to_string()),
             logout: args.contains(&"--logout".to_string()),
         }

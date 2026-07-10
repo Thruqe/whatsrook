@@ -16,8 +16,6 @@ use whatsapp_rust_ureq_http_client::UreqHttpClient;
 use cli::CliArgs;
 use ws::{WsState, ws_handler};
 
-const AUTH_DIR: &str = "auth";
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = CliArgs::parse();
@@ -26,9 +24,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .clone()
         .unwrap_or_else(|| env::var("PORT").unwrap_or_else(|_| "3000".to_string()));
 
-    tokio::fs::create_dir_all(AUTH_DIR).await?;
+    let auth_dir = cli.auth_dir.clone().unwrap_or_else(|| "auth".to_string());
 
-    let db_path = format!("{AUTH_DIR}/{}.db", cli.session);
+    tokio::fs::create_dir_all(&auth_dir).await?;
+
+    let db_path = format!("{auth_dir}/{}.db", cli.session);
 
     if cli.logout {
         println!("Logging out session: {}", cli.session);
@@ -54,7 +54,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let ws_state = WsState::new();
 
-    // Minimal router
     let app = Router::new()
         .route("/ws", get(ws_handler))
         .with_state(ws_state.clone());
