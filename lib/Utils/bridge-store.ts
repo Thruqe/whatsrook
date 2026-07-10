@@ -1,6 +1,5 @@
 import type { AuthenticationState } from "../Types/index.ts";
 
-// Minimal DB adapter interface — implemented by both Bun and Node drivers
 // Covers every type both bun:sqlite and better-sqlite3 accept as a binding
 type SqlBinding =
   | string
@@ -24,39 +23,37 @@ interface DbAdapter {
 }
 
 async function openDatabase(dbPath: string): Promise<DbAdapter> {
-  // Bun exposes globalThis.Bun
   if (typeof globalThis.Bun !== "undefined") {
-    // Dynamic import keeps this tree-shakeable in Node environments
     const { Database } = await import("bun:sqlite");
     const db = new Database(dbPath, { create: true });
-
-    // Wrap Bun's API to match DbAdapter
     return {
-      exec: (sql: string) => db.run(sql),
+      exec: (sql: string) => db.exec(sql),
       prepare: (sql: string) => {
         const stmt = db.prepare(sql);
         return {
-          run: (...args: any[]) => stmt.run(...args),
-          get: (...args: any[]) => stmt.get(...args),
-          all: (...args: any[]) => stmt.all(...args),
+          run: (...args: SqlBinding[]) =>
+            stmt.run(...(args as Parameters<typeof stmt.run>)),
+          get: (...args: SqlBinding[]) =>
+            stmt.get(...(args as Parameters<typeof stmt.get>)),
+          all: (...args: SqlBinding[]) =>
+            stmt.all(...(args as Parameters<typeof stmt.all>)),
         };
       },
       close: () => db.close(),
     };
   }
 
-  // Node.js — requires: npm i better-sqlite3 / yarn add better-sqlite3
+  // Node.js — requires: npm i better-sqlite3
   const BetterSqlite3 = (await import("better-sqlite3")).default;
   const db = new BetterSqlite3(dbPath);
-
   return {
     exec: (sql: string) => db.exec(sql),
     prepare: (sql: string) => {
       const stmt = db.prepare(sql);
       return {
-        run: (...args: unknown[]) => stmt.run(...args),
-        get: (...args: unknown[]) => stmt.get(...args),
-        all: (...args: unknown[]) => stmt.all(...args),
+        run: (...args: SqlBinding[]) => stmt.run(...args),
+        get: (...args: SqlBinding[]) => stmt.get(...args),
+        all: (...args: SqlBinding[]) => stmt.all(...args),
       };
     },
     close: () => db.close(),
@@ -70,12 +67,15 @@ async function openDatabase(dbPath: string): Promise<DbAdapter> {
 /**
  * Creates a SQLite-backed store for the WASM bridge.
  *
- * Schema: a single `kv` table keyed by (store, key) → BLOB value.
+ * Each unique store name the bridge passes at runtime becomes its own table:
+ *   CREATE TABLE "<store>" (key TEXT PRIMARY KEY, value BLOB NOT NULL)
+ *
+ * Tables are created on first access and their prepared statements are cached,
+ * so subsequent calls pay zero DDL overhead.
  *
  * Behaviour preserved from the file-based implementation:
  *  - Write-through in-memory LRU cache (5 000 entries)
  *  - Critical stores (session / identity / device) are written synchronously
- *    (WAL mode + synchronous=NORMAL gives adequate crash safety)
  *  - Non-critical writes are coalesced with a 50 ms debounce
  *  - flush() drains all pending debounced writes
  */
@@ -84,26 +84,54 @@ export async function useBridgeStore(
 ): Promise<NonNullable<AuthenticationState["store"]>> {
   const db = await openDatabase(dbFile);
 
-  // WAL mode for better concurrent read performance and crash safety
   db.exec(`PRAGMA journal_mode = WAL`);
   db.exec(`PRAGMA synchronous = NORMAL`);
 
-  db.exec(`
-		CREATE TABLE IF NOT EXISTS kv (
-			store TEXT NOT NULL,
-			key   TEXT NOT NULL,
-			value BLOB NOT NULL,
-			PRIMARY KEY (store, key)
-		)
-	`);
+  // ------------------------------------------------------------------
+  // Dynamic per-store table management
+  // ------------------------------------------------------------------
 
-  const stmtGet = db.prepare(
-    `SELECT value FROM kv WHERE store = ? AND key = ?`,
-  );
-  const stmtSet =
-    db.prepare(`INSERT INTO kv (store, key, value) VALUES (?, ?, ?)
-	                               ON CONFLICT (store, key) DO UPDATE SET value = excluded.value`);
-  const stmtDelete = db.prepare(`DELETE FROM kv WHERE store = ? AND key = ?`);
+  // Guard against SQL injection: store names come from the WASM bridge
+  // and are interpolated into DDL, so we restrict to safe identifiers.
+  const SAFE_TABLE_NAME = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+  interface StoreStatements {
+    get: DbStatement;
+    set: DbStatement;
+    del: DbStatement;
+  }
+
+  const stmtCache = new Map<string, StoreStatements>();
+
+  const ensureTable = (store: string): StoreStatements => {
+    const hit = stmtCache.get(store);
+    if (hit) return hit;
+
+    if (!SAFE_TABLE_NAME.test(store)) {
+      throw new Error(
+        `Invalid store name: "${store}". Only alphanumeric characters and underscores are allowed.`,
+      );
+    }
+
+    db.exec(`
+			CREATE TABLE IF NOT EXISTS "${store}" (
+				key   TEXT NOT NULL PRIMARY KEY,
+				value BLOB NOT NULL
+			)
+		`);
+
+    const stmts: StoreStatements = {
+      get: db.prepare(`SELECT value FROM "${store}" WHERE key = ?`),
+      set: db.prepare(
+        `INSERT INTO "${store}" (key, value) VALUES (?, ?)
+				 ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+      ),
+      del: db.prepare(`DELETE FROM "${store}" WHERE key = ?`),
+    };
+
+    stmtCache.set(store, stmts);
+    return stmts;
+  };
 
   // ------------------------------------------------------------------
   // LRU write-through cache
@@ -140,7 +168,7 @@ export async function useBridgeStore(
     if (!pending) return;
     clearTimeout(pending.timer);
     pendingWrites.delete(cacheKey);
-    stmtSet.run(pending.store, pending.key, pending.value);
+    ensureTable(pending.store).set.run(pending.key, pending.value);
   };
 
   const flushAll = () => {
@@ -163,10 +191,12 @@ export async function useBridgeStore(
       const pending = pendingWrites.get(cacheKey);
       if (pending) return pending.value;
 
-      const row = stmtGet.get(store, key) as { value: Uint8Array } | undefined;
+      const row = ensureTable(store).get.get(key) as
+        | { value: Uint8Array }
+        | undefined;
       if (!row) return null;
 
-      // SQLite drivers return Buffer (Node) or Uint8Array (Bun); normalise
+      // Normalise: better-sqlite3 returns Buffer, bun:sqlite returns Uint8Array
       const arr =
         row.value instanceof Uint8Array
           ? row.value
@@ -204,7 +234,7 @@ export async function useBridgeStore(
           clearTimeout(existing.timer);
           pendingWrites.delete(cacheKey);
         }
-        stmtSet.run(store, key, value);
+        ensureTable(store).set.run(key, value);
         return;
       }
 
@@ -231,7 +261,7 @@ export async function useBridgeStore(
         pendingWrites.delete(cacheKey);
       }
 
-      stmtDelete.run(store, key);
+      ensureTable(store).del.run(key);
     },
 
     /**
