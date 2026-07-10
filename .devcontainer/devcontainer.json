@@ -1,24 +1,26 @@
 {
-	"name": "ZevBot",
-	"image": "mcr.microsoft.com/devcontainers/base:noble",
-	"remoteEnv": {
-		"LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
-	},
-	"mounts": [
-		"source=${localEnv:HOME}/.gitconfig,target=/root/.gitconfig,type=bind,consistency=cached"
-	],
-	"postCreateCommand": "apt-get update && apt-get install -y ffmpeg libwebp-dev curl bash unzip && curl -fsSL https://bun.sh/install | bash && curl -L https://github.com/zevlion/rpm2/releases/download/latest/rpm2 -o rpm2 && chmod +x rpm2 && mv rpm2 /usr/local/bin/rpm2",
-	"customizations": {
-		"vscode": {
-			"extensions": [
-				"esbenp.prettier-vscode",
-				"yy0931.vscode-sqlite3-editor"
-			],
-			"settings": {
-				"editor.defaultFormatter": "esbenp.prettier-vscode",
-				"editor.formatOnSave": true
-			}
-		}
-	},
-	"remoteUser": "root"
+    "name": "ZevBot",
+    "image": "mcr.microsoft.com/devcontainers/rust:latest",
+    "remoteEnv": {
+        "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
+    },
+    "mounts": [
+        "source=${localEnv:HOME}/.gitconfig,target=/root/.gitconfig,type=bind,consistency=cached"
+    ],
+    "postCreateCommand": "apt-get update && apt-get install -y ffmpeg libwebp-dev curl bash && curl -fsSL 'https://raw.githubusercontent.com/zevlion/rpm/refs/heads/master/scripts/linux-installer.sh?'$(date +%s) | bash",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "rust-lang.rust-analyzer",
+                "yy0931.vscode-sqlite3-editor"
+            ],
+            "settings": {
+                "editor.formatOnSave": true,
+                "[rust]": {
+                    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+                }
+            }
+        }
+    },
+    "remoteUser": "root"
 }
