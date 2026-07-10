@@ -1,8 +1,8 @@
 import os from "node:os";
 import { join } from "node:path";
 import { readFileSync } from "node:fs";
-import { registerCommand, getCommands } from "../plugin";
-import type { Command } from "../plugin";
+import { registerCommand, getCommands } from "../plugins";
+import type { Command } from "../plugins";
 import type { SerializedMessage } from "../serialize";
 import { config } from "../util";
 
@@ -32,14 +32,14 @@ const FANCY_MAP: Record<string, string> = {
 	w: "ᴡ",
 	x: "x",
 	y: "ʏ",
-	z: "ᴢ"
+	z: "ᴢ",
 };
 
 function fancy(text: string): string {
 	return text
 		.toLowerCase()
 		.split("")
-		.map(c => FANCY_MAP[c] ?? c)
+		.map((c) => FANCY_MAP[c] ?? c)
 		.join("");
 }
 
@@ -64,7 +64,7 @@ function getVersion(): string {
 	try {
 		const pkg = readFileSync(
 			join(import.meta.dir, "../../package.json"),
-			"utf-8"
+			"utf-8",
 		);
 		return JSON.parse(pkg).version ?? "1.0.0";
 	} catch {
@@ -121,5 +121,5 @@ registerCommand({
 		}
 
 		await client.sendMessage(remoteJid, { text: text.trimEnd() });
-	}
+	},
 });
