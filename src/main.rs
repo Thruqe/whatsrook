@@ -4,14 +4,23 @@ mod utils;
 mod ws;
 
 use axum::{Router, routing::get};
-use std::{env, sync::Arc};
-use wacore::{pair_code::PairCodeOptions, store::DevicePropsOverride, types::events::Event};
-use waproto::whatsapp::device_props::PlatformType;
-use whatsapp_rust::pair::CompanionWebClientType;
-use whatsapp_rust::store::Backend;
-use whatsapp_rust::{ClientProfile, TokioRuntime, bot::Bot, store::SqliteStore};
-use whatsapp_rust_tokio_transport::TokioWebSocketTransportFactory;
-use whatsapp_rust_ureq_http_client::UreqHttpClient;
+use std::env;
+use whatsapp_rust::{
+    ClientProfile, TokioRuntime,
+    bot::Bot,
+    http::UreqHttpClient,
+    pair::CompanionWebClientType,
+    send::RevokeType,
+    store::SqliteStore,
+    transport::TokioWebSocketTransportFactory,
+    wacore::{
+        pair_code::PairCodeOptions,
+        proto_helpers::{MessageExt, build_quote_context},
+        store::DevicePropsOverride,
+        types::events::Event,
+    },
+    waproto::whatsapp::{self as wa, device_props::PlatformType},
+};
 
 use cli::CliArgs;
 use messages::{ControlMessage, ControlType, EventMessage, EventType, Payload};
@@ -38,7 +47,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|| env::var("PORT").unwrap_or_else(|_| "3000".to_string()));
 
     let auth_dir = cli.auth_dir.clone().unwrap_or_else(|| "auth".to_string());
-
     tokio::fs::create_dir_all(&auth_dir).await?;
 
     let db_path = format!("{auth_dir}/{}.db", cli.session);
@@ -66,7 +74,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let ws_state = WsState::new();
-
     let app = Router::new()
         .route("/ws", get(ws_handler))
         .with_state(ws_state.clone());
@@ -79,7 +86,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     start_session(db_path, cli, ws_state).await?;
-
     Ok(())
 }
 
@@ -91,7 +97,7 @@ async fn start_session(
     let events_tx = ws_state.events_tx.clone();
     let mut control_rx = ws_state.control_tx.subscribe();
 
-    let backend: Arc<dyn Backend> = Arc::new(SqliteStore::new(&db_path).await?);
+    let backend = SqliteStore::new(&db_path).await?;
 
     let mut builder = Bot::builder()
         .with_backend(backend)
@@ -117,7 +123,7 @@ async fn start_session(
     let show_qr = cli.qrcode;
     let session = cli.session.clone();
 
-    let mut bot = builder
+    let bot = builder
         .on_event(move |event, _client| {
             let tx = events_tx.clone();
             let sname = session.clone();
@@ -173,6 +179,23 @@ async fn start_session(
                             Payload::Empty {},
                         ))
                     }
+                    Event::Message(wa_msg, info) => {
+                        let text = wa_msg
+                            .text_content()
+                            .map(|s| s.to_string())
+                            .unwrap_or_default();
+                        let from = info.source.sender.to_string();
+                        let message_id = info.id.clone();
+                        tracing::info!("[{sname}] Message from {from}: {text}");
+                        Some(EventMessage::event(
+                            EventType::Message,
+                            Payload::IncomingMessage {
+                                from,
+                                text,
+                                message_id,
+                            },
+                        ))
+                    }
                     _ => {
                         tracing::debug!("[{sname}] Event: {:?}", event);
                         None
@@ -191,28 +214,162 @@ async fn start_session(
 
     let client = bot.client();
 
-    // Spawn control message handler
     tokio::spawn(async move {
         while let Ok(raw) = control_rx.recv().await {
-            if let Ok(ctrl) = serde_json::from_str::<ControlMessage>(&raw) {
-                match ctrl.kind {
-                    ControlType::SendMessage => {
-                        //   if let Payload::SendMessage { to, text } = ctrl.payload {
-                        // tracing::info!("Sending message to {to}: {text}");
-                        //  client.send_message(to.parse(), messages::Ex).await
-                        //  }
+            let ctrl = match serde_json::from_str::<ControlMessage>(&raw) {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::warn!("Bad control message: {e}");
+                    continue;
+                }
+            };
+
+            match ctrl.kind {
+                ControlType::SendMessage => {
+                    if let Payload::SendMessage {
+                        to,
+                        text,
+                        quote_id,
+                        quote_sender,
+                    } = ctrl.payload
+                    {
+                        let to_jid: whatsapp_rust::Jid = match to.parse() {
+                            Ok(j) => j,
+                            Err(e) => {
+                                tracing::warn!("Invalid JID '{to}': {e}");
+                                continue;
+                            }
+                        };
+                        let message = if let (Some(qid), Some(qsender)) = (quote_id, quote_sender) {
+                            let context =
+                                build_quote_context(&qid, &qsender, &wa::Message::default());
+                            wa::Message {
+                                extended_text_message: Some(Box::new(
+                                    wa::message::ExtendedTextMessage {
+                                        text: Some(text),
+                                        context_info: Some(Box::new(context)),
+                                        ..Default::default()
+                                    },
+                                )),
+                                ..Default::default()
+                            }
+                        } else {
+                            wa::Message {
+                                conversation: Some(text),
+                                ..Default::default()
+                            }
+                        };
+                        match client.send_message(to_jid, message).await {
+                            Ok(r) => tracing::info!("Sent: {}", r.message_id),
+                            Err(e) => tracing::error!("Send failed: {e}"),
+                        }
                     }
-                    ControlType::GetStatus => {
-                        tracing::info!("Status requested");
+                }
+
+                ControlType::SendReaction => {
+                    if let Payload::SendReaction {
+                        to,
+                        message_id,
+                        sender,
+                        emoji,
+                    } = ctrl.payload
+                    {
+                        let to_jid: whatsapp_rust::Jid = match to.parse() {
+                            Ok(j) => j,
+                            Err(e) => {
+                                tracing::warn!("Invalid JID '{to}': {e}");
+                                continue;
+                            }
+                        };
+
+                        let target_key = wa::MessageKey {
+                            remote_jid: Some(to.clone()),
+                            from_me: None,
+                            id: Some(message_id.clone()),
+                            participant: sender.clone(),
+                        };
+                        match client.send_reaction(&to_jid, target_key, &emoji).await {
+                            Ok(_) => tracing::info!("Reaction '{emoji}' sent"),
+                            Err(e) => tracing::error!("Reaction failed: {e}"),
+                        }
                     }
-                    ControlType::Disconnect => {
-                        tracing::info!("Disconnect requested");
-                        client.disconnect().await
+                }
+
+                ControlType::EditMessage => {
+                    if let Payload::EditMessage {
+                        to,
+                        message_id,
+                        new_text,
+                    } = ctrl.payload
+                    {
+                        let to_jid: whatsapp_rust::Jid = match to.parse() {
+                            Ok(j) => j,
+                            Err(e) => {
+                                tracing::warn!("Invalid JID '{to}': {e}");
+                                continue;
+                            }
+                        };
+                        let new_content = wa::Message {
+                            conversation: Some(new_text),
+                            ..Default::default()
+                        };
+                        match client.edit_message(to_jid, &message_id, new_content).await {
+                            Ok(id) => tracing::info!("Edited, new id: {id}"),
+                            Err(e) => tracing::error!("Edit failed: {e}"),
+                        }
                     }
-                    ControlType::Logout => {
-                        tracing::info!("Logout requested");
-                        let _ = client.logout().await;
+                }
+
+                ControlType::RevokeMessage => {
+                    if let Payload::RevokeMessage {
+                        to,
+                        message_id,
+                        original_sender,
+                    } = ctrl.payload
+                    {
+                        let to_jid: whatsapp_rust::Jid = match to.parse() {
+                            Ok(j) => j,
+                            Err(e) => {
+                                tracing::warn!("Invalid JID '{to}': {e}");
+                                continue;
+                            }
+                        };
+                        let revoke_type = match original_sender {
+                            Some(s) => match s.parse() {
+                                Ok(jid) => RevokeType::Admin {
+                                    original_sender: jid,
+                                },
+                                Err(e) => {
+                                    tracing::warn!("Bad original_sender: {e}");
+                                    continue;
+                                }
+                            },
+                            None => RevokeType::Sender,
+                        };
+                        match client
+                            .revoke_message(to_jid, &message_id, revoke_type)
+                            .await
+                        {
+                            Ok(_) => tracing::info!("Revoked {message_id}"),
+                            Err(e) => tracing::error!("Revoke failed: {e}"),
+                        }
                     }
+                }
+
+                ControlType::GetStatus => {
+                    tracing::info!(
+                        "Status — connected: {}, logged_in: {}",
+                        client.is_connected(),
+                        client.is_logged_in()
+                    );
+                }
+                ControlType::Disconnect => {
+                    tracing::info!("Disconnect requested");
+                    client.disconnect().await;
+                }
+                ControlType::Logout => {
+                    tracing::info!("Logout requested");
+                    let _ = client.logout().await;
                 }
             }
         }
@@ -222,6 +379,6 @@ async fn start_session(
         .set_client_profile(ClientProfile::android("13"))
         .await;
 
-    bot.run().await?.await?;
+    bot.run().await;
     Ok(())
 }
