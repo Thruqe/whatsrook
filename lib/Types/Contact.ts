@@ -7,4 +7,5 @@ export interface Contact {
 	verifiedName?: string;
 	imgUrl?: string | null;
 	status?: string;
+	username?: string;
 }

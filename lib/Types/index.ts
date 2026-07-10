@@ -29,12 +29,11 @@ export type BrowsersMap = {
 
 export enum DisconnectReason {
 	connectionClosed = 428,
-	connectionLost = 408,
+	timedOut = 408,
 	connectionReplaced = 440,
 	loggedOut = 401,
 	badSession = 500,
 	restartRequired = 515,
-	multideviceMismatch = 411,
 	forbidden = 403,
 	unavailableService = 503
 }

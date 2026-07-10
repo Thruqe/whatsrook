@@ -1,10 +1,11 @@
 import { Buffer } from "node:buffer";
+import { randomBytes } from "node:crypto";
 import { EventEmitter } from "node:events";
 import {
 	createWhatsAppClient,
+	type DevicePlatformType,
 	encodeProto,
 	initWasmEngine,
-	type DevicePlatformType,
 	type MediaType,
 	type UploadMediaResult,
 	type WasmWhatsAppClient
@@ -15,6 +16,7 @@ import type {
 	BinaryNode,
 	ConnectionState,
 	Contact,
+	LIDMapping,
 	ReachoutTimelockState,
 	UserFacingSocketConfig,
 	WAMessage
@@ -27,7 +29,6 @@ import {
 	_registerActiveBridgeClient,
 	downloadMediaMessage
 } from "../Utils/messages.ts";
-import { makeCryptoProvider } from "../Utils/crypto-provider.ts";
 import type { MediaDownloadOptions } from "../Utils/messages-media.ts";
 import { makeBlockingMethods } from "./blocking.ts";
 import { makeChatActionMethods } from "./chat-actions.ts";
@@ -41,14 +42,22 @@ import { makeProfileMethods } from "./profile.ts";
 import { mapReachoutTimelock } from "./reachout.ts";
 import { makeHttpClient, makeTransport } from "./transport.ts";
 import type { SocketContext } from "./types.ts";
+import { makeCryptoProvider } from "../Utils/crypto-provider.ts";
+import { assertNodeErrorFree } from "../Utils/generic-util.ts";
 
 let wasmInitialized = false;
 
+/**
+ * Default mapping for the legacy `browser[1]` slot — preserved so users on the
+ * existing `Browsers.macOS('Chrome')` style get the same `DeviceProps.platformType`
+ * they always got. Anything outside this set falls back to `CHROME` (matching
+ * the prior bridge behavior). Override with the explicit `deviceProps` config.
+ */
 const browserToPlatformType = (browser: string): DevicePlatformType => {
 	switch (browser) {
 		case "Chrome":
 			return "CHROME";
-		case "FireFox":
+		case "Firefox":
 			return "FIREFOX";
 		case "Safari":
 			return "SAFARI";
@@ -65,6 +74,15 @@ const browserToPlatformType = (browser: string): DevicePlatformType => {
 	}
 };
 
+/**
+ * Returns a no-op `SignalKeyStore`-shaped facade. baileyrs hands this out from
+ * `sock.authState.keys` when no legacy `auth.keys` was provided so that
+ * upstream-Baileys code paths (typically post-error cleanup like
+ * `keys.set({ 'sender-key': { [groupId]: null } })`) don't crash on a missing
+ * `.set` method. The Rust bridge owns the real Signal state — this facade is
+ * deliberately inert; reads come back empty and writes are dropped after a
+ * `debug` log so the call site stays traceable.
+ */
 function noopKeyStore(logger: ILogger) {
 	return {
 		get: async () => ({}),
@@ -160,7 +178,10 @@ function makeSignalRepository(ctx: SocketContext) {
 		 *
 		 * Pure passthrough to the bridge — `client.lidForPn` / `client.pnForLid`
 		 * delegate to the core's `get_lid_pn_entry`, which is cache-aside as
-		 * of whatsapp-rust
+		 * of whatsapp-rust PR #565: hits the in-memory `lid_pn_cache` first
+		 * and falls through to `backend.get_pn_mapping` / `get_lid_mapping`
+		 * (so JsStoreCallbacks-backed sessions resolve every persisted
+		 * mapping without warm-up needing a list primitive).
 		 */
 		lidMapping: {
 			getLIDForPN: async (pn: string): Promise<string | null> => {
@@ -170,6 +191,82 @@ function makeSignalRepository(ctx: SocketContext) {
 			getPNForLID: async (lid: string): Promise<string | null> => {
 				const client = await ctx.getClient();
 				return (await client.pnForLid(lid)) ?? null;
+			},
+			/**
+			 * Batch variant of `getLIDForPN`. Upstream Baileys' equivalent
+			 * coalesces in-flight requests and de-duplicates inputs; we run
+			 * the lookups in parallel and return the same `LIDMapping[]`
+			 * shape so callers (e.g. `process-message.ts`) keep working.
+			 *
+			 * Uses `Promise.allSettled` so one bridge-side failure (e.g.
+			 * malformed JID, transient cache miss) doesn't reject the
+			 * whole batch and lose every successful lookup. Failures are
+			 * logged at debug and skipped.
+			 *
+			 * Returns `null` (not `[]`) when the input list is empty, to
+			 * mirror upstream's "absent" sentinel.
+			 */
+			getLIDsForPNs: async (pns: string[]): Promise<LIDMapping[] | null> => {
+				if (pns.length === 0) return null;
+				const client = await ctx.getClient();
+				const unique = [...new Set(pns)];
+				const settled = await Promise.allSettled(
+					unique.map(async pn => {
+						const lid = (await client.lidForPn(pn)) ?? null;
+						return lid ? ({ pn, lid } satisfies LIDMapping) : null;
+					})
+				);
+				const resolved: LIDMapping[] = [];
+				for (const r of settled) {
+					if (r.status === "fulfilled") {
+						if (r.value) resolved.push(r.value);
+					} else {
+						ctx.logger.debug(
+							{ err: r.reason },
+							"getLIDsForPNs: lookup rejected — skipping"
+						);
+					}
+				}
+				return resolved;
+			},
+			getPNsForLIDs: async (lids: string[]): Promise<LIDMapping[] | null> => {
+				if (lids.length === 0) return null;
+				const client = await ctx.getClient();
+				const unique = [...new Set(lids)];
+				const settled = await Promise.allSettled(
+					unique.map(async lid => {
+						const pn = (await client.pnForLid(lid)) ?? null;
+						return pn ? ({ pn, lid } satisfies LIDMapping) : null;
+					})
+				);
+				const resolved: LIDMapping[] = [];
+				for (const r of settled) {
+					if (r.status === "fulfilled") {
+						if (r.value) resolved.push(r.value);
+					} else {
+						ctx.logger.debug(
+							{ err: r.reason },
+							"getPNsForLIDs: lookup rejected — skipping"
+						);
+					}
+				}
+				return resolved;
+			},
+			/**
+			 * No-op shim. The Rust bridge auto-learns LID↔PN mappings inside
+			 * `decode_message` / `usync` and persists them through
+			 * `JsStoreCallbacks` — upstream Baileys callers (notably
+			 * `process-message.ts` re-feeding mappings from `historySync`)
+			 * keep type-checking, but we don't need to write back.
+			 *
+			 * Logs at debug so unexpected paths stay traceable.
+			 */
+			storeLIDPNMappings: async (pairs: LIDMapping[]): Promise<void> => {
+				if (pairs.length === 0) return;
+				ctx.logger.debug(
+					{ count: pairs.length },
+					"lidMapping.storeLIDPNMappings — bridge auto-learns, no-op"
+				);
 			}
 		}
 	};
@@ -179,7 +276,7 @@ function makeWsEmitter(getClient: () => WasmWhatsAppClient | undefined) {
 	const ws = new EventEmitter();
 	let rawNodeEnabled = false;
 
-	const initalOn = ws.on.bind(ws);
+	const originalOn = ws.on.bind(ws);
 	ws.on = (event: string | symbol, listener: (...args: unknown[]) => void) => {
 		if (
 			typeof event === "string" &&
@@ -189,12 +286,10 @@ function makeWsEmitter(getClient: () => WasmWhatsAppClient | undefined) {
 			rawNodeEnabled = true;
 			try {
 				getClient()?.setRawNodeForwarding(true);
-			} catch {
-				// bridge not ready yet — will enable when it initializes
-			}
+			} catch {}
 		}
 
-		return initalOn(event, listener);
+		return originalOn(event, listener);
 	};
 
 	Object.defineProperty(ws, "isOpen", {
@@ -227,7 +322,8 @@ const makeWASocket = (config: UserFacingSocketConfig) => {
 	const { ws, isRawNodeEnabled } = makeWsEmitter(() => client);
 
 	let tagEpoch = 0;
-	const tagPrefix = `${Date.now().toString(36)}.`;
+
+	const tagPrefix = `${randomBytes(6).toString("base64url")}.`;
 	const generateMessageTag = () => `${tagPrefix}${tagEpoch++}`;
 
 	let pairedAccount: { platform?: string; businessName?: string } | undefined;
@@ -280,29 +376,12 @@ const makeWASocket = (config: UserFacingSocketConfig) => {
 			wasmInitialized = true;
 		}
 
-		// Defer to a microtask so callers have a turn to attach listeners
-		// after `makeWASocket()` returns. Without this the emit fires
-		// synchronously inside `init()` (before the function reaches its
-		// first `await`), which is also before the caller ever sees `conn.ev`,
-		// so any handler registered via `conn.ev.on('connection.update', …)`
-		// or `conn.ev.process(…)` silently misses the initial 'connecting'
-		// state. Bots like sung that drive UI off the lifecycle (spinners,
-		// reconnection counters) end up tracking a state machine they never
-		// got to enter, then crash when the next state ('open' / 'close')
-		// references prerequisites that the missed event was supposed to set
-		// up.
 		queueMicrotask(() =>
 			ev.emit("connection.update", {
 				connection: "connecting"
 			} as Partial<ConnectionState>)
 		);
 
-		// Auto-promote upstream-Baileys-style `auth: { creds, keys }` to a
-		// `JsStoreCallbacks`-shaped store via `wrapLegacyStore`. The synthetic
-		// `saveCreds` callback re-emits `creds.update` so the bot's existing
-		// `ev.on('creds.update', saveCreds)` listener handles persistence —
-		// matches the lifecycle hook every upstream-Baileys setup already
-		// wires, so migration needs zero changes to the auth block.
 		let bridgeStore = auth.store ?? null;
 
 		client = await createWhatsAppClient(
@@ -310,18 +389,20 @@ const makeWASocket = (config: UserFacingSocketConfig) => {
 			makeHttpClient(fullConfig),
 			handleEvent,
 			bridgeStore,
-			fullConfig.cache ?? null
+			fullConfig.cache ?? null,
+			fullConfig.version
 		);
+
 		_registerActiveBridgeClient(client, logger);
 
 		const [osName, browserName] = fullConfig.browser;
+
+		const deviceOs = browserName === "Android" ? "Android" : osName;
 		await client.setDeviceProps({
-			os: osName,
+			os: deviceOs,
 			platformType: browserToPlatformType(browserName),
 			...fullConfig.deviceProps
 		});
-		const [major, minor, patch] = fullConfig.version;
-		client.setVersion(major, minor, patch);
 
 		const [jid, lid, account] = await Promise.all([
 			client.getJid(),
@@ -336,19 +417,30 @@ const makeWASocket = (config: UserFacingSocketConfig) => {
 			cachedAccount = account;
 		}
 
-		const deviceOs = browserName === "Android" ? "Android" : osName;
-
-		// Android browser slot flips the noise-handshake identity to
-		// `UserAgent.platform = ANDROID` (no `web_info`), mirroring upstream
 		if (browserName === "Android") {
-			await client.setClientProfile({ preset: "android", osVersion: deviceOs });
+			await client.setClientProfile({ preset: "android", osVersion: osName });
 		}
 
 		if (isRawNodeEnabled()) {
 			client.setRawNodeForwarding(true);
 		}
 
-		client.run();
+		const runPromise = client.run() as unknown as Promise<void> | undefined;
+		if (runPromise && typeof runPromise.catch === "function") {
+			runPromise.catch(err => {
+				logger.error({ err }, "bridge client.run() rejected");
+				ev.emit("connection.update", {
+					connection: "close",
+					lastDisconnect: {
+						error:
+							err instanceof Error
+								? err
+								: new Boom(String(err), { statusCode: 500 }),
+						date: new Date()
+					}
+				} as Partial<ConnectionState>);
+			});
+		}
 	};
 
 	let initError: Error | undefined;
@@ -365,13 +457,21 @@ const makeWASocket = (config: UserFacingSocketConfig) => {
 				await c.disconnect();
 			} catch {}
 
+			await new Promise(resolve => setImmediate(resolve));
+			await new Promise(resolve => setImmediate(resolve));
+
+			let firstFlushError: unknown;
 			try {
 				await auth.store?.flush?.();
-			} catch {}
+			} catch (e) {
+				firstFlushError ??= e;
+			}
 
 			try {
 				c.free();
 			} catch {}
+
+			if (firstFlushError) throw firstFlushError;
 		}
 	};
 
@@ -419,6 +519,7 @@ const makeWASocket = (config: UserFacingSocketConfig) => {
 						})
 					);
 				}, timeoutMs);
+
 				timeout.unref();
 			}
 		});
@@ -429,8 +530,18 @@ const makeWASocket = (config: UserFacingSocketConfig) => {
 		logger,
 		ws,
 		type: "md" as const,
-		get user() {
-			return user;
+
+		get user(): Contact | undefined {
+			if (!user?.id) return undefined;
+			return {
+				id: user.id,
+				lid: user.lid,
+				name: pairedAccount?.businessName ?? auth.creds?.me?.name,
+				verifiedName: auth.creds?.me?.verifiedName,
+				...(auth.creds?.me?.phoneNumber
+					? { phoneNumber: auth.creds.me.phoneNumber }
+					: {})
+			};
 		},
 		get waClient() {
 			return client;
@@ -444,11 +555,13 @@ const makeWASocket = (config: UserFacingSocketConfig) => {
 		get authState() {
 			return {
 				creds: {
+					...auth.creds,
 					me: user ? ({ id: user.id, lid: user.lid } as Contact) : undefined,
 					account: cachedAccount,
 					platform: pairedAccount?.platform
 				},
-				keys: noopKeyStore(logger)
+
+				keys: auth.keys ?? noopKeyStore(logger)
 			};
 		},
 		generateMessageTag,
@@ -476,21 +589,25 @@ const makeWASocket = (config: UserFacingSocketConfig) => {
 			return new Promise<T>((resolve, reject) => {
 				const timeout = timeoutMs ?? fullConfig.defaultQueryTimeoutMs;
 				let timer: NodeJS.Timeout | undefined;
+				const tag = `TAG:${msgId}`;
+
 				const onRecv = (data: T) => {
 					if (timer) clearTimeout(timer);
+					ws.off(tag, listener);
 					resolve(data);
 				};
-
-				ws.once(`TAG:${msgId}`, onRecv as (...args: unknown[]) => void);
+				const listener = onRecv as (...args: unknown[]) => void;
+				ws.on(tag, listener);
 				if (timeout) {
 					timer = setTimeout(() => {
-						ws.off(`TAG:${msgId}`, onRecv as (...args: unknown[]) => void);
+						ws.off(tag, listener);
 						reject(
 							new Boom("Timed out waiting for message", {
 								statusCode: DisconnectReason.timedOut
 							})
 						);
 					}, timeout);
+
 					timer.unref();
 				}
 			});
@@ -504,15 +621,22 @@ const makeWASocket = (config: UserFacingSocketConfig) => {
 			}
 
 			const msgId = node.attrs.id;
+			const tag = `TAG:${msgId}`;
+
+			const before = ws.listeners(tag);
 			const resultPromise = sock.waitForMessage<BinaryNode>(msgId, timeoutMs);
 			try {
 				await sock.sendNode(node);
 			} catch (err) {
-				ws.removeAllListeners(`TAG:${msgId}`);
+				const ours = ws.listeners(tag).filter(l => !before.includes(l));
+				for (const l of ours) ws.off(tag, l as (...args: unknown[]) => void);
 				throw err;
 			}
 
-			return resultPromise;
+			const result = await resultPromise;
+
+			assertNodeErrorFree(result);
+			return result;
 		},
 		sendRawMessage: async (data: Uint8Array | Buffer) => {
 			return (await ctx.getClient()).sendRawMessage(
@@ -535,6 +659,10 @@ const makeWASocket = (config: UserFacingSocketConfig) => {
 			);
 		},
 		signalRepository: makeSignalRepository(ctx),
+
+		uploadPreKeys: async () => {},
+
+		uploadPreKeysToServerIfRequired: async () => {},
 		end,
 		logout,
 		waitForConnectionUpdate,
