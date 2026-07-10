@@ -11,7 +11,8 @@
                 "rust-lang.rust-analyzer",
                 "yy0931.vscode-sqlite3-editor",
                 "ms-vscode.live-server",
-                "esbenp.prettier-vscode"
+                "esbenp.prettier-vscode",
+                "tamasfe.even-better-toml"
             ],
             "settings": {
                 "editor.formatOnSave": true,
