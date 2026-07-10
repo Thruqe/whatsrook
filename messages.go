@@ -25,6 +25,7 @@ const (
 	EventDisconnected    EventType = "disconnected"
 	EventConnected       EventType = "connected"
 	EventIncomingMessage EventType = "message"
+	EventIncomingCall    EventType = "incoming_call"
 	EventAck             EventType = "ack"
 	EventStatus          EventType = "status"
 )
