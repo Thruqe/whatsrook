@@ -87,11 +87,13 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: alpha
-          name: "Alpha Build — ${{ steps.commit-info.outputs.subject }}"
+          name: "Alpha Build"
           body: |
-            **Commit:** ${{ github.sha }}
+            **${{ steps.commit-info.outputs.subject }}**
 
             ${{ steps.commit-info.outputs.body }}
+
+            **Commit:** ${{ github.sha }}
           prerelease: true
           make_latest: false
           files: zevBot-linux-amd64.tar.gz
