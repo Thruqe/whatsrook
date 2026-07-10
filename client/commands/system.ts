@@ -54,7 +54,7 @@ registerCommand([
 				`Platform : ${os.platform()} ${os.arch()}\n` +
 				`Hostname : ${os.hostname()}\n` +
 				`CPU      : ${cpus[0]?.model ?? "Unknown"} (${cpus.length} cores)\n` +
-				`Load avg : ${load.map((l) => l.toFixed(2)).join(" | ")}\n` +
+				`Load avg : ${load.map(l => l.toFixed(2)).join(" | ")}\n` +
 				`RAM      : ${formatBytes(used)} / ${formatBytes(total)}\n` +
 				`Uptime   : ${runtime(process.uptime())}\`\`\``;
 
@@ -79,7 +79,7 @@ registerCommand([
 
 			const getDirSize = async (dir: string): Promise<number> => {
 				const files = await readdir(dir, { withFileTypes: true });
-				const paths = files.map(async (file) => {
+				const paths = files.map(async file => {
 					const path = join(dir, file.name);
 					if (file.isDirectory()) return await getDirSize(path);
 					const { size } = await stat(path);
@@ -104,7 +104,7 @@ registerCommand([
 				await msg.client.sendMessage(msg.remoteJid, {
 					text: `\`\`\`Cleaned: ${formatSize(totalSize)}\`\`\``
 				});
-			} catch (e) {
+			} catch {
 				await msg.client.sendMessage(msg.remoteJid, {
 					text: "_Error while cleaning tmp directory._"
 				});
