@@ -19,7 +19,6 @@ import {
   toUnixSeconds,
 } from "./primitives.ts";
 
-
 export const adaptBridgeEvent = (
   event: WhatsAppEvent,
   logger?: ILogger,
@@ -282,6 +281,7 @@ const adaptMessage = (
     pushName: asString(info.push_name),
     participantAlt,
     remoteJidAlt,
+    isViewOnce: info.is_view_once === true ? true : undefined,
     messageProto: messageProto as never,
   };
 };

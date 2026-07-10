@@ -1,4 +1,3 @@
-import readline from "node:readline";
 import {
   Boom,
   Browsers,
@@ -6,8 +5,9 @@ import {
   useBridgeStore,
   DisconnectReason,
 } from "../lib";
-import P from "pino";
 import process from "node:process";
+import readline from "node:readline";
+import P from "pino";
 import calls from "./calls";
 import serialize from "./serialize";
 import { loadCommands, matchCommand } from "./plugin";
@@ -49,11 +49,7 @@ const startSock = async () => {
   const sock = makeWASocket({
     logger,
     auth: { store: state },
-    browser: Browsers.android("16"),
-    deviceProps: {
-      platformType: "ANDROID_PHONE",
-      os: "Android",
-    },
+    browser: Browsers.android("13"),
   });
 
   sock.ev.process(async (events) => {
