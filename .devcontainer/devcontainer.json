@@ -1,20 +1,7 @@
 {
     "name": "ZevBot",
     "image": "mcr.microsoft.com/devcontainers/rust:latest",
-    "remoteEnv": {
-        "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
-    },
-    "features": {
-        "ghcr.io/devcontainers/features/common-utils:1": {
-            "configureZshAsDefaultShell": false,
-            "upgradePackages": false,
-            "username": "vscode"
-        }
-    },
-    "mounts": [
-        "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig_shared,type=bind,consistency=cached"
-    ],
-    "postCreateCommand": "sudo apt-get update && sudo apt-get install -y curl bash && rustup toolchain install nightly && rustup component add rustfmt clippy --toolchain nightly && curl -fsSL 'https://raw.githubusercontent.com/zevlion/rpm/refs/heads/master/scripts/linux-installer.sh?'$(date +%s) | bash && git config --global include.path /home/vscode/.gitconfig_shared && mkdir -p /home/vscode/.gnupg && echo 'no-autostart' >> /home/vscode/.gnupg/gpg.conf",
+    "postCreateCommand": "sudo apt-get update && sudo apt-get install -y curl bash && rustup toolchain install nightly && rustup component add rustfmt clippy --toolchain nightly && curl -fsSL 'https://raw.githubusercontent.com/zevlion/rpm/refs/heads/master/scripts/linux-installer.sh?'$(date +%s) | bash",
     "customizations": {
         "vscode": {
             "extensions": [
@@ -32,6 +19,5 @@
                 "rust-analyzer.check.command": "clippy"
             }
         }
-    },
-    "remoteUser": "vscode"
+    }
 }
