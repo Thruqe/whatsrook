@@ -32,7 +32,7 @@ WORKDIR /app
 COPY package.json ./
 RUN bun install
 
-COPY client/ ./client/
+COPY cli/ ./cli/
 COPY lib/ ./lib/
 COPY jsconfig.json ./
 
