@@ -13,7 +13,6 @@ ENV PATH="/root/.bun/bin:$PATH"
 WORKDIR /app
 COPY package.json ./
 RUN bun install
-COPY cli.mts ./
 COPY web.mts ./
 COPY src/ ./src/
 COPY web/ ./web/
