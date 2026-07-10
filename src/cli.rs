@@ -1,5 +1,4 @@
 use std::env;
-
 pub struct CliArgs {
     pub session: String,
     pub pair: Option<String>,
