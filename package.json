@@ -2,6 +2,7 @@
 	"name": "zevbot",
 	"license": "MIT",
 	"author": "Zevlion",
+	"type": "module",
 	"devDependencies": {
 		"@types/bun": "latest",
 		"oxfmt": "^0.51.0",
@@ -15,12 +16,12 @@
 		"whatsapp-rust-bridge": "0.6.0-alpha.28"
 	},
 	"exports": {
-		".": "./dist/lib/index.js"
+		".": "./dist/src/index.js"
 	},
 	"scripts": {
-		"build": "bun build ./cli/main.ts ./cli/web.ts ./lib/index.ts --outdir ./dist --target bun --external whatsapp-rust-bridge --external audio-decode --external music-metadata --external sharp",
-		"cli": "rpm2 start dist/cli/main.js --interpreter bun --name zevBot --watch --attach --force",
-		"web": "rpm2 start dist/cli/web.js --interpreter bun --name zevBot --watch --attach --force",
-		"fmt": "oxfmt client lib && tsc && oxlint --fix"
+		"build": "bun build ./web.mts --outdir ./dist --target bun --external whatsapp-rust-bridge --external audio-decode --external music-metadata --external sharp",
+		"cli": "rpm2 start cli.mts --interpreter bun --name zevBot --watch --attach --force",
+		"web": "rpm2 start dist/web.js --interpreter bun --name zevBot --watch --attach --force",
+		"fmt": "oxfmt src cli.mts web.mts && tsc && oxlint --fix"
 	}
 }
