@@ -51,19 +51,19 @@ jobs:
       - name: Install GCC (required for CGO/go-sqlite3)
         run: sudo apt-get update && sudo apt-get install -y gcc
       - name: Build Binary
-        run: CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o zevBot .
+        run: CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o whatsrook .
       - name: Package Asset
         run: |
           mkdir staging
-          cp zevBot staging/
+          cp whatsrook staging/
           cp LICENSE staging/ 2>/dev/null || true
           cp README.md staging/ 2>/dev/null || true
-          tar -czf zevBot-linux-amd64.tar.gz -C staging .
+          tar -czf whatsrook-linux-amd64.tar.gz -C staging .
       - name: Upload Intermediary Artifact
         uses: actions/upload-artifact@v4
         with:
           name: release-binary
-          path: zevBot-linux-amd64.tar.gz
+          path: whatsrook-linux-amd64.tar.gz
   alpha-release:
     name: Alpha Per-Commit Release
     needs: [check-version, build]
@@ -96,7 +96,7 @@ jobs:
             **Commit:** ${{ github.sha }}
           prerelease: true
           make_latest: false
-          files: zevBot-linux-amd64.tar.gz
+          files: whatsrook-linux-amd64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   production-release:
@@ -127,6 +127,6 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: false
-          files: zevBot-linux-amd64.tar.gz
+          files: whatsrook-linux-amd64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

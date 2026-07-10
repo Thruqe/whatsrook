@@ -1,4 +1,4 @@
-module github.com/Thruqe/zevBot
+module github.com/Thruqe/whatsrook
 
 go 1.26.4
 
