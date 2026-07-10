@@ -172,7 +172,7 @@ export async function useBridgeStore(
 	};
 
 	const flushAll = () => {
-		for (const cacheKey of [...pendingWrites.keys()]) {
+		for (const cacheKey of pendingWrites.keys()) {
 			flushWrite(cacheKey);
 		}
 	};
