@@ -88,8 +88,6 @@ const startSock = async () => {
         console.log(
           `[Plugin] Loaded ${cmd.commands.length} command(s) from ${cmd.files.length} file(s)`,
         );
-        await delay(2000);
-        process.stdout.write(clear);
         console.log(`${config.features.bot_name} is connected to WhatsApp`);
       }
 
