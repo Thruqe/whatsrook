@@ -26,6 +26,7 @@ const (
 	EventConnected       EventType = "connected"
 	EventIncomingMessage EventType = "message"
 	EventAck             EventType = "ack"
+	EventStatus          EventType = "status"
 )
 
 // ControlMessage is what clients send in to control the bot.

@@ -29,12 +29,13 @@ func parseClientType(s string) (ClientType, bool) {
 
 type CliArgs struct {
 	Session string
-	Pair    string // empty = not set
+	Pair    bool
 	Port    string
 	AuthDir string
 	QRCode  bool
 	Logout  bool
 	Debug   bool
+	Dev     bool
 	Client  ClientType
 }
 
@@ -47,13 +48,14 @@ func parseArgs() CliArgs {
 
 Options:
   --session <phone>     Phone number used to identify the session (required)
-  --pair <phone>        Request a pair code for the given phone number
-  --port <port>         Specify the HTTP/WebSocket port
+  --pair                Request a pair code using the --session phone number
+  --port <port>         Specify the HTTP/WebSocket port (default: 3000, or $PORT)
   --auth-dir <path>     Directory to store session auth files (default: ./auth)
   --client <type>       Client type: chrome (default), android, ios
   --qrcode              Print the QR code to stdout for scanning
   --logout              Remove the session auth files and exit
   --debug               Enable debug logging
+  --dev                 Dev mode: disables CORS origin check on WebSocket
   -h, --help            Show this help message
 `)
 			os.Exit(0)
@@ -109,12 +111,13 @@ Options:
 
 	return CliArgs{
 		Session: session,
-		Pair:    getValue("--pair"),
+		Pair:    hasFlag("--pair"),
 		Port:    port,
 		AuthDir: authDir,
 		QRCode:  hasFlag("--qrcode"),
 		Logout:  hasFlag("--logout"),
 		Debug:   hasFlag("--debug"),
+		Dev:     hasFlag("--dev"),
 		Client:  client,
 	}
 }

@@ -7,101 +7,173 @@ import (
 	"log/slog"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waCompanionReg"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
-	"google.golang.org/protobuf/proto"
+	protoBuilder "google.golang.org/protobuf/proto"
 )
 
-func runSession(ctx context.Context, client *whatsmeow.Client, cli CliArgs, hub *Hub) error {
-	client.AddEventHandler(func(evt any) {
-		handleWAEvent(evt, cli, hub)
+// Bot holds shared state so handleControl can access both client and hub.
+type Bot struct {
+	client *whatsmeow.Client
+	hub    *Hub
+	cli    CliArgs
+}
+
+func newBot(client *whatsmeow.Client, hub *Hub, cli CliArgs) *Bot {
+	return &Bot{client: client, hub: hub, cli: cli}
+}
+
+func (b *Bot) run(ctx context.Context) error {
+	b.client.AddEventHandler(func(evt any) {
+		b.handleWAEvent(evt)
 	})
 
-	if client.Store.ID == nil {
-		if cli.Pair != "" {
-			// Pair code flow
-			slog.Info("requesting pair code", "phone", cli.Pair)
-			if err := client.Connect(); err != nil {
+	switch b.cli.Client {
+	case ClientAndroid:
+		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_ANDROID_PHONE.Enum()
+		store.DeviceProps.Os = protoBuilder.String("Android")
+	case ClientIos:
+		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_IOS_PHONE.Enum()
+		store.DeviceProps.Os = protoBuilder.String("iOS")
+	default: // ClientChrome
+		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_CHROME.Enum()
+		store.DeviceProps.Os = protoBuilder.String("Linux")
+	}
+
+	if b.client.Store.ID == nil {
+		if b.cli.Pair {
+			if err := b.runPairCode(ctx); err != nil {
 				return err
 			}
-			code, err := client.PairPhone(ctx, cli.Pair, true, whatsmeow.PairClientChrome, "Chrome (Linux)")
-			if err != nil {
-				return fmt.Errorf("pair code failed: %w", err)
-			}
-			slog.Info("pair code", "code", code)
-			fmt.Printf("Enter this code on your phone: %s\n", code)
-			hub.Broadcast(EventMessage{
-				Kind: EventPairCode,
-				Payload: map[string]any{
-					"code": code,
-				},
-			})
 		} else {
-			// QR flow
-			qrChan, _ := client.GetQRChannel(ctx)
-			if err := client.Connect(); err != nil {
+			if err := b.runQR(ctx); err != nil {
 				return err
-			}
-			for evt := range qrChan {
-				if evt.Event == "code" {
-					if cli.QRCode {
-						fmt.Println("QR code:", evt.Code)
-					}
-					hub.Broadcast(EventMessage{
-						Kind:    EventPairQR,
-						Payload: map[string]any{"code": evt.Code},
-					})
-				} else {
-					slog.Info("qr channel event", "event", evt.Event)
-				}
 			}
 		}
 	} else {
-		if err := client.Connect(); err != nil {
+		if err := b.client.Connect(); err != nil {
 			return err
 		}
 	}
 
-	// Control message dispatch loop
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case ctrl := <-hub.Control:
-			handleControl(ctx, client, ctrl)
+		case ctrl := <-b.hub.Control:
+			ack := b.handleControl(ctx, ctrl)
+			b.hub.Broadcast(ack)
 		}
 	}
 }
 
-func handleWAEvent(evt any, cli CliArgs, hub *Hub) {
+func (b *Bot) runPairCode(ctx context.Context) error {
+	slog.Info("requesting pair code", "phone", b.cli.Session)
+
+	paired := make(chan error, 1)
+	b.client.AddEventHandler(func(evt any) {
+		switch v := evt.(type) {
+		case *events.PairSuccess:
+			paired <- nil
+		case *events.PairError:
+			paired <- fmt.Errorf("pair error: %w", v.Error)
+		}
+	})
+
+	if err := b.client.Connect(); err != nil {
+		return err
+	}
+
+	var pairType whatsmeow.PairClientType
+	var clientDisplay string
+
+	// FIX: Display name MUST strictly match the "Browser (OS)" template format
+	switch b.cli.Client {
+	case ClientAndroid:
+		pairType = whatsmeow.PairClientAndroid
+		clientDisplay = "Chrome (Android)"
+	case ClientIos:
+		pairType = whatsmeow.PairClientChrome
+		clientDisplay = "Chrome (iOS)"
+	default:
+		pairType = whatsmeow.PairClientChrome
+		clientDisplay = "Chrome (Linux)"
+	}
+
+	code, err := b.client.PairPhone(ctx, b.cli.Session, true, pairType, clientDisplay)
+	if err != nil {
+		return fmt.Errorf("pair code failed: %w", err)
+	}
+	slog.Info("pair code issued", "code", code)
+	fmt.Printf("Enter this code on your phone: %s\n", code)
+	b.hub.Broadcast(EventMessage{
+		Kind:    EventPairCode,
+		Payload: map[string]any{"code": code},
+	})
+
+	select {
+	case err := <-paired:
+		if err != nil {
+			return err
+		}
+		slog.Info("paired successfully")
+		return nil
+	case <-ctx.Done():
+		return nil
+	}
+}
+
+func (b *Bot) runQR(ctx context.Context) error {
+	qrChan, _ := b.client.GetQRChannel(ctx)
+	if err := b.client.Connect(); err != nil {
+		return err
+	}
+	for evt := range qrChan {
+		if evt.Event == "code" {
+			if b.cli.QRCode {
+				fmt.Println("QR code:", evt.Code)
+			}
+			b.hub.Broadcast(EventMessage{
+				Kind:    EventPairQR,
+				Payload: map[string]any{"code": evt.Code},
+			})
+		} else {
+			slog.Info("qr channel event", "event", evt.Event)
+		}
+	}
+	return nil
+}
+
+func (b *Bot) handleWAEvent(evt any) {
 	switch v := evt.(type) {
 	case *events.QR:
-		// handled via qrChan above, but just in case
-		_ = v
+		_ = v // handled via qrChan in runQR
 
 	case *events.PairSuccess:
 		slog.Info("paired successfully")
-		hub.Broadcast(simpleEvent(EventPairSuccess))
+		b.hub.Broadcast(simpleEvent(EventPairSuccess))
 
 	case *events.PairError:
 		slog.Warn("pairing failed", "err", v.Error)
-		hub.Broadcast(EventMessage{
+		b.hub.Broadcast(EventMessage{
 			Kind:    EventPairError,
 			Payload: map[string]any{"reason": v.Error.Error()},
 		})
 
 	case *events.LoggedOut:
 		slog.Warn("logged out", "reason", v.Reason)
-		hub.Broadcast(simpleEvent(EventLoggedOut))
+		b.hub.Broadcast(simpleEvent(EventLoggedOut))
 
 	case *events.Disconnected:
 		slog.Info("disconnected")
-		hub.Broadcast(simpleEvent(EventDisconnected))
+		b.hub.Broadcast(simpleEvent(EventDisconnected))
 
 	case *events.Connected:
-		slog.Info("connected", "session", cli.Session)
-		hub.Broadcast(simpleEvent(EventConnected))
+		slog.Info("connected", "session", b.cli.Session)
+		b.hub.Broadcast(simpleEvent(EventConnected))
 
 	case *events.Message:
 		text := ""
@@ -113,7 +185,7 @@ func handleWAEvent(evt any, cli CliArgs, hub *Hub) {
 		from := v.Info.Sender.String()
 		msgID := v.Info.ID
 		slog.Info("message", "from", from, "text", text)
-		hub.Broadcast(EventMessage{
+		b.hub.Broadcast(EventMessage{
 			Kind: EventIncomingMessage,
 			Payload: map[string]any{
 				"from":       from,
@@ -127,24 +199,24 @@ func handleWAEvent(evt any, cli CliArgs, hub *Hub) {
 	}
 }
 
-func handleControl(ctx context.Context, client *whatsmeow.Client, ctrl ControlMessage) {
+func (b *Bot) handleControl(ctx context.Context, ctrl ControlMessage) EventMessage {
 	switch ctrl.Kind {
 	case ControlSendMessage:
 		var p SendMessagePayload
 		if err := json.Unmarshal(ctrl.Payload, &p); err != nil {
 			slog.Warn("bad send_message payload", "err", err)
-			return
+			return ackEvent(ctrl.ID, false, "invalid payload")
 		}
 		jid, err := types.ParseJID(p.To)
 		if err != nil {
 			slog.Warn("invalid JID", "to", p.To, "err", err)
-			return
+			return ackEvent(ctrl.ID, false, "invalid JID: "+err.Error())
 		}
 		var msg waE2E.Message
 		if p.QuoteID != nil && p.QuoteSender != nil {
 			msg = waE2E.Message{
 				ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-					Text: proto.String(p.Text),
+					Text: protoBuilder.String(p.Text),
 					ContextInfo: &waE2E.ContextInfo{
 						StanzaID:    p.QuoteID,
 						Participant: p.QuoteSender,
@@ -152,92 +224,114 @@ func handleControl(ctx context.Context, client *whatsmeow.Client, ctrl ControlMe
 				},
 			}
 		} else {
-			msg = waE2E.Message{Conversation: proto.String(p.Text)}
+			msg = waE2E.Message{Conversation: protoBuilder.String(p.Text)}
 		}
-		resp, err := client.SendMessage(ctx, jid, &msg)
+		resp, err := b.client.SendMessage(ctx, jid, &msg)
 		if err != nil {
 			slog.Error("send failed", "err", err)
-		} else {
-			slog.Info("sent", "id", resp.ID)
+			return ackEvent(ctrl.ID, false, err.Error())
 		}
+		slog.Info("sent", "id", resp.ID)
+		return ackEvent(ctrl.ID, true, "")
 
 	case ControlSendReaction:
 		var p SendReactionPayload
 		if err := json.Unmarshal(ctrl.Payload, &p); err != nil {
 			slog.Warn("bad send_reaction payload", "err", err)
-			return
+			return ackEvent(ctrl.ID, false, "invalid payload")
 		}
 		jid, err := types.ParseJID(p.To)
 		if err != nil {
 			slog.Warn("invalid JID", "err", err)
-			return
+			return ackEvent(ctrl.ID, false, "invalid JID: "+err.Error())
 		}
 		senderJID := types.EmptyJID
 		if p.Sender != nil {
 			senderJID, err = types.ParseJID(*p.Sender)
 			if err != nil {
 				slog.Warn("invalid sender JID", "err", err)
-				return
+				return ackEvent(ctrl.ID, false, "invalid sender JID: "+err.Error())
 			}
 		}
-		_, err = client.SendMessage(ctx, jid, client.BuildReaction(jid, senderJID, types.MessageID(p.MessageID), p.Emoji))
+		_, err = b.client.SendMessage(ctx, jid, b.client.BuildReaction(jid, senderJID, types.MessageID(p.MessageID), p.Emoji))
 		if err != nil {
 			slog.Error("reaction failed", "err", err)
+			return ackEvent(ctrl.ID, false, err.Error())
 		}
+		return ackEvent(ctrl.ID, true, "")
+
 	case ControlEditMessage:
 		var p EditMessagePayload
 		if err := json.Unmarshal(ctrl.Payload, &p); err != nil {
 			slog.Warn("bad edit_message payload", "err", err)
-			return
+			return ackEvent(ctrl.ID, false, "invalid payload")
 		}
 		jid, err := types.ParseJID(p.To)
 		if err != nil {
 			slog.Warn("invalid JID", "err", err)
-			return
+			return ackEvent(ctrl.ID, false, "invalid JID: "+err.Error())
 		}
-		_, err = client.SendMessage(ctx, jid, client.BuildEdit(jid, p.MessageID, &waE2E.Message{
-			Conversation: proto.String(p.NewText),
+		_, err = b.client.SendMessage(ctx, jid, b.client.BuildEdit(jid, p.MessageID, &waE2E.Message{
+			Conversation: new(string),
 		}))
 		if err != nil {
 			slog.Error("edit failed", "err", err)
+			return ackEvent(ctrl.ID, false, err.Error())
 		}
+		return ackEvent(ctrl.ID, true, "")
 
 	case ControlRevokeMessage:
 		var p RevokeMessagePayload
 		if err := json.Unmarshal(ctrl.Payload, &p); err != nil {
 			slog.Warn("bad revoke_message payload", "err", err)
-			return
+			return ackEvent(ctrl.ID, false, "invalid payload")
 		}
 		jid, err := types.ParseJID(p.To)
 		if err != nil {
 			slog.Warn("invalid JID", "err", err)
-			return
+			return ackEvent(ctrl.ID, false, "invalid JID: "+err.Error())
 		}
 		var revokeMsg *waE2E.Message
 		if p.OriginalSender != nil {
-			revokeMsg = client.BuildRevoke(jid, types.NewJID(*p.OriginalSender, types.DefaultUserServer), p.MessageID)
+			revokeMsg = b.client.BuildRevoke(jid, types.NewJID(*p.OriginalSender, types.DefaultUserServer), p.MessageID)
 		} else {
-			revokeMsg = client.BuildRevoke(jid, types.EmptyJID, p.MessageID)
+			revokeMsg = b.client.BuildRevoke(jid, types.EmptyJID, p.MessageID)
 		}
-		_, err = client.SendMessage(ctx, jid, revokeMsg)
+		_, err = b.client.SendMessage(ctx, jid, revokeMsg)
 		if err != nil {
 			slog.Error("revoke failed", "err", err)
+			return ackEvent(ctrl.ID, false, err.Error())
 		}
+		return ackEvent(ctrl.ID, true, "")
 
 	case ControlGetStatus:
-		slog.Info("status",
-			"connected", client.IsConnected(),
-			"logged_in", client.IsLoggedIn(),
-		)
+		connected := b.client.IsConnected()
+		loggedIn := b.client.IsLoggedIn()
+		slog.Info("status", "connected", connected, "logged_in", loggedIn)
+		return EventMessage{
+			Kind: EventStatus,
+			ID:   &ctrl.ID,
+			Payload: map[string]any{
+				"connected": connected,
+				"logged_in": loggedIn,
+			},
+		}
 
 	case ControlDisconnect:
 		slog.Info("disconnect requested")
-		client.Disconnect()
+		b.client.Disconnect()
+		return ackEvent(ctrl.ID, true, "")
 
 	case ControlLogout:
 		slog.Info("logout requested")
-		if err := client.Logout(ctx); err != nil {
+		if err := b.client.Logout(ctx); err != nil {
 			slog.Error("logout failed", "err", err)
+			return ackEvent(ctrl.ID, false, err.Error())
 		}
+		return ackEvent(ctrl.ID, true, "")
+
+	default:
+		slog.Warn("unknown control type", "kind", ctrl.Kind)
+		return ackEvent(ctrl.ID, false, "unknown control type")
 	}
 }
