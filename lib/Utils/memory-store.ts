@@ -9,21 +9,21 @@ const cacheKey = (store: string, key: string) => `${store}\0${key}`;
  * Useful for benchmarks, tests, and ephemeral sessions.
  */
 export function useMemoryStore(): NonNullable<AuthenticationState["store"]> {
-  const data = new Map<string, Uint8Array>();
+	const data = new Map<string, Uint8Array>();
 
-  return {
-    async get(store: string, key: string): Promise<Uint8Array | null> {
-      return data.get(cacheKey(store, key)) ?? null;
-    },
+	return {
+		async get(store: string, key: string): Promise<Uint8Array | null> {
+			return data.get(cacheKey(store, key)) ?? null;
+		},
 
-    async set(store: string, key: string, value: Uint8Array): Promise<void> {
-      data.set(cacheKey(store, key), value);
-    },
+		async set(store: string, key: string, value: Uint8Array): Promise<void> {
+			data.set(cacheKey(store, key), value);
+		},
 
-    async delete(store: string, key: string): Promise<void> {
-      data.delete(cacheKey(store, key));
-    },
+		async delete(store: string, key: string): Promise<void> {
+			data.delete(cacheKey(store, key));
+		},
 
-    async flush() {},
-  };
+		async flush() {}
+	};
 }

@@ -1,6 +1,7 @@
 export * from "./boom.ts";
 export * from "./generics.ts";
 export * from "./jid-utils.ts";
+export * from "./logger.ts";
 export * from "./messages.ts";
 export * from "./messages-media.ts";
 export * from "./event-buffer.ts";
