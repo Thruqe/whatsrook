@@ -27,9 +27,11 @@ jobs:
           CURRENT_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
           echo "Current version: $CURRENT_VERSION"
           
-          git checkout HEAD~1 -- Cargo.toml 2>/dev/null || OLD_VERSION=""
-          if [ -n "$OLD_VERSION" ]; then
+          if git rev-parse HEAD~1 >/dev/null 2>&1; then
+            git checkout HEAD~1 -- Cargo.toml 2>/dev/null || true
             OLD_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
+          else
+            OLD_VERSION=""
           fi
           echo "Previous version: $OLD_VERSION"
           
@@ -56,7 +58,7 @@ jobs:
       - name: Package Asset
         run: |
           mkdir staging
-          cp target/release/zevBot staging/
+          cp target/release/zevBot staging/ 2>/dev/null || cp target/release/zevbot staging/ 2>/dev/null || true
           cp LICENSE staging/ 2>/dev/null || true
           cp README.md staging/ 2>/dev/null || true
           tar -czf zevBot-linux-amd64.tar.gz -C staging .
@@ -98,6 +100,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: release-binary
+
+      - name: Checkout Code for Tagging
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Create Git Tag
         run: |
