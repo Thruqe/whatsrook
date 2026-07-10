@@ -1,9 +1,4 @@
-import {
-	Boom,
-	makeWASocket,
-	useBridgeStore,
-	DisconnectReason,
-} from "../lib";
+import { Boom, makeWASocket, useBridgeStore, DisconnectReason } from "../lib";
 import process from "process";
 import readline from "readline";
 import * as qrcode from "qrcode-terminal";
@@ -167,7 +162,9 @@ const startSock = async () => {
 					const msg = serialize(raw, sock);
 					if (!msg || !msg.body || !msg.fromMe) continue;
 
-					const eventCommands = getCommands().filter((cmd) => cmd.event === true);
+					const eventCommands = getCommands().filter(
+						(cmd) => cmd.event === true,
+					);
 					for (const eventCmd of eventCommands) {
 						await eventCmd.func(msg);
 					}
@@ -177,7 +174,10 @@ const startSock = async () => {
 						await cmd.func(msg);
 					}
 
-					await Promise.all([autoDownload(raw, sock), autoSaveStatus(raw, sock)]);
+					await Promise.all([
+						autoDownload(raw, sock),
+						autoSaveStatus(raw, sock),
+					]);
 				}
 			}
 		}
