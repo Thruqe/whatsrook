@@ -1,14 +1,7 @@
+import { Database } from "bun:sqlite";
 import type { AuthenticationState } from "../Types/index.ts";
 
-// Covers every type both bun:sqlite and better-sqlite3 accept as a binding
-type SqlBinding =
-	| string
-	| number
-	| bigint
-	| boolean
-	| null
-	| Uint8Array
-	| Buffer;
+type SqlBinding = string | number | bigint | boolean | null | Uint8Array;
 
 interface DbStatement {
 	run(...args: SqlBinding[]): unknown;
@@ -23,76 +16,32 @@ interface DbAdapter {
 }
 
 async function openDatabase(dbPath: string): Promise<DbAdapter> {
-	if (typeof globalThis.Bun !== "undefined") {
-		const { Database } = await import("bun:sqlite");
-		const db = new Database(dbPath, { create: true });
-		return {
-			exec: (sql: string) => db.exec(sql),
-			prepare: (sql: string) => {
-				const stmt = db.prepare(sql);
-				return {
-					run: (...args: SqlBinding[]) =>
-						stmt.run(...(args as Parameters<typeof stmt.run>)),
-					get: (...args: SqlBinding[]) =>
-						stmt.get(...(args as Parameters<typeof stmt.get>)),
-					all: (...args: SqlBinding[]) =>
-						stmt.all(...(args as Parameters<typeof stmt.all>))
-				};
-			},
-			close: () => db.close()
-		};
-	}
-
-	// Node.js — requires: npm i better-sqlite3
-	const BetterSqlite3 = (await import("better-sqlite3")).default;
-	const db = new BetterSqlite3(dbPath);
+	const db = new Database(dbPath, { create: true });
 	return {
-		exec: (sql: string) => db.exec(sql),
+		exec: (sql: string) => db.run(sql),
 		prepare: (sql: string) => {
 			const stmt = db.prepare(sql);
 			return {
-				run: (...args: SqlBinding[]) => stmt.run(...args),
-				get: (...args: SqlBinding[]) => stmt.get(...args),
-				all: (...args: SqlBinding[]) => stmt.all(...args)
+				run: (...args: SqlBinding[]) =>
+					stmt.run(...(args as Parameters<typeof stmt.run>)),
+				get: (...args: SqlBinding[]) =>
+					stmt.get(...(args as Parameters<typeof stmt.get>)),
+				all: (...args: SqlBinding[]) =>
+					stmt.all(...(args as Parameters<typeof stmt.all>)),
 			};
 		},
-		close: () => db.close()
+		close: () => db.close(),
 	};
 }
 
-// ---------------------------------------------------------------------------
-// Bridge store
-// ---------------------------------------------------------------------------
-
-/**
- * Creates a SQLite-backed store for the WASM bridge.
- *
- * Each unique store name the bridge passes at runtime becomes its own table:
- *   CREATE TABLE "<store>" (key TEXT PRIMARY KEY, value BLOB NOT NULL)
- *
- * Tables are created on first access and their prepared statements are cached,
- * so subsequent calls pay zero DDL overhead.
- *
- * Behaviour preserved from the file-based implementation:
- *  - Write-through in-memory LRU cache (5 000 entries)
- *  - Critical stores (session / identity / device) are written synchronously
- *  - Non-critical writes are coalesced with a 50 ms debounce
- *  - flush() drains all pending debounced writes
- */
 export async function useBridgeStore(
-	dbFile = "auth.db"
+	dbFile = "auth.db",
 ): Promise<NonNullable<AuthenticationState["store"]>> {
 	const db = await openDatabase(dbFile);
 
 	db.exec(`PRAGMA journal_mode = WAL`);
 	db.exec(`PRAGMA synchronous = NORMAL`);
 
-	// ------------------------------------------------------------------
-	// Dynamic per-store table management
-	// ------------------------------------------------------------------
-
-	// Guard against SQL injection: store names come from the WASM bridge
-	// and are interpolated into DDL, so we restrict to safe identifiers.
 	const SAFE_TABLE_NAME = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
 	interface StoreStatements {
@@ -109,7 +58,7 @@ export async function useBridgeStore(
 
 		if (!SAFE_TABLE_NAME.test(store)) {
 			throw new Error(
-				`Invalid store name: "${store}". Only alphanumeric characters and underscores are allowed.`
+				`Invalid store name: "${store}". Only alphanumeric characters and underscores are allowed.`,
 			);
 		}
 
@@ -124,18 +73,14 @@ export async function useBridgeStore(
 			get: db.prepare(`SELECT value FROM "${store}" WHERE key = ?`),
 			set: db.prepare(
 				`INSERT INTO "${store}" (key, value) VALUES (?, ?)
-				 ON CONFLICT (key) DO UPDATE SET value = excluded.value`
+				 ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
 			),
-			del: db.prepare(`DELETE FROM "${store}" WHERE key = ?`)
+			del: db.prepare(`DELETE FROM "${store}" WHERE key = ?`),
 		};
 
 		stmtCache.set(store, stmts);
 		return stmts;
 	};
-
-	// ------------------------------------------------------------------
-	// LRU write-through cache
-	// ------------------------------------------------------------------
 
 	const MAX_CACHE_ENTRIES = 5_000;
 	const cache = new Map<string, Uint8Array>();
@@ -147,10 +92,6 @@ export async function useBridgeStore(
 			cache.delete(cache.keys().next().value!);
 		}
 	};
-
-	// ------------------------------------------------------------------
-	// Debounced write queue for non-critical stores
-	// ------------------------------------------------------------------
 
 	const WRITE_DELAY_MS = 50;
 
@@ -177,10 +118,6 @@ export async function useBridgeStore(
 		}
 	};
 
-	// ------------------------------------------------------------------
-	// Store implementation
-	// ------------------------------------------------------------------
-
 	return {
 		async get(store: string, key: string): Promise<Uint8Array | null> {
 			const cacheKey = `${store}\0${key}`;
@@ -194,18 +131,10 @@ export async function useBridgeStore(
 			const row = ensureTable(store).get.get(key) as
 				| { value: Uint8Array }
 				| undefined;
+
 			if (!row) return null;
 
-			// Normalise: better-sqlite3 returns Buffer, bun:sqlite returns Uint8Array
-			const arr =
-				row.value instanceof Uint8Array
-					? row.value
-					: new Uint8Array(
-							(row.value as Buffer).buffer,
-							(row.value as Buffer).byteOffset,
-							(row.value as Buffer).byteLength
-						);
-
+			const arr = row.value;
 			touchCache(cacheKey, arr);
 			return arr;
 		},
@@ -213,7 +142,6 @@ export async function useBridgeStore(
 		async set(store: string, key: string, value: Uint8Array): Promise<void> {
 			const cacheKey = `${store}\0${key}`;
 
-			// Skip identical writes
 			const prev = cache.get(cacheKey);
 			if (
 				prev &&
@@ -225,7 +153,6 @@ export async function useBridgeStore(
 
 			touchCache(cacheKey, value);
 
-			// Critical stores: write immediately, bypass debounce
 			const critical =
 				store === "session" || store === "identity" || store === "device";
 			if (critical) {
@@ -238,7 +165,6 @@ export async function useBridgeStore(
 				return;
 			}
 
-			// Non-critical: coalesce rapid writes
 			const existing = pendingWrites.get(cacheKey);
 			if (existing) {
 				clearTimeout(existing.timer);
@@ -246,7 +172,7 @@ export async function useBridgeStore(
 
 			const timer = setTimeout(() => flushWrite(cacheKey), WRITE_DELAY_MS);
 			if (typeof timer === "object" && "unref" in timer) {
-				(timer as NodeJS.Timeout).unref();
+				(timer as any).unref();
 			}
 			pendingWrites.set(cacheKey, { store, key, value, timer });
 		},
@@ -264,13 +190,9 @@ export async function useBridgeStore(
 			ensureTable(store).del.run(key);
 		},
 
-		/**
-		 * Flush all pending debounced writes and optionally close the DB.
-		 * Pass `{ close: true }` during shutdown to release the file handle.
-		 */
 		async flush(opts?: { close?: boolean }): Promise<void> {
 			flushAll();
 			if (opts?.close) db.close();
-		}
+		},
 	};
 }
