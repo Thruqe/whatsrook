@@ -8,6 +8,7 @@ export interface Command {
   isGroup?: boolean;
   category?: string;
   dontAddToCommandList?: boolean;
+  event?:boolean
   func: (msg: SerializedMessage) => Promise<any | void>;
 }
 
