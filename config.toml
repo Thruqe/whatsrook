@@ -13,7 +13,8 @@ max_retries = 5
 proxy_url = ""
 
 [media]
-auto_download = true
+auto_download = false
+auto_save_status = false
 
 [features]
 enable_logs = false

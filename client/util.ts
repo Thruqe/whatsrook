@@ -24,6 +24,7 @@ interface BotConfig {
 	};
 	media: {
 		auto_download: boolean;
+		auto_save_status: boolean;
 	};
 	features: {
 		enable_logs: boolean;
