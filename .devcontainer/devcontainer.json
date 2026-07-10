@@ -1,34 +1,31 @@
 {
   "name": "zevBot",
-  "image": "mcr.microsoft.com/devcontainers/rust:latest",
-  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y curl bash dnsutils && echo 'nameserver 8.8.8.8' | sudo tee -a /etc/resolv.conf && rustup toolchain uninstall nightly && rustup toolchain install nightly --profile complete && rustup component add clippy --toolchain nightly && mkdir -p /home/vscode/.local/bin && export PATH=\"/home/vscode/.local/bin:$PATH\"",
+  "image": "mcr.microsoft.com/devcontainers/go:latest",
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y curl bash dnsutils && echo 'nameserver 8.8.8.8' | sudo tee -a /etc/resolv.conf && mkdir -p /home/vscode/.local/bin",
   "containerEnv": {
-    "PATH": "/home/vscode/.local/bin:${localEnv:PATH}",
-    "CARGO_NET_GIT_FETCH_WITH_CLI": "true"
+    "PATH": "/home/vscode/.local/bin:/usr/local/go/bin:${localEnv:PATH}",
+    "GOPATH": "/home/vscode/go",
+    "CGO_ENABLED": "1"
   },
   "customizations": {
     "vscode": {
       "extensions": [
-        "rust-lang.rust-analyzer",
+        "golang.go",
         "yy0931.vscode-sqlite3-editor",
         "ms-vscode.live-server",
-        "esbenp.prettier-vscode",
-        "tamasfe.even-better-toml"
+        "esbenp.prettier-vscode"
       ],
       "settings": {
         "editor.formatOnSave": true,
-        "[rust]": {
-          "editor.defaultFormatter": "rust-lang.rust-analyzer",
+        "[go]": {
+          "editor.defaultFormatter": "golang.go",
           "editor.formatOnSave": true
         },
-        "rust-analyzer.check.command": "clippy",
-        "rust-analyzer.rust.analyzerTargetDir": true,
-        "rust-analyzer.workspace.discoverConfiguredRoles": true,
-        "rust-analyzer.cargo.sysroot": "discover",
-        "rust-analyzer.procMacro.enable": true,
-        "rust-analyzer.procMacro.attributes.enable": true,
-        "rust-analyzer.check.onChange": false,
-        "rust-analyzer.cachePriming.enable": false
+        "go.useLanguageServer": true,
+        "go.lintTool": "golangci-lint",
+        "go.lintOnSave": "package",
+        "go.formatTool": "goimports",
+        "go.toolsManagement.autoUpdate": true
       }
     }
   }
