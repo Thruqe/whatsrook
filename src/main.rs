@@ -1,10 +1,10 @@
 mod cli;
+mod messages;
 mod utils;
 mod ws;
 
 use axum::{Router, routing::get};
 use std::{env, sync::Arc};
-use tokio::sync::broadcast;
 use wacore::{pair_code::PairCodeOptions, store::DevicePropsOverride, types::events::Event};
 use waproto::whatsapp::device_props::PlatformType;
 use whatsapp_rust::pair::CompanionWebClientType;
@@ -14,6 +14,7 @@ use whatsapp_rust_tokio_transport::TokioWebSocketTransportFactory;
 use whatsapp_rust_ureq_http_client::UreqHttpClient;
 
 use cli::CliArgs;
+use messages::{ControlMessage, ControlType, EventMessage, EventType, Payload};
 use utils::{cleanup_db, shutdown_signal};
 use ws::{WsState, ws_handler};
 
@@ -77,7 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         axum::serve(listener, app).await.unwrap();
     });
 
-    start_session(db_path, cli, ws_state.events_tx).await?;
+    start_session(db_path, cli, ws_state).await?;
 
     Ok(())
 }
@@ -85,8 +86,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn start_session(
     db_path: String,
     cli: CliArgs,
-    events_tx: broadcast::Sender<String>,
+    ws_state: WsState,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let events_tx = ws_state.events_tx.clone();
+    let mut control_rx = ws_state.control_tx.subscribe();
+
     let backend: Arc<dyn Backend> = Arc::new(SqliteStore::new(&db_path).await?);
 
     let mut builder = Bot::builder()
@@ -118,12 +122,15 @@ async fn start_session(
             let tx = events_tx.clone();
             let sname = session.clone();
             async move {
-                let update = match &*event {
+                let msg: Option<EventMessage> = match &*event {
                     Event::PairingQrCode { code, .. } => {
                         if show_qr {
                             tracing::info!("[{sname}] QR:\n{code}");
                         }
-                        Some(code.clone())
+                        Some(EventMessage::event(
+                            EventType::PairQr,
+                            Payload::PairQr { code: code.clone() },
+                        ))
                     }
                     Event::PairingCode { code, timeout } => {
                         tracing::info!(
@@ -131,23 +138,40 @@ async fn start_session(
                             timeout.as_secs()
                         );
                         println!("[{sname}] Enter this code on your phone: {code}");
-                        Some(code.clone())
+                        Some(EventMessage::event(
+                            EventType::PairCode,
+                            Payload::PairCode {
+                                code: code.clone(),
+                                expires_in: timeout.as_secs(),
+                            },
+                        ))
                     }
                     Event::PairSuccess(_) => {
                         tracing::info!("[{sname}] Paired successfully!");
-                        Some("Paired successfully!".to_string())
+                        Some(EventMessage::event(
+                            EventType::PairSuccess,
+                            Payload::Empty {},
+                        ))
                     }
                     Event::PairError(_) => {
                         tracing::warn!("[{sname}] Pairing failed.");
-                        Some("Pairing failed.".to_string())
+                        Some(EventMessage::event(
+                            EventType::PairError,
+                            Payload::PairError {
+                                reason: "Pairing failed".to_string(),
+                            },
+                        ))
                     }
                     Event::LoggedOut(_) => {
                         tracing::warn!("[{sname}] Logged out.");
-                        Some("Connection Logged Out.".to_string())
+                        Some(EventMessage::event(EventType::LoggedOut, Payload::Empty {}))
                     }
                     Event::Disconnected(_) => {
                         tracing::info!("[{sname}] Disconnected.");
-                        Some("Connection closed.".to_string())
+                        Some(EventMessage::event(
+                            EventType::Disconnected,
+                            Payload::Empty {},
+                        ))
                     }
                     _ => {
                         tracing::debug!("[{sname}] Event: {:?}", event);
@@ -155,16 +179,44 @@ async fn start_session(
                     }
                 };
 
-                if let Some(msg) = update {
-                    let _ = tx.send(msg);
-                }
-                if let Ok(json) = serde_json::to_string(&event) {
+                if let Some(event_msg) = msg
+                    && let Ok(json) = serde_json::to_string(&event_msg)
+                {
                     let _ = tx.send(json);
                 }
             }
         })
         .build()
         .await?;
+
+    let client = bot.client();
+
+    // Spawn control message handler
+    tokio::spawn(async move {
+        while let Ok(raw) = control_rx.recv().await {
+            if let Ok(ctrl) = serde_json::from_str::<ControlMessage>(&raw) {
+                match ctrl.kind {
+                    ControlType::SendMessage => {
+                        if let Payload::SendMessage { to, text } = ctrl.payload {
+                            // tracing::info!("Sending message to {to}: {text}");
+                            //  client.send_message(to.parse(), messages::Ex).await
+                        }
+                    }
+                    ControlType::GetStatus => {
+                        tracing::info!("Status requested");
+                    }
+                    ControlType::Disconnect => {
+                        tracing::info!("Disconnect requested");
+                        client.disconnect().await
+                    }
+                    ControlType::Logout => {
+                        tracing::info!("Logout requested");
+                        client.logout().await;
+                    }
+                }
+            }
+        }
+    });
 
     bot.client()
         .set_client_profile(ClientProfile::android("13"))
