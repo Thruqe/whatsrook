@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -36,8 +34,15 @@ func newHub() *Hub {
 // Broadcast sends an event to all connected WebSocket clients.
 func (h *Hub) Broadcast(evt EventMessage) {
 	h.mu.RLock()
-	defer h.mu.RUnlock()
+
+	clients := make([]*wsClient, 0, len(h.clients))
 	for c := range h.clients {
+		clients = append(clients, c)
+	}
+
+	h.mu.RUnlock()
+
+	for _, c := range clients {
 		select {
 		case c.send <- evt:
 		default:
@@ -56,40 +61,66 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	c := &wsClient{conn: conn, send: make(chan EventMessage, 64)}
+	c := &wsClient{
+		conn: conn,
+		send: make(chan EventMessage, 64),
+	}
 
 	h.mu.Lock()
 	h.clients[c] = struct{}{}
 	h.mu.Unlock()
 
 	ctx, cancel := context.WithCancel(r.Context())
+
 	defer func() {
 		cancel()
-		err := conn.CloseNow()
-		if err != nil {
-			fmt.Printf("Failed to close websocket connection: %v", err)
-			return
-		}
+
 		h.mu.Lock()
-		delete(h.clients, c)
+
+		if _, ok := h.clients[c]; ok {
+			delete(h.clients, c)
+			close(c.send)
+		}
+
 		h.mu.Unlock()
+
+		if err := conn.CloseNow(); err != nil {
+			slog.Error(
+				"failed to close websocket connection",
+				"err",
+				err,
+			)
+		}
 	}()
 
-	// writer goroutine
+	// single writer goroutine
 	go func() {
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
+
 		for {
 			select {
+
 			case <-ctx.Done():
 				return
+
 			case <-ticker.C:
 				// Send a keep-alive ping so upstream proxies can detect dead connections
 				if err := conn.Ping(ctx); err != nil {
 					cancel()
 					return
 				}
-			case msg := <-c.send:
-				if err := wsjson.Write(ctx, conn, msg); err != nil {
+
+			case msg, ok := <-c.send:
+				if !ok {
+					return
+				}
+
+				if err := wsjson.Write(
+					ctx,
+					conn,
+					msg,
+				); err != nil {
 					cancel()
 					return
 				}
@@ -99,26 +130,37 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 
 	// reader loop
 	for {
-		var raw map[string]json.RawMessage
-		if err := wsjson.Read(ctx, conn, &raw); err != nil {
+		var ctrl ControlMessage
+
+		// remove marshal->unmarshal roundtrip
+		if err := wsjson.Read(ctx, conn, &ctrl); err != nil {
 			break
 		}
 
-		var ctrl ControlMessage
-		data, _ := json.Marshal(raw)
-		if err := json.Unmarshal(data, &ctrl); err != nil {
-			ack := ackEvent("unknown", false, fmt.Sprintf("parse error: %s", err))
-			_ = wsjson.Write(ctx, conn, ack)
-			continue
+		// immediate ack through writer channel
+		select {
+		case c.send <- ackEvent(ctrl.ID, true, ""):
+		default:
 		}
-
-		// immediate ack
-		_ = wsjson.Write(ctx, conn, ackEvent(ctrl.ID, true, ""))
 
 		select {
 		case h.Control <- ctrl:
+
 		default:
-			slog.Warn("control channel full, dropping message", "id", ctrl.ID)
+			slog.Warn(
+				"control channel full, dropping message",
+				"id",
+				ctrl.ID,
+			)
+
+			select {
+			case c.send <- ackEvent(
+				ctrl.ID,
+				false,
+				"server busy",
+			):
+			default:
+			}
 		}
 	}
 
