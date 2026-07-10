@@ -2962,7 +2962,7 @@ dependencies = [
 
 [[package]]
 name = "zevBot"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "axum",
  "serde",
