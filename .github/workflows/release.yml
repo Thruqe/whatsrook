@@ -1,0 +1,119 @@
+name: Release Management
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  check-version:
+    name: Check Version Change
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.version-check.outputs.changed }}
+      version: ${{ steps.version-check.outputs.version }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Parse and Compare Versions
+        id: version-check
+        run: |
+          CURRENT_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
+          echo "Current version: $CURRENT_VERSION"
+          
+          git checkout HEAD~1 -- Cargo.toml 2>/dev/null || OLD_VERSION=""
+          if [ -n "$OLD_VERSION" ]; then
+            OLD_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
+          fi
+          echo "Previous version: $OLD_VERSION"
+          
+          if [ "$CURRENT_VERSION" != "$OLD_VERSION" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+  build:
+    name: Build Release Binary
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust Toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Build Binary
+        run: cargo build --release
+
+      - name: Package Asset
+        run: |
+          mkdir staging
+          cp target/release/zevBot staging/
+          cp LICENSE staging/ 2>/dev/null || true
+          cp README.md staging/ 2>/dev/null || true
+          tar -czf zevBot-linux-amd64.tar.gz -C staging .
+
+      - name: Upload Intermediary Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-binary
+          path: zevBot-linux-amd64.tar.gz
+
+  alpha-release:
+    name: Alpha Per-Commit Release
+    needs: [check-version, build]
+    if: needs:check-version.outputs.changed != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-binary
+
+      - name: Publish Alpha Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: alpha
+          name: "Alpha Build (Commit: ${{ github.sha }})"
+          prerelease: true
+          files: zevBot-linux-amd64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  production-release:
+    name: Production Release
+    needs: [check-version, build]
+    if: needs:check-version.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-binary
+
+      - name: Create Git Tag
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ needs.check-version.outputs.version }}" -m "Release v${{ needs.check-version.outputs.version }}"
+          git push origin "v${{ needs.check-version.outputs.version }}"
+
+      - name: Publish Production Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ needs.check-version.outputs.version }}"
+          name: "Release v${{ needs.check-version.outputs.version }}"
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: zevBot-linux-amd64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
