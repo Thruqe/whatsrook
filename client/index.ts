@@ -1,4 +1,10 @@
-import { Boom, makeWASocket, useBridgeStore, DisconnectReason } from "../lib";
+import {
+  Boom,
+  makeWASocket,
+  useBridgeStore,
+  DisconnectReason,
+  delay,
+} from "../lib";
 import process from "node:process";
 import readline from "node:readline";
 
@@ -52,10 +58,11 @@ const startSock = async () => {
       }
 
       if (connection === "open") {
-        process.stdout.write(clear);
         console.log(
           `[plugin] Loaded ${cmd.commands.length} command(s) from ${cmd.files.length} file(s)`,
         );
+        await delay(2000);
+        process.stdout.write(clear);
         console.log("Connected to WhatsApp");
       }
 

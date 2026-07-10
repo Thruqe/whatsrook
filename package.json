@@ -18,6 +18,8 @@
   },
   "license": "MIT",
   "scripts": {
-    "start": "bun client/index.ts"
+    "start": "pm2 start client/index.ts --name 'bot' --interpreter ~/.bun/bin/bun --attach",
+    "stop": "pm2 stop bot",
+    "restart": "pm2 delete bot && bun start"
   }
 }
