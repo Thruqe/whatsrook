@@ -3,21 +3,20 @@ import process from "node:process";
 import readline from "node:readline";
 import * as qrcode from "qrcode-terminal";
 
-import calls from "./calls";
 import serialize from "./serialize";
 import { config, logger } from "./util";
-import { getCommands, loadCommands, matchCommand } from "./plugin";
-import { autoDownload, autoSaveStatus } from "./features";
+import { getCommands, loadCommands, matchCommand } from "./plugins";
+import { autoDownload, autoSaveStatus, makeCall } from "./features";
 
 logger.level = config.features?.enable_logs ? "trace" : "silent";
 
 const rl = readline.createInterface({
 	input: process.stdin,
-	output: process.stdout
+	output: process.stdout,
 });
 
 const question = (text: string) =>
-	new Promise<string>(resolve => rl.question(text, resolve));
+	new Promise<string>((resolve) => rl.question(text, resolve));
 
 const startSock = async () => {
 	const state = await useBridgeStore();
@@ -29,10 +28,10 @@ const startSock = async () => {
 	const sock = makeWASocket({
 		logger,
 		auth: { store: state },
-		emitOwnEvents: false
+		emitOwnEvents: false,
 	});
 
-	sock.ev.process(async events => {
+	sock.ev.process(async (events) => {
 		if (events["connection.update"]) {
 			const update = events["connection.update"];
 			const { connection, lastDisconnect, qr } = update;
@@ -51,7 +50,7 @@ const startSock = async () => {
 				const phoneNumber = await question("Please enter your phone number:\n");
 				try {
 					const code = await sock.requestPairingCode(
-						phoneNumber.replace(/[^\d]/g, "")
+						phoneNumber.replace(/[^\d]/g, ""),
 					);
 					console.log(`Pairing code: ${code}`);
 				} catch (err) {
@@ -77,7 +76,7 @@ const startSock = async () => {
 			if (connection === "open") {
 				retryCount = 0;
 				console.log(
-					`[Plugin] Loaded ${cmd.commands.length} command(s) from ${cmd.files.length} file(s)`
+					`[Plugin] Loaded ${cmd.commands.length} command(s) from ${cmd.files.length} file(s)`,
 				);
 				console.log(`${config.features.bot_name} is connected to WhatsApp`);
 			}
@@ -86,7 +85,7 @@ const startSock = async () => {
 		}
 
 		if (events["call"]) {
-			await calls(events.call);
+			await makeCall(events.call);
 		}
 
 		if (events["messages.upsert"]) {
@@ -98,7 +97,9 @@ const startSock = async () => {
 
 					if (!msg || !msg.body || !msg.fromMe) continue;
 
-					const eventCommands = getCommands().filter(cmd => cmd.event === true);
+					const eventCommands = getCommands().filter(
+						(cmd) => cmd.event === true,
+					);
 					for (const eventCmd of eventCommands) {
 						await eventCmd.func(msg);
 					}
@@ -110,7 +111,7 @@ const startSock = async () => {
 
 					await Promise.all([
 						autoDownload(raw, sock),
-						autoSaveStatus(raw, sock)
+						autoSaveStatus(raw, sock),
 					]);
 				}
 			}

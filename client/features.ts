@@ -2,7 +2,12 @@ import { join } from "node:path";
 import { writeFile, mkdir } from "node:fs/promises";
 import { fileTypeFromBuffer } from "file-type";
 import { config, isMediaMessage } from "./util";
-import { isJidStatusBroadcast, type WAMessage, type WASocket } from "../lib";
+import {
+	isJidStatusBroadcast,
+	type WACallEvent,
+	type WAMessage,
+	type WASocket
+} from "../lib";
 
 export const autoDownload = async (message: WAMessage, sock: WASocket) => {
 	if (config?.media?.auto_download && isMediaMessage(message)) {
@@ -43,4 +48,8 @@ export const autoSaveStatus = async (msg: WAMessage, sock: WASocket) => {
 
 		await sock.sendMessage(selfId, { forward: cleanMsg }, { quoted: cleanMsg });
 	}
+};
+
+export const makeCall = async (ev?: WACallEvent[]) => {
+	console.log(ev);
 };

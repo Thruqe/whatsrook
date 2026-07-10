@@ -1,7 +1,7 @@
 import os from "node:os";
 import { join } from "node:path";
 import { readdir, stat, rm, mkdir } from "node:fs/promises";
-import { registerCommand } from "../plugin";
+import { registerCommand } from "../plugins";
 import { runtime, formatBytes } from "./menu";
 
 registerCommand([
@@ -15,9 +15,9 @@ registerCommand([
 			const elapsed = Date.now() - start;
 			await client.sendMessage(remoteJid, {
 				edit: sent!.key,
-				text: `\`\`\`Pong ${elapsed} ms\`\`\``
+				text: `\`\`\`Pong ${elapsed} ms\`\`\``,
 			});
-		}
+		},
 	},
 	{
 		pattern: "uptime",
@@ -25,9 +25,9 @@ registerCommand([
 		async func(msg) {
 			const uptime = runtime(process.uptime());
 			return msg.client.sendMessage(msg.remoteJid, {
-				text: `\`\`\`Running since: ${uptime}\`\`\``
+				text: `\`\`\`Running since: ${uptime}\`\`\``,
 			});
-		}
+		},
 	},
 	{
 		pattern: "ram",
@@ -37,9 +37,9 @@ registerCommand([
 			const used = total - os.freemem();
 			const pct = ((used / total) * 100).toFixed(1);
 			return msg.client.sendMessage(msg.remoteJid, {
-				text: `\`\`\`RAM: ${formatBytes(used)} / ${formatBytes(total)} (${pct}%)\`\`\``
+				text: `\`\`\`RAM: ${formatBytes(used)} / ${formatBytes(total)} (${pct}%)\`\`\``,
 			});
-		}
+		},
 	},
 	{
 		pattern: "sysinfo",
@@ -54,12 +54,12 @@ registerCommand([
 				`Platform : ${os.platform()} ${os.arch()}\n` +
 				`Hostname : ${os.hostname()}\n` +
 				`CPU      : ${cpus[0]?.model ?? "Unknown"} (${cpus.length} cores)\n` +
-				`Load avg : ${load.map(l => l.toFixed(2)).join(" | ")}\n` +
+				`Load avg : ${load.map((l) => l.toFixed(2)).join(" | ")}\n` +
 				`RAM      : ${formatBytes(used)} / ${formatBytes(total)}\n` +
 				`Uptime   : ${runtime(process.uptime())}\`\`\``;
 
 			return msg.client.sendMessage(msg.remoteJid, { text });
-		}
+		},
 	},
 
 	{
@@ -79,7 +79,7 @@ registerCommand([
 
 			const getDirSize = async (dir: string): Promise<number> => {
 				const files = await readdir(dir, { withFileTypes: true });
-				const paths = files.map(async file => {
+				const paths = files.map(async (file) => {
 					const path = join(dir, file.name);
 					if (file.isDirectory()) return await getDirSize(path);
 					const { size } = await stat(path);
@@ -94,7 +94,7 @@ registerCommand([
 					totalSize = await getDirSize(tmpDir);
 				} catch {
 					return await msg.client.sendMessage(msg.remoteJid, {
-						text: "_Tmp directory is already empty or does not exist._"
+						text: "_Tmp directory is already empty or does not exist._",
 					});
 				}
 
@@ -102,13 +102,13 @@ registerCommand([
 				await mkdir(tmpDir, { recursive: true });
 
 				await msg.client.sendMessage(msg.remoteJid, {
-					text: `\`\`\`Cleaned: ${formatSize(totalSize)}\`\`\``
+					text: `\`\`\`Cleaned: ${formatSize(totalSize)}\`\`\``,
 				});
 			} catch {
 				await msg.client.sendMessage(msg.remoteJid, {
-					text: "_Error while cleaning tmp directory._"
+					text: "_Error while cleaning tmp directory._",
 				});
 			}
-		}
-	}
+		},
+	},
 ]);
