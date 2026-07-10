@@ -46,7 +46,7 @@ export function matchCommand(msg: SerializedMessage): Command | undefined {
 }
 
 export async function loadCommands(
-	dir: string = join(import.meta.dir, "commands")
+	dir: string = join(import.meta.dir, "features")
 ) {
 	const glob = new Bun.Glob("**/*.ts");
 	const files = await Array.fromAsync(glob.scan({ cwd: dir, absolute: true }));

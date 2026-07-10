@@ -5,7 +5,7 @@ import { writeFileSync, unlinkSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { registerCommand } from "../plugins";
+import { registerCommand } from "../cmd";
 import { toMp4, toPTT } from "../util";
 import type { SerializedMessage } from "../serialize";
 
@@ -75,18 +75,18 @@ async function loggedExec(command: string, options: any = {}) {
 
 async function sendCookiePrompt(msg: SerializedMessage) {
 	await msg.client.sendMessage(msg.remoteJid, {
-		text: `YouTube requires authentication for this content.\n\nSet your cookies using:\n*ytc YOUR_COOKIE_STRING*`,
+		text: `YouTube requires authentication for this content.\n\nSet your cookies using:\n*ytc YOUR_COOKIE_STRING*`
 	});
 }
 
 async function downloadAndSendAudio(
 	msg: SerializedMessage,
 	url: string,
-	title: string,
+	title: string
 ) {
 	try {
 		await msg.client.sendMessage(msg.remoteJid, {
-			text: `Extracting audio for *${title}*...`,
+			text: `Extracting audio for *${title}*...`
 		});
 
 		const cookieArgs = getCookieArgs();
@@ -94,8 +94,8 @@ async function downloadAndSendAudio(
 			`yt-dlp ${cookieArgs} "${url}" -f "ba" -o -`,
 			{
 				encoding: null,
-				maxBuffer: 1024 * 1024 * 100,
-			},
+				maxBuffer: 1024 * 1024 * 100
+			}
 		);
 
 		const { buffer, mimetype, seconds, ptt } = await toPTT(stdout);
@@ -104,12 +104,12 @@ async function downloadAndSendAudio(
 			audio: buffer,
 			mimetype,
 			ptt,
-			seconds: Math.floor(seconds ? seconds : 0),
+			seconds: Math.floor(seconds ? seconds : 0)
 		});
 	} catch (e: any) {
 		if (e.isCookieError) return sendCookiePrompt(msg);
 		await msg.client.sendMessage(msg.remoteJid, {
-			text: "Audio download failed.",
+			text: "Audio download failed."
 		});
 	}
 }
@@ -118,21 +118,21 @@ async function downloadAndSendVideo(
 	msg: any,
 	url: string,
 	formatId: string,
-	title: string,
+	title: string
 ) {
 	try {
 		await msg.client.sendMessage(msg.remoteJid, {
-			text: `Processing *${title}*...`,
+			text: `Processing *${title}*...`
 		});
 
 		const cookieArgs = getCookieArgs();
 
 		const { stdout: thumbUrl } = await loggedExec(
-			`yt-dlp ${cookieArgs} --get-thumbnail "${url}"`,
+			`yt-dlp ${cookieArgs} --get-thumbnail "${url}"`
 		);
 
 		const thumbResponse = await axios.get(thumbUrl.toString().trim(), {
-			responseType: "arraybuffer",
+			responseType: "arraybuffer"
 		});
 		const jpegThumbnail = Buffer.from(thumbResponse.data).toString("base64");
 
@@ -140,8 +140,8 @@ async function downloadAndSendVideo(
 			`yt-dlp ${cookieArgs} "${url}" -f "${formatId}" -o -`,
 			{
 				encoding: null,
-				maxBuffer: 1024 * 1024 * 100,
-			},
+				maxBuffer: 1024 * 1024 * 100
+			}
 		);
 
 		const videoData = await toMp4(stdout);
@@ -150,7 +150,7 @@ async function downloadAndSendVideo(
 			video: videoData.buffer,
 			mimetype: "video/mp4",
 			caption: title,
-			jpegThumbnail,
+			jpegThumbnail
 		});
 	} catch (e: any) {
 		if (e.isCookieError) return sendCookiePrompt(msg);
@@ -166,7 +166,7 @@ registerCommand([
 			const cookie = msg.args.slice(1).join(" ").trim();
 			if (!cookie)
 				return await msg.client.sendMessage(msg.remoteJid, {
-					text: "Provide your YouTube cookie string.\nUsage: *ytc YOUR_COOKIE_STRING*",
+					text: "Provide your YouTube cookie string.\nUsage: *ytc YOUR_COOKIE_STRING*"
 				});
 
 			if (cookieFilePath && existsSync(cookieFilePath)) {
@@ -192,9 +192,9 @@ registerCommand([
 			}, COOKIE_TTL_MS);
 
 			await msg.client.sendMessage(msg.remoteJid, {
-				text: ` Cookie set successfully. It will expire in *15 minutes*.`,
+				text: ` Cookie set successfully. It will expire in *15 minutes*.`
 			});
-		},
+		}
 	},
 
 	{
@@ -204,13 +204,13 @@ registerCommand([
 			const query = msg.args.slice(1).join(" ");
 			if (!query)
 				return await msg.client.sendMessage(msg.remoteJid, {
-					text: "Provide a search term",
+					text: "Provide a search term"
 				});
 
 			try {
 				const cookieArgs = getCookieArgs();
 				const { stdout } = await loggedExec(
-					`yt-dlp ${cookieArgs} "ytsearch10:${query}" --get-title --get-id --get-duration`,
+					`yt-dlp ${cookieArgs} "ytsearch10:${query}" --get-title --get-id --get-duration`
 				);
 
 				const lines = stdout.toString().trim().split("\n");
@@ -230,10 +230,10 @@ registerCommand([
 			} catch (e: any) {
 				if (e.isCookieError) return sendCookiePrompt(msg);
 				await msg.client.sendMessage(msg.remoteJid, {
-					text: "No results found.",
+					text: "No results found."
 				});
 			}
-		},
+		}
 	},
 
 	{
@@ -243,7 +243,7 @@ registerCommand([
 			const url = msg.args[1];
 			if (!url)
 				return await msg.client.sendMessage(msg.remoteJid, {
-					text: "Provide a YouTube URL",
+					text: "Provide a YouTube URL"
 				});
 
 			try {
@@ -254,10 +254,10 @@ registerCommand([
 			} catch (e: any) {
 				if (e.isCookieError) return sendCookiePrompt(msg);
 				await msg.client.sendMessage(msg.remoteJid, {
-					text: "Error fetching audio.",
+					text: "Error fetching audio."
 				});
 			}
-		},
+		}
 	},
 
 	{
@@ -267,7 +267,7 @@ registerCommand([
 			const url = msg.args[1];
 			if (!url)
 				return await msg.client.sendMessage(msg.remoteJid, {
-					text: "Provide a YouTube URL",
+					text: "Provide a YouTube URL"
 				});
 
 			try {
@@ -277,7 +277,7 @@ registerCommand([
 
 				let formats = metadata.formats.filter(
 					(f: any) =>
-						f.height <= 480 && f.vcodec !== "none" && f.acodec !== "none",
+						f.height <= 480 && f.vcodec !== "none" && f.acodec !== "none"
 				);
 
 				if (formats.length === 0) {
@@ -289,14 +289,14 @@ registerCommand([
 						msg,
 						url,
 						formats[0].format_id,
-						metadata.title,
+						metadata.title
 					);
 				}
 
 				downloadState.set(msg.remoteJid, {
 					url,
 					formats,
-					title: metadata.title,
+					title: metadata.title
 				});
 
 				let menu = `*${metadata.title}*\n\nReply with a number:\n\n`;
@@ -310,10 +310,10 @@ registerCommand([
 			} catch (e: any) {
 				if (e.isCookieError) return sendCookiePrompt(msg);
 				await msg.client.sendMessage(msg.remoteJid, {
-					text: "Error fetching video metadata.",
+					text: "Error fetching video metadata."
 				});
 			}
-		},
+		}
 	},
 
 	{
@@ -333,13 +333,13 @@ registerCommand([
 					try {
 						const cookieArgs = getCookieArgs();
 						const { stdout } = await loggedExec(
-							`yt-dlp ${cookieArgs} "${url}" -J`,
+							`yt-dlp ${cookieArgs} "${url}" -J`
 						);
 						const metadata = JSON.parse(stdout.toString());
 
 						let formats = metadata.formats.filter(
 							(f: any) =>
-								f.height <= 480 && f.vcodec !== "none" && f.acodec !== "none",
+								f.height <= 480 && f.vcodec !== "none" && f.acodec !== "none"
 						);
 						if (formats.length === 0) {
 							formats = [{ format_id: "best[height<=480]", height: 480 }];
@@ -350,7 +350,7 @@ registerCommand([
 								msg,
 								url,
 								formats[0].format_id,
-								title,
+								title
 							);
 						}
 
@@ -368,7 +368,7 @@ registerCommand([
 					} catch (e: any) {
 						if (e.isCookieError) return sendCookiePrompt(msg);
 						await msg.client.sendMessage(jid, {
-							text: "Error fetching video formats.",
+							text: "Error fetching video formats."
 						});
 					}
 					return;
@@ -381,7 +381,7 @@ registerCommand([
 				}
 
 				await msg.client.sendMessage(jid, {
-					text: "Please reply *1* for Video or *2* for Audio.",
+					text: "Please reply *1* for Video or *2* for Audio."
 				});
 				return;
 			}
@@ -392,7 +392,7 @@ registerCommand([
 
 				if (index < 0 || index >= results.length) {
 					await msg.client.sendMessage(jid, {
-						text: `Please reply with a number between 1 and ${results.length}.`,
+						text: `Please reply with a number between 1 and ${results.length}.`
 					});
 					return;
 				}
@@ -404,7 +404,7 @@ registerCommand([
 				mediaTypeState.set(jid, { url, title: selected?.title ?? "" });
 
 				await msg.client.sendMessage(jid, {
-					text: `*${selected?.title}*\n\nWhat would you like?\n\n*1* - Video\n*2* - Audio`,
+					text: `*${selected?.title}*\n\nWhat would you like?\n\n*1* - Video\n*2* - Audio`
 				});
 				return;
 			}
@@ -420,11 +420,11 @@ registerCommand([
 						msg,
 						state.url,
 						selected.format_id,
-						state.title,
+						state.title
 					);
 				}
 				return;
 			}
-		},
-	},
+		}
+	}
 ]);
