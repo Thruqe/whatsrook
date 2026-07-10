@@ -2,29 +2,33 @@ mod cli;
 mod ws;
 
 use axum::{Router, routing::get};
+use whatsapp_rust::pair::CompanionWebClientType;
 use std::{env, sync::Arc};
 use tokio::sync::broadcast;
-use wacore::{
-    pair_code::{PairCodeOptions, PlatformId},
-    types::events::Event,
-};
+use wacore::{pair_code::PairCodeOptions, store::DevicePropsOverride, types::events::Event};
+use waproto::whatsapp::device_props::PlatformType;
 use whatsapp_rust::store::Backend;
-use whatsapp_rust::{TokioRuntime, bot::Bot, store::SqliteStore};
+use whatsapp_rust::{ClientProfile, TokioRuntime, bot::Bot, store::SqliteStore};
 use whatsapp_rust_tokio_transport::TokioWebSocketTransportFactory;
 use whatsapp_rust_ureq_http_client::UreqHttpClient;
 
 use cli::CliArgs;
 use ws::{WsState, ws_handler};
 
-/// Entry point.
-///
-/// Parses CLI arguments, sets up the auth directory and SQLite database path,
-/// optionally handles logout by deleting session files, registers a graceful
-/// shutdown handler, starts the Axum WebSocket server, and finally launches
-/// the WhatsApp session.
-#[tokio::main(name= "zevBot")]
+#[tokio::main(name = "zevBot")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = CliArgs::parse();
+
+    let log_level = if cli.debug {
+        tracing::Level::DEBUG
+    } else {
+        tracing::Level::INFO
+    };
+    tracing_subscriber::fmt()
+        .with_max_level(log_level)
+        .with_target(cli.debug)
+        .init();
+
     let port = cli
         .port
         .clone()
@@ -65,7 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_state(ws_state.clone());
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
-    println!("Listening on port {port} | session: {}", cli.session);
+    tracing::info!("Listening on port {port} | session: {}", cli.session);
 
     tokio::spawn(async move {
         axum::serve(listener, app).await.unwrap();
@@ -76,25 +80,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Initializes and runs a WhatsApp bot session.
-///
-/// Builds a [`Bot`] using the provided CLI configuration, attaches an SQLite
-/// backend at `db_path`, and wires up an event handler that:
-/// - Logs and broadcasts QR codes (if `--qrcode` is set), pairing results,
-///   logouts, and disconnections over the given `events_tx` channel.
-/// - Serializes every event to JSON and forwards it on the same channel.
-///
-/// If a phone number was supplied via `--pair`, a pairing-code flow is
-/// initiated instead of QR-code pairing.
-///
-/// # Arguments
-/// * `db_path`   – Path to the SQLite database file for this session.
-/// * `cli`       – Parsed CLI arguments controlling session behaviour.
-/// * `events_tx` – Broadcast sender used to push event strings to WebSocket clients.
-///
-/// # Errors
-/// Returns an error if the store, bot, or underlying transport cannot be
-/// initialised, or if the session itself encounters a fatal error.
 async fn start_session(
     db_path: String,
     cli: CliArgs,
@@ -106,16 +91,20 @@ async fn start_session(
         .with_backend(backend)
         .with_transport_factory(TokioWebSocketTransportFactory::new())
         .with_http_client(UreqHttpClient::new())
-        .with_runtime(TokioRuntime);
+        .with_runtime(TokioRuntime)
+        .with_device_props(
+            DevicePropsOverride::new()
+                .with_os("Android")
+                .with_platform_type(PlatformType::AndroidPhone),
+        );
 
     if let Some(phone) = cli.pair {
-        println!("Requesting pair code for: {phone}");
+        tracing::info!("Requesting pair code for: {phone}");
         builder = builder.with_pair_code(PairCodeOptions {
             phone_number: phone,
             show_push_notification: true,
             custom_code: None,
-            platform_id: PlatformId::Chrome,
-            platform_display: "Chrome (Linux)".to_string(),
+            platform_id: Some(CompanionWebClientType::Chrome),
         });
     }
 
@@ -127,27 +116,41 @@ async fn start_session(
             let tx = events_tx.clone();
             let sname = session.clone();
             async move {
-                let update = match &event {
+                let update = match &*event {
                     Event::PairingQrCode { code, .. } => {
                         if show_qr {
-                            println!("[{sname}] QR:\n{code}");
+                            tracing::info!("[{sname}] QR:\n{code}");
                         }
                         Some(code.clone())
                     }
+                    Event::PairingCode { code, timeout } => {
+                        tracing::info!(
+                            "[{sname}] Pair code: {code} (expires in {}s)",
+                            timeout.as_secs()
+                        );
+                        println!("[{sname}] Enter this code on your phone: {code}");
+                        Some(code.clone())
+                    }
                     Event::PairSuccess(_) => {
-                        println!("[{sname}] Paired successfully!");
+                        tracing::info!("[{sname}] Paired successfully!");
                         Some("Paired successfully!".to_string())
                     }
                     Event::PairError(_) => {
-                        println!("[{sname}] Pairing failed.");
+                        tracing::warn!("[{sname}] Pairing failed.");
                         Some("Pairing failed.".to_string())
                     }
                     Event::LoggedOut(_) => {
-                        println!("[{sname}] Logged out.");
+                        tracing::warn!("[{sname}] Logged out.");
                         Some("Connection Logged Out.".to_string())
                     }
-                    Event::Disconnected(_) => Some("Connection closed.".to_string()),
-                    _ => None,
+                    Event::Disconnected(_) => {
+                        tracing::info!("[{sname}] Disconnected.");
+                        Some("Connection closed.".to_string())
+                    }
+                    _ => {
+                        tracing::debug!("[{sname}] Event: {:?}", event);
+                        None
+                    }
                 };
 
                 if let Some(msg) = update {
@@ -160,6 +163,10 @@ async fn start_session(
         })
         .build()
         .await?;
+
+    bot.client()
+        .set_client_profile(ClientProfile::android("13"))
+        .await;
 
     bot.run().await?.await?;
     Ok(())
@@ -190,9 +197,6 @@ async fn cleanup_db(db_path: &str) {
 /// - **Ctrl-C** (`SIGINT`) on all platforms.
 /// - **SIGTERM** on Unix platforms (compiled out on non-Unix targets, where
 ///   this branch becomes a permanently pending future).
-///
-/// Intended for use with [`tokio::select!`] or [`tokio::spawn`] to trigger
-/// graceful shutdown logic.
 async fn shutdown_signal() {
     use tokio::signal;
 
