@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1.0, maximum-scale=5.0"
+		/>
+		<title>Event Monitor</title>
+		<link rel="shortcut icon" href="favicon.svg" type="image/svg+xml" />
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+			rel="stylesheet"
+		/>
+		<style>
+			* {
+				box-sizing: border-box;
+				margin: 0;
+				padding: 0;
+				-webkit-tap-highlight-color: transparent;
+			}
+
+			body {
+				font-family: "IBM Plex Sans", sans-serif;
+				background-color: #f8fafc;
+				color: #0f172a;
+				padding: 16px;
+				-webkit-font-smoothing: antialiased;
+				-moz-osx-font-smoothing: grayscale;
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				min-height: 100vh;
+				min-height: 100dvh;
+			}
+
+			.container {
+				width: 100%;
+				max-width: 1200px;
+				display: flex;
+				flex-direction: column;
+				height: calc(100vh - 32px);
+				height: calc(100dvh - 32px);
+				gap: 16px;
+				min-width: 0;
+			}
+
+			header {
+				display: grid;
+				grid-template-columns: 1fr auto;
+				align-items: center;
+				background: #ffffff;
+				padding: 16px 24px;
+				border-radius: 12px;
+				border: 1px solid #e2e8f0;
+				box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+				flex-shrink: 0;
+				gap: 16px;
+			}
+
+			h1 {
+				font-size: 1.5rem;
+				font-weight: 700;
+				color: #ff3e00;
+				letter-spacing: -0.025em;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+
+			.header-controls {
+				display: flex;
+				align-items: center;
+				gap: 24px;
+				justify-self: end;
+			}
+
+			.toggle-container {
+				display: flex;
+				align-items: center;
+				gap: 10px;
+				cursor: pointer;
+			}
+
+			.switch {
+				position: relative;
+				display: inline-block;
+				width: 44px;
+				height: 24px;
+			}
+
+			.switch input {
+				opacity: 0;
+				width: 0;
+				height: 0;
+			}
+
+			.slider {
+				position: absolute;
+				cursor: pointer;
+				top: 0;
+				left: 0;
+				right: 0;
+				bottom: 0;
+				background-color: #cbd5e1;
+				transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+				border-radius: 24px;
+			}
+
+			.slider:before {
+				position: absolute;
+				content: "";
+				height: 18px;
+				width: 18px;
+				left: 3px;
+				bottom: 3px;
+				background-color: #ffffff;
+				transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+				border-radius: 50%;
+				box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+			}
+
+			input:checked + .slider {
+				background-color: #ff3e00;
+			}
+
+			input:checked + .slider:before {
+				transform: translateX(20px);
+			}
+
+			.toggle-label {
+				font-size: 0.875rem;
+				font-weight: 600;
+				color: #475569;
+				user-select: none;
+				white-space: nowrap;
+			}
+
+			.status {
+				padding: 6px 14px;
+				border-radius: 9999px;
+				font-weight: 600;
+				font-size: 0.8rem;
+				letter-spacing: -0.01em;
+				transition: all 0.2s ease;
+				white-space: nowrap;
+				text-align: center;
+			}
+
+			.status.disconnected {
+				background-color: #fef2f2;
+				color: #ef4444;
+				border: 1px solid #fee2e2;
+			}
+
+			.status.connected {
+				background-color: #f0fdf4;
+				color: #22c55e;
+				border: 1px solid #dcfce7;
+			}
+
+			#log-container {
+				background-color: #ffffff;
+				border: 1px solid #e2e8f0;
+				border-radius: 12px;
+				flex-grow: 1;
+				overflow-y: auto;
+				padding: 24px;
+				display: flex;
+				flex-direction: column;
+				gap: 16px;
+				box-shadow:
+					0 4px 6px -1px rgba(0, 0, 0, 0.03),
+					0 2px 4px -1px rgba(0, 0, 0, 0.02);
+				scroll-behavior: smooth;
+				min-width: 0;
+			}
+
+			#log-container::-webkit-scrollbar {
+				width: 8px;
+				height: 8px;
+			}
+
+			#log-container::-webkit-scrollbar-track {
+				background: #f1f5f9;
+				border-radius: 12px;
+			}
+
+			#log-container::-webkit-scrollbar-thumb {
+				background: #cbd5e1;
+				border-radius: 12px;
+				border: 2px solid #f1f5f9;
+			}
+
+			#log-container::-webkit-scrollbar-thumb:hover {
+				background: #94a3b8;
+			}
+
+			.log-entry {
+				border-bottom: 1px solid #f1f5f9;
+				padding-bottom: 16px;
+				display: flex;
+				flex-direction: column;
+				gap: 8px;
+				min-width: 0;
+			}
+
+			.log-entry:last-child {
+				border-bottom: none;
+				padding-bottom: 0;
+			}
+
+			.meta-container {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+				font-size: 0.8rem;
+			}
+
+			.log-time {
+				color: #94a3b8;
+				font-weight: 500;
+			}
+
+			.log-type {
+				font-weight: 700;
+				text-transform: uppercase;
+				letter-spacing: 0.05em;
+				font-size: 0.75rem;
+			}
+
+			.type-info {
+				color: #0ea5e9;
+			}
+			.type-event {
+				color: #ff3e00;
+			}
+			.type-error {
+				color: #ef4444;
+			}
+
+			.log-content-wrapper {
+				position: relative;
+				width: 100%;
+				min-width: 0;
+			}
+
+			.log-text {
+				font-size: 0.925rem;
+				line-height: 1.6;
+				color: #334155;
+				padding-right: 48px;
+				word-break: break-word;
+			}
+
+			pre {
+				margin-top: 6px;
+				background-color: #f8fafc;
+				border: 1px solid #e2e8f0;
+				border-left: 4px solid #ff3e00;
+				padding: 14px 56px 14px 16px;
+				border-radius: 8px;
+				overflow-x: auto;
+				color: #1e293b;
+				font-family: "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
+				font-size: 0.875rem;
+				line-height: 1.6;
+				tab-size: 2;
+				white-space: pre-wrap;
+				word-break: break-all;
+				-webkit-overflow-scrolling: touch;
+			}
+
+			pre::-webkit-scrollbar {
+				height: 6px;
+			}
+
+			pre::-webkit-scrollbar-track {
+				background: #f1f5f9;
+				border-radius: 8px;
+			}
+
+			pre::-webkit-scrollbar-thumb {
+				background: #cbd5e1;
+				border-radius: 8px;
+			}
+
+			.copy-button {
+				position: absolute;
+				top: 8px;
+				right: 8px;
+				background: #ffffff;
+				border: 1px solid #e2e8f0;
+				border-radius: 8px;
+				width: 36px;
+				height: 36px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				cursor: pointer;
+				transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+				box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+				z-index: 10;
+				touch-action: manipulation;
+			}
+
+			.copy-button:hover {
+				background: #f8fafc;
+				border-color: #cbd5e1;
+			}
+
+			.copy-button:active {
+				transform: scale(0.92);
+				background: #f1f5f9;
+			}
+
+			.copy-icon {
+				width: 16px;
+				height: 16px;
+				object-fit: contain;
+				pointer-events: none;
+			}
+
+			.copy-button.copied {
+				background: #f0fdf4;
+				border-color: #bbf7d0;
+			}
+
+			@media (max-width: 768px) {
+				body {
+					padding: 8px;
+				}
+
+				.container {
+					height: calc(100vh - 16px);
+					height: calc(100dvh - 16px);
+					gap: 8px;
+				}
+
+				header {
+					grid-template-columns: 1fr;
+					padding: 12px 16px;
+					border-radius: 10px;
+					gap: 12px;
+				}
+
+				h1 {
+					font-size: 1.35rem;
+				}
+
+				.header-controls {
+					width: 100%;
+					justify-content: space-between;
+					justify-self: start;
+					gap: 12px;
+				}
+
+				#log-container {
+					padding: 16px;
+					border-radius: 10px;
+					gap: 14px;
+				}
+
+				.log-text {
+					padding-right: 44px;
+				}
+
+				pre {
+					font-size: 0.825rem;
+					padding: 12px 48px 12px 12px;
+				}
+
+				.copy-button {
+					width: 34px;
+					height: 34px;
+					top: 6px;
+					right: 6px;
+				}
+
+				.copy-icon {
+					width: 14px;
+					height: 14px;
+				}
+			}
+
+			@media (max-width: 360px) {
+				h1 {
+					font-size: 1.15rem;
+				}
+
+				.toggle-label {
+					font-size: 0.75rem;
+				}
+
+				.status {
+					padding: 4px 10px;
+					font-size: 0.75rem;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<header>
+				<h1>Event Monitor</h1>
+				<div class="header-controls">
+					<div
+						class="toggle-container"
+						onclick="document.getElementById('autoscroll-toggle').click()"
+					>
+						<label class="switch" onclick="event.stopPropagation()">
+							<input type="checkbox" id="autoscroll-toggle" checked />
+							<span class="slider"></span>
+						</label>
+						<span class="toggle-label">Auto-scroll</span>
+					</div>
+					<div id="connection-status" class="status disconnected">
+						Disconnected
+					</div>
+				</div>
+			</header>
+			<div id="log-container"></div>
+		</div>
+
+		<script>
+			const logContainer = document.getElementById("log-container");
+			const statusElement = document.getElementById("connection-status");
+			const autoscrollToggle = document.getElementById("autoscroll-toggle");
+
+			let isAutoscrollEnabled = true;
+
+			autoscrollToggle.addEventListener("change", (e) => {
+				isAutoscrollEnabled = e.target.checked;
+			});
+
+			function appendLog(type, content, isJson = false) {
+				const entry = document.createElement("div");
+				entry.className = "log-entry";
+
+				const metaContainer = document.createElement("div");
+				metaContainer.className = "meta-container";
+
+				const timeSpan = document.createElement("span");
+				timeSpan.className = "log-time";
+				timeSpan.textContent = new Date().toLocaleTimeString();
+
+				const typeSpan = document.createElement("span");
+				typeSpan.className = `log-type type-${type.toLowerCase()}`;
+				typeSpan.textContent = `[${type}]`;
+
+				metaContainer.appendChild(timeSpan);
+				metaContainer.appendChild(typeSpan);
+				entry.appendChild(metaContainer);
+
+				const contentWrapper = document.createElement("div");
+				contentWrapper.className = "log-content-wrapper";
+
+				const rawText = isJson ? JSON.stringify(content, null, 2) : content;
+
+				const copyBtn = document.createElement("button");
+				copyBtn.className = "copy-button";
+				copyBtn.setAttribute("title", "Copy to clipboard");
+
+				const img = document.createElement("img");
+				img.className = "copy-icon";
+				img.src = "https://cdn-icons-png.flaticon.com/512/1621/1621635.png";
+				img.alt = "Copy";
+				copyBtn.appendChild(img);
+
+				copyBtn.addEventListener("click", async () => {
+					try {
+						await navigator.clipboard.writeText(rawText);
+						copyBtn.classList.add("copied");
+						img.src = "https://cdn-icons-png.flaticon.com/512/845/845646.png";
+						setTimeout(() => {
+							copyBtn.classList.remove("copied");
+							img.src =
+								"https://cdn-icons-png.flaticon.com/512/1621/1621635.png";
+						}, 2000);
+					} catch (err) {
+						console.error("Failed to copy text: ", err);
+					}
+				});
+
+				if (isJson) {
+					const pre = document.createElement("pre");
+					pre.textContent = rawText;
+					contentWrapper.appendChild(pre);
+				} else {
+					const textDiv = document.createElement("div");
+					textDiv.className = "log-text";
+					textDiv.textContent = rawText;
+					contentWrapper.appendChild(textDiv);
+				}
+
+				contentWrapper.appendChild(copyBtn);
+				entry.appendChild(contentWrapper);
+				logContainer.appendChild(entry);
+
+				if (isAutoscrollEnabled === true) {
+					logContainer.scrollTop = logContainer.scrollHeight;
+				}
+			}
+
+			function initializeSocket() {
+				const socket = new WebSocket("ws://localhost:3000/ws");
+
+				socket.addEventListener("open", () => {
+					statusElement.textContent = "Connected";
+					statusElement.className = "status connected";
+					appendLog(
+						"INFO",
+						"Established connection to Bun WebSocket middleware gateway.",
+					);
+				});
+
+				socket.addEventListener("message", (event) => {
+					try {
+						const data = JSON.parse(event.data);
+						appendLog("EVENT", data, true);
+					} catch (e) {
+						appendLog("INFO", event.data);
+					}
+				});
+
+				socket.addEventListener("close", () => {
+					statusElement.textContent = "Disconnected";
+					statusElement.className = "status disconnected";
+					appendLog(
+						"ERROR",
+						"Connection to Bun WebSocket middleware gateway closed. Attempting reconnection in 5 seconds.",
+					);
+					setTimeout(initializeSocket, 5000);
+				});
+
+				socket.addEventListener("error", () => {
+					appendLog("ERROR", "An unexpected WebSocket error occurred.");
+				});
+			}
+
+			initializeSocket();
+		</script>
+	</body>
+</html>
