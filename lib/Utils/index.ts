@@ -1,4 +1,5 @@
 export * from "./boom.ts";
+export * from "./generic-util.ts";
 export * from "./generics.ts";
 export * from "./jid-utils.ts";
 export * from "./logger.ts";

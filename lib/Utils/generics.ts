@@ -137,3 +137,38 @@ export const fetchLatestWaWebVersion = async (options: RequestInit = {}) => {
  * with upstream Baileys code that imports `fetchLatestBaileysVersion`.
  */
 export const fetchLatestBaileysVersion = fetchLatestWaWebVersion;
+
+/**
+ * Coerce a protobuf timestamp into a plain JS number. Matches upstream
+ * Baileys' `Utils/generics.ts:toNumber` — protobufjs may hand us a `Long`
+ * (`{ low, high, toNumber() }`), a plain number, or `null`/`undefined`.
+ *
+ * When the value is a Long without a `.toNumber()` method, we fall back to
+ * `low` only when `high === 0` — otherwise the value exceeds 32 bits and
+ * dropping `high` would silently truncate (e.g. messageTimestamps in ms
+ * past 2038). For oversized values we still call into Number conversion
+ * manually so the caller gets a usable approximation rather than a
+ * zero-shifted lie.
+ */
+export const toNumber = (
+	t:
+		| { toNumber?: () => number; low?: number; high?: number }
+		| number
+		| null
+		| undefined
+): number => {
+	if (t == null) return 0;
+	if (typeof t === "number") return t;
+	if (typeof t === "object") {
+		if (typeof t.toNumber === "function") return t.toNumber();
+		if (typeof t.low === "number") {
+			// Reconstruct from low/high pair when present. JS numbers
+			// preserve precision up to 2^53; protobuf int64 can exceed
+			// that, but timestamps in ms / seconds are well within range
+			// for the next ~284k years, so this is safe in practice.
+			const high = typeof t.high === "number" ? t.high : 0;
+			return high * 0x100000000 + (t.low >>> 0);
+		}
+	}
+	return 0;
+};

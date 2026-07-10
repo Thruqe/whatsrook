@@ -1,6 +1,3 @@
-/**
- * Every bridge event type the adapter explicitly handles.
- */
 export const KNOWN_BRIDGE_EVENT_TYPES = new Set<string>([
 	"connected",
 	"disconnected",
@@ -49,14 +46,9 @@ export const KNOWN_BRIDGE_EVENT_TYPES = new Set<string>([
 	"contact_number_changed",
 	"contact_sync_requested",
 	"user_about_update",
-	/** app-state sync deletes — handled as noop until a Baileys consumer
-	 * needs them (they have no direct upstream equivalent and the bridge
-	 * already mutates its own caches when these arrive) */
 	"delete_chat_update",
 	"delete_message_for_me_update",
-
 	"notification",
 	"raw_node",
-
 	"mex_notification"
 ]);
