@@ -5,7 +5,6 @@ import {
   makeWASocket,
   useBridgeStore,
   DisconnectReason,
-  fetchLatestWaWebVersion,
 } from "../lib";
 import P from "pino";
 import process from "node:process";
@@ -39,17 +38,10 @@ const question = (text: string) =>
   new Promise<string>((resolve) => rl.question(text, resolve));
 
 const startSock = async () => {
-  const latest = await fetchLatestWaWebVersion();
-  const { version } = latest;
   const state = await useBridgeStore("auth");
-  logger.debug(
-    { version: version.join("."), isLatest: latest.isLatest },
-    `using latest WA version`,
-  );
 
   const sock = makeWASocket({
     logger,
-    version,
     auth: { store: state },
     browser: Browsers.android("16"),
     deviceProps: {
