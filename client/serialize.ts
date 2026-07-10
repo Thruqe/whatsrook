@@ -1,4 +1,5 @@
 import { isJidGroup, type WAMessage, type WASocket } from "../lib";
+import { extractText } from "./util";
 
 export type Client = WASocket;
 
@@ -34,7 +35,7 @@ export default function (
   if (!remoteJid) return null;
 
   const isGroup = isJidGroup(remoteJid)!;
-  const fromMe = msg.key.fromMe ?? false;
+  const fromMe = msg.key.fromMe!;
 
   // In groups the participant field holds the actual sender
   const sender = isGroup
@@ -43,13 +44,7 @@ export default function (
       ? (client.user?.id ?? remoteJid)
       : remoteJid;
 
-  const body =
-    msg.message?.conversation ||
-    msg.message?.extendedTextMessage?.text ||
-    msg.message?.imageMessage?.caption ||
-    msg.message?.videoMessage?.caption ||
-    msg.message?.documentMessage?.caption ||
-    "";
+  const body = extractText(msg);
 
   const args = body.trim().split(/\s+/).filter(Boolean);
   const command = (args[0] ?? "").toLowerCase();
