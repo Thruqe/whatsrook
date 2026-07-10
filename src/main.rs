@@ -99,30 +99,30 @@ async fn start_session(
 
     let backend = SqliteStore::new(&db_path).await?;
 
+    let device_props = match cli.client {
+        ClientType::Chrome => DevicePropsOverride::new().with_platform_type(PlatformType::Chrome),
+        ClientType::Android => DevicePropsOverride::new()
+            .with_os("Android")
+            .with_platform_type(PlatformType::AndroidPhone),
+        ClientType::Ios => DevicePropsOverride::new()
+            .with_os("iOS")
+            .with_platform_type(PlatformType::IosPhone),
+    };
+
     let mut builder = Bot::builder()
         .with_backend(backend)
         .with_transport_factory(TokioWebSocketTransportFactory::new())
         .with_http_client(UreqHttpClient::new())
         .with_runtime(TokioRuntime)
-        .with_device_props(
-            DevicePropsOverride::new()
-                .with_os("Android")
-                .with_platform_type(PlatformType::AndroidPhone),
-        );
+        .with_device_props(device_props);
 
     if let Some(phone) = cli.pair {
         tracing::info!("Requesting pair code for: {phone}");
-        let platform_id = match cli.client {
-            ClientType::Chrome => Some(CompanionWebClientType::Chrome),
-            ClientType::Android => None, // Android pairs via QR, not companion web
-            ClientType::Ios => None,
-        };
-
         builder = builder.with_pair_code(PairCodeOptions {
             phone_number: phone,
             show_push_notification: true,
             custom_code: None,
-            platform_id,
+            platform_id: Some(CompanionWebClientType::Chrome),
         });
     }
 
@@ -287,7 +287,6 @@ async fn start_session(
                                 continue;
                             }
                         };
-
                         let target_key = wa::MessageKey {
                             remote_jid: Some(to.clone()),
                             from_me: None,
@@ -383,9 +382,11 @@ async fn start_session(
 
     let profile = match cli.client {
         ClientType::Chrome => ClientProfile::web(),
-        ClientType::Android => ClientProfile::android("16"),
+        ClientType::Android => ClientProfile::android("13"),
         ClientType::Ios => ClientProfile::ios("17"),
     };
     bot.client().set_client_profile(profile).await;
+
+    bot.run().await;
     Ok(())
 }
