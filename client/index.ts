@@ -1,28 +1,11 @@
 import { Boom, makeWASocket, useBridgeStore, DisconnectReason } from "../lib";
 import process from "node:process";
 import readline from "node:readline";
-import P from "pino";
+
 import calls from "./calls";
 import serialize from "./serialize";
+import { logger } from "./util";
 import { loadCommands, matchCommand } from "./plugin";
-
-const logger = P({
-  level: "trace",
-  transport: {
-    targets: [
-      {
-        target: "pino-pretty",
-        options: { colorize: true },
-        level: "trace",
-      },
-      {
-        target: "pino/file",
-        options: { destination: "./logs.txt" },
-        level: "trace",
-      },
-    ],
-  },
-});
 
 logger.level = "silent";
 
@@ -33,6 +16,8 @@ const rl = readline.createInterface({
 
 const question = (text: string) =>
   new Promise<string>((resolve) => rl.question(text, resolve));
+
+const clear = "\x1Bc";
 
 const startSock = async () => {
   const state = await useBridgeStore();
@@ -57,14 +42,17 @@ const startSock = async () => {
         }
       }
 
-      if (qr && !sock.isLoggedIn) {
+      if (qr && !sock.isLoggedIn && !pairingRequested) {
         pairingRequested = true;
         const phoneNumber = await question("Please enter your phone number:\n");
-        const code = await sock.requestPairingCode(phoneNumber);
+        const code = await sock.requestPairingCode(
+          phoneNumber.replace(/[^\d]/g, ""),
+        );
         console.log(`Pairing code: ${code}`);
       }
 
       if (connection === "open") {
+        process.stdout.write(clear);
         console.log(
           `[plugin] Loaded ${cmd.commands.length} command(s) from ${cmd.files.length} file(s)`,
         );
