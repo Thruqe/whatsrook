@@ -1,4 +1,24 @@
 use std::env;
+
+#[derive(Debug, Clone, Default)]
+pub enum ClientType {
+    #[default]
+    Chrome,
+    Android,
+    Ios,
+}
+
+impl ClientType {
+    fn from_str(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "chrome" => Some(Self::Chrome),
+            "android" => Some(Self::Android),
+            "ios" => Some(Self::Ios),
+            _ => None,
+        }
+    }
+}
+
 pub struct CliArgs {
     pub session: String,
     pub pair: Option<String>,
@@ -7,6 +27,7 @@ pub struct CliArgs {
     pub qrcode: bool,
     pub logout: bool,
     pub debug: bool,
+    pub client: ClientType,
 }
 
 impl CliArgs {
@@ -22,6 +43,7 @@ Options:
   --pair <phone>        Request a pair code for the given phone number
   --port <port>         Specify the HTTP/WebSocket port
   --auth-dir <path>     Directory to store session auth files (default: ./auth)
+  --client <type>       Client type: chrome (default), android, ios
   --qrcode              Print the QR code to stdout for scanning
   --logout              Remove the session auth files and exit
   --debug               Enable debug logging
@@ -40,6 +62,15 @@ Options:
             std::process::exit(1);
         });
 
+        let client = get_value("--client")
+            .map(|s| {
+                ClientType::from_str(&s).unwrap_or_else(|| {
+                    eprintln!("Error: unknown --client '{s}'. Valid options: chrome, android, ios");
+                    std::process::exit(1);
+                })
+            })
+            .unwrap_or_default();
+
         Self {
             session,
             pair: get_value("--pair"),
@@ -48,6 +79,7 @@ Options:
             qrcode: args.contains(&"--qrcode".to_string()),
             logout: args.contains(&"--logout".to_string()),
             debug: args.contains(&"--debug".to_string()),
+            client,
         }
     }
 }
