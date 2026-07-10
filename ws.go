@@ -34,12 +34,10 @@ func newHub() *Hub {
 // Broadcast sends an event to all connected WebSocket clients.
 func (h *Hub) Broadcast(evt EventMessage) {
 	h.mu.RLock()
-
 	clients := make([]*wsClient, 0, len(h.clients))
 	for c := range h.clients {
 		clients = append(clients, c)
 	}
-
 	h.mu.RUnlock()
 
 	for _, c := range clients {
@@ -51,117 +49,89 @@ func (h *Hub) Broadcast(evt EventMessage) {
 	}
 }
 
-func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		InsecureSkipVerify: true, // allow any origin in dev
-	})
-	if err != nil {
-		slog.Error("ws accept failed", "err", err)
-		return
-	}
+func (h *Hub) ServeWS(dev bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			InsecureSkipVerify: dev,
+		})
+		if err != nil {
+			slog.Error("ws accept failed", "err", err)
+			return
+		}
 
-	c := &wsClient{
-		conn: conn,
-		send: make(chan EventMessage, 64),
-	}
-
-	h.mu.Lock()
-	h.clients[c] = struct{}{}
-	h.mu.Unlock()
-
-	ctx, cancel := context.WithCancel(r.Context())
-
-	defer func() {
-		cancel()
+		c := &wsClient{
+			conn: conn,
+			send: make(chan EventMessage, 64),
+		}
 
 		h.mu.Lock()
-
-		if _, ok := h.clients[c]; ok {
-			delete(h.clients, c)
-			close(c.send)
-		}
-
+		h.clients[c] = struct{}{}
 		h.mu.Unlock()
 
-		if err := conn.CloseNow(); err != nil {
-			slog.Error(
-				"failed to close websocket connection",
-				"err",
-				err,
-			)
-		}
-	}()
+		ctx, cancel := context.WithCancel(r.Context())
 
-	// single writer goroutine
-	go func() {
-		ticker := time.NewTicker(10 * time.Second)
-		defer ticker.Stop()
+		defer func() {
+			cancel()
 
-		for {
-			select {
+			h.mu.Lock()
+			if _, ok := h.clients[c]; ok {
+				delete(h.clients, c)
+				close(c.send)
+			}
+			h.mu.Unlock()
 
-			case <-ctx.Done():
+			err := conn.Close(websocket.StatusNormalClosure, "session ended")
+			if err != nil {
 				return
+			}
+		}()
 
-			case <-ticker.C:
-				// Send a keep-alive ping so upstream proxies can detect dead connections
-				if err := conn.Ping(ctx); err != nil {
-					cancel()
-					return
-				}
+		// single writer goroutine
+		go func() {
+			ticker := time.NewTicker(10 * time.Second)
+			defer ticker.Stop()
 
-			case msg, ok := <-c.send:
-				if !ok {
+			for {
+				select {
+				case <-ctx.Done():
 					return
-				}
 
-				if err := wsjson.Write(
-					ctx,
-					conn,
-					msg,
-				); err != nil {
-					cancel()
-					return
+				case <-ticker.C:
+					if err := conn.Ping(ctx); err != nil {
+						cancel()
+						return
+					}
+
+				case msg, ok := <-c.send:
+					if !ok {
+						return
+					}
+					if err := wsjson.Write(ctx, conn, msg); err != nil {
+						cancel()
+						return
+					}
 				}
 			}
-		}
-	}()
+		}()
 
-	// reader loop
-	for {
-		var ctrl ControlMessage
-
-		// remove marshal->unmarshal roundtrip
-		if err := wsjson.Read(ctx, conn, &ctrl); err != nil {
-			break
-		}
-
-		// immediate ack through writer channel
-		select {
-		case c.send <- ackEvent(ctrl.ID, true, ""):
-		default:
-		}
-
-		select {
-		case h.Control <- ctrl:
-
-		default:
-			slog.Warn(
-				"control channel full, dropping message",
-				"id",
-				ctrl.ID,
-			)
+		// reader loop — no optimistic ack; handleControl sends the real one
+		for {
+			var ctrl ControlMessage
+			if err := wsjson.Read(ctx, conn, &ctrl); err != nil {
+				break
+			}
 
 			select {
-			case c.send <- ackEvent(
-				ctrl.ID,
-				false,
-				"server busy",
-			):
+			case h.Control <- ctrl:
 			default:
+				slog.Warn("control channel full, dropping message", "id", ctrl.ID)
+				select {
+				case c.send <- ackEvent(ctrl.ID, false, "server busy"):
+				default:
+				}
 			}
 		}
-	}
 
-	slog.Info("websocket client disconnected")
+		slog.Info("websocket client disconnected")
+	}
 }
