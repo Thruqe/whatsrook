@@ -11,6 +11,7 @@
 	"dependencies": {
 		"audio-decode": "^3.10.1",
 		"axios": "^1.15.2",
+		"filetype": "^0.1.0",
 		"music-metadata": "^11.12.3",
 		"pino": "^10.3.1",
 		"pino-pretty": "^13.1.3",
