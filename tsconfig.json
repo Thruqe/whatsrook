@@ -11,6 +11,9 @@
     "verbatimModuleSyntax": true,
     "noEmit": true,
     "outDir": "./dist",
+    "paths": {
+      "zevbot": ["./src/index.mts"]
+    },
 
     "strict": true,
     "skipLibCheck": true,
@@ -21,6 +24,6 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false,
-    "rootDirs": ["client", "lib"]
+    "rootDirs": ["client", "src"]
   }
 }
