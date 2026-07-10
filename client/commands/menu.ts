@@ -99,7 +99,7 @@ registerCommand({
     const totalRam = os.totalmem();
     const usedRam = totalRam - os.freemem();
 
-    let text = //@ts-ignore
+    let text =
       `╭━━━〔 ${config?.features?.bot_name} 〕━━━\n` +
       `┃ \`\`\`${fancy("user")} : ${pushName}\`\`\`\n` +
       `┃ \`\`\`${fancy("plugins")} : ${commands.length}\`\`\`\n` +
