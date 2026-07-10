@@ -181,10 +181,16 @@ func (b *Bot) handleWAEvent(evt any) {
 			text = v.Message.GetConversation()
 		} else if v.Message.GetExtendedTextMessage() != nil {
 			text = v.Message.GetExtendedTextMessage().GetText()
+		} else if v.Message.DocumentMessage.GetCaption() != "" {
+			text = v.Message.DocumentMessage.GetCaption()
+		} else if v.Message.ImageMessage.GetCaption() != "" {
+			text = v.Message.ImageMessage.GetCaption()
+		} else if v.Message.VideoMessage.GetCaption() != "" {
+			text = v.Message.VideoMessage.GetCaption()
 		}
+
 		from := v.Info.Sender.String()
 		msgID := v.Info.ID
-		slog.Info("message", "from", from, "text", text)
 
 		if commands.Dispatch(context.Background(), b.client, v) {
 			return // don't broadcast raw text if it was a command
@@ -197,6 +203,12 @@ func (b *Bot) handleWAEvent(evt any) {
 				"text":       text,
 				"message_id": msgID,
 			},
+		})
+	case *events.CallOffer:
+		slog.Info("call offer received")
+		b.hub.Broadcast(EventMessage{
+			Kind:    EventIncomingCall,
+			Payload: map[string]any{"call_id": v.CallID},
 		})
 
 	default:
