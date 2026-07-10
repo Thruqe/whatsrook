@@ -1,31 +1,21 @@
 {
   "name": "whatsrook",
   "image": "mcr.microsoft.com/devcontainers/go:latest",
-  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y curl bash dnsutils && echo 'nameserver 8.8.8.8' | sudo tee -a /etc/resolv.conf && mkdir -p /home/vscode/.local/bin",
   "containerEnv": {
-    "PATH": "/home/vscode/.local/bin:/usr/local/go/bin:${localEnv:PATH}",
-    "GOPATH": "/home/vscode/go",
-    "CGO_ENABLED": "1"
+    "GOPATH": "/home/vscode/go"
   },
   "customizations": {
     "vscode": {
       "extensions": [
         "golang.go",
-        "yy0931.vscode-sqlite3-editor",
-        "ms-vscode.live-server",
-        "esbenp.prettier-vscode"
+        "yy0931.vscode-sqlite3-editor"
       ],
       "settings": {
         "editor.formatOnSave": true,
-        "[go]": {
-          "editor.defaultFormatter": "golang.go",
-          "editor.formatOnSave": true
-        },
         "go.useLanguageServer": true,
         "go.lintTool": "golangci-lint",
         "go.lintOnSave": "package",
-        "go.formatTool": "goimports",
-        "go.toolsManagement.autoUpdate": true
+        "go.formatTool": "goimports"
       }
     }
   }
