@@ -52,13 +52,23 @@ const server = Bun.serve({
 	}
 });
 
+const getSessionName = (): string | undefined => {
+	const index = process.argv.indexOf("--session");
+	if (index !== -1 && index + 1 < process.argv.length) {
+		return process.argv[index + 1];
+	}
+	return undefined;
+};
+
 const startSock = async () => {
-	const auth = { store: await useBridgeStore() };
+	const sessionName = getSessionName();
+	const auth = { store: await useBridgeStore(sessionName) };
+	const emitOwnEvents = false;
 
 	const sock = makeWASocket({
 		auth,
 		logger,
-		emitOwnEvents: false
+		emitOwnEvents
 	});
 
 	sock.ev.process(async events => {
