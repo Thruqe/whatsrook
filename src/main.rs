@@ -22,7 +22,7 @@ use whatsapp_rust::{
     waproto::whatsapp::{self as wa, device_props::PlatformType},
 };
 
-use cli::CliArgs;
+use cli::{CliArgs, ClientType};
 use messages::{ControlMessage, ControlType, EventMessage, EventType, Payload};
 use utils::{cleanup_db, shutdown_signal};
 use ws::{WsState, ws_handler};
@@ -112,11 +112,17 @@ async fn start_session(
 
     if let Some(phone) = cli.pair {
         tracing::info!("Requesting pair code for: {phone}");
+        let platform_id = match cli.client {
+            ClientType::Chrome => Some(CompanionWebClientType::Chrome),
+            ClientType::Android => None, // Android pairs via QR, not companion web
+            ClientType::Ios => None,
+        };
+
         builder = builder.with_pair_code(PairCodeOptions {
             phone_number: phone,
             show_push_notification: true,
             custom_code: None,
-            platform_id: Some(CompanionWebClientType::Chrome),
+            platform_id,
         });
     }
 
@@ -375,10 +381,11 @@ async fn start_session(
         }
     });
 
-    bot.client()
-        .set_client_profile(ClientProfile::android("13"))
-        .await;
-
-    bot.run().await;
+    let profile = match cli.client {
+        ClientType::Chrome => ClientProfile::web(),
+        ClientType::Android => ClientProfile::android("16"),
+        ClientType::Ios => ClientProfile::ios("17"),
+    };
+    bot.client().set_client_profile(profile).await;
     Ok(())
 }
