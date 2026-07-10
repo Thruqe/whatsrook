@@ -1,7 +1,7 @@
 # WhatsRook
 
 > [!CAUTION]
-> This project is for educational purposes only. It is not affiliated with, endorsed by, or associated with WhatsApp or Meta. The maintainers take no responsibility for any misuse, account bans, or violations of WhatsApp's Terms of Service resulting from its use.
+> Educational project only. See [DISCLAIMER.md](DISCLAIMER.md) before use.
 
 Real-time WhatsApp API built on [whatsmeow](https://github.com/tulir/whatsmeow).
 
@@ -18,6 +18,14 @@ Connect your app to WhatsApp and receive live events — messages, groups, stori
 - Build bots, automations, and integrations on top of WhatsApp
 - Powered by whatsmeow (no browser automation, no Puppeteer)
 
+## Contributing
+
+Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before contributing.
+
+## Disclaimer
+
+See [DISCLAIMER.md](DISCLAIMER.md) for full terms and limitations.
+
 ## License
 
-This project is licensed under the terms of the MIT License. The software is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. In no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software.
+MIT — see [LICENSE](LICENSE) for details.
