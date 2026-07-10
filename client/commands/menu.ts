@@ -90,7 +90,7 @@ registerCommand({
 
     const grouped = new Map<string, Command[]>();
     for (const cmd of commands) {
-      if (cmd.dontAddToCommandList) continue;
+      if (cmd.dontAddToCommandList || cmd.event) continue;
       const cat = cmd.category ?? "misc";
       if (!grouped.has(cat)) grouped.set(cat, []);
       grouped.get(cat)!.push(cmd);
