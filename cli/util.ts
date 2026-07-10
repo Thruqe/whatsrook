@@ -1,4 +1,3 @@
-import P from "pino";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
@@ -36,24 +35,6 @@ const execPromise = promisify(exec);
 
 const rawConfig = readFileSync("./config.toml", "utf-8");
 export const config = parse(rawConfig) as unknown as BotConfig;
-
-export const logger = P({
-	level: "trace",
-	transport: {
-		targets: [
-			{
-				target: "pino-pretty",
-				options: { colorize: true },
-				level: "trace"
-			},
-			{
-				target: "pino/file",
-				options: { destination: "./logs.txt" },
-				level: "trace"
-			}
-		]
-	}
-});
 
 interface MediaOutput {
 	buffer: Buffer;

@@ -4,34 +4,31 @@ import readline from "node:readline";
 import * as qrcode from "qrcode-terminal";
 
 import serialize from "./serialize";
-import { config, logger } from "./util";
+import { config } from "./util";
 import { getCommands, loadCommands, matchCommand } from "./cmd";
-import { autoDownload, autoSaveStatus, makeCall } from "./event";
-
-logger.level = config.features?.enable_logs ? "trace" : "silent";
+import { autoDownload, autoSaveStatus } from "./event";
 
 const rl = readline.createInterface({
 	input: process.stdin,
-	output: process.stdout
+	output: process.stdout,
 });
 
 const question = (text: string) =>
-	new Promise<string>(resolve => rl.question(text, resolve));
+	new Promise<string>((resolve) => rl.question(text, resolve));
 
 const startSock = async () => {
-	const state = await useBridgeStore();
+	const auth = { store: await useBridgeStore() };
 	await loadCommands();
 
 	let pairingRequested = false;
 	let retryCount = 0;
 
 	const sock = makeWASocket({
-		logger,
-		auth: { store: state },
-		emitOwnEvents: false
+		auth,
+		emitOwnEvents: false,
 	});
 
-	sock.ev.process(async events => {
+	sock.ev.process(async (events) => {
 		if (events["connection.update"]) {
 			const update = events["connection.update"];
 			const { connection, lastDisconnect, qr } = update;
@@ -50,11 +47,10 @@ const startSock = async () => {
 				const phoneNumber = await question("Please enter your phone number:\n");
 				try {
 					const code = await sock.requestPairingCode(
-						phoneNumber.replace(/[^\d]/g, "")
+						phoneNumber.replace(/[^\d]/g, ""),
 					);
 					console.log(`Pairing code: ${code}`);
-				} catch (err) {
-					logger.error(err, "Pairing code request failed");
+				} catch {
 					pairingRequested = false;
 				}
 			}
@@ -66,18 +62,11 @@ const startSock = async () => {
 					retryCount < config.connection.max_retries;
 
 				if (statusCode === DisconnectReason.loggedOut) {
-					logger.fatal("Connection closed. You are logged out.");
 				} else if (shouldReconnect) {
 					retryCount++;
 					startSock();
 				}
 			}
-
-			logger.debug(update, "connection update");
-		}
-
-		if (events["call"]) {
-			await makeCall(events.call);
 		}
 
 		if (events["messages.upsert"]) {
@@ -89,7 +78,9 @@ const startSock = async () => {
 
 					if (!msg || !msg.body || !msg.fromMe) continue;
 
-					const eventCommands = getCommands().filter(cmd => cmd.event === true);
+					const eventCommands = getCommands().filter(
+						(cmd) => cmd.event === true,
+					);
 					for (const eventCmd of eventCommands) {
 						await eventCmd.func(msg);
 					}
@@ -101,7 +92,7 @@ const startSock = async () => {
 
 					await Promise.all([
 						autoDownload(raw, sock),
-						autoSaveStatus(raw, sock)
+						autoSaveStatus(raw, sock),
 					]);
 				}
 			}
