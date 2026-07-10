@@ -192,6 +192,13 @@ func (b *Bot) handleWAEvent(evt any) {
 		from := v.Info.Sender.String()
 		msgID := v.Info.ID
 
+		// 1. Intercept the pending call flow first.
+		// If it handles the message (audio or a "save" reply to audio), consume it here.
+		if commands.HandlePendingAudioReply(context.Background(), b.client, v) {
+			return
+		}
+
+		// 2. Fall back to standard command dispatching if it wasn't a pending reply
 		if commands.Dispatch(context.Background(), b.client, v) {
 			return // don't broadcast raw text if it was a command
 		}
