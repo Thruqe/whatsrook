@@ -8,10 +8,11 @@ import (
 	"go.mau.fi/whatsmeow/types"
 )
 
-// pendingCall tracks a user mid-flow: they ran !call <target> and we're waiting
-// for them to reply with an audio message.
+// pendingCall tracks a user mid-flow: they ran !call/!videocall <target> and
+// we're waiting for them to reply with matching media.
 type pendingCall struct {
 	Target string
+	Kind   sqlstore.CallMediaKind
 }
 
 var (
@@ -42,10 +43,10 @@ func popPending(sender types.JID) (*pendingCall, bool) {
 	return p, ok
 }
 
-// audioStore extracts the concrete *sqlstore.SQLStore from a Context's client,
-// since PutCallAudioConfig/GetCallAudioConfig are project-specific, not part of
+// mediaStore extracts the concrete *sqlstore.SQLStore from a Context's client,
+// since PutCallMediaConfig/GetCallMediaConfig are project-specific, not part of
 // any whatsmeow store interface.
-func audioStore(ctx *Context) (*sqlstore.SQLStore, error) {
+func mediaStore(ctx *Context) (*sqlstore.SQLStore, error) {
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
 		return nil, fmt.Errorf("unexpected store implementation")
@@ -54,11 +55,11 @@ func audioStore(ctx *Context) (*sqlstore.SQLStore, error) {
 }
 
 func getSavedAudio(ctx *Context, sender types.JID) (string, bool) {
-	s, err := audioStore(ctx)
+	s, err := mediaStore(ctx)
 	if err != nil {
 		return "", false
 	}
-	path, err := s.GetCallAudioConfig(ctx.Ctx, sender)
+	path, err := s.GetCallMediaConfig(ctx.Ctx, sender, sqlstore.CallMediaAudio)
 	if err != nil || path == "" {
 		return "", false
 	}
@@ -66,9 +67,9 @@ func getSavedAudio(ctx *Context, sender types.JID) (string, bool) {
 }
 
 func saveAudio(ctx *Context, sender types.JID, path string) error {
-	s, err := audioStore(ctx)
+	s, err := mediaStore(ctx)
 	if err != nil {
 		return err
 	}
-	return s.PutCallAudioConfig(ctx.Ctx, sender, path)
+	return s.PutCallMediaConfig(ctx.Ctx, sender, sqlstore.CallMediaAudio, path)
 }

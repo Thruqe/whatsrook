@@ -4,6 +4,7 @@
   "containerEnv": {
     "GOPATH": "/home/vscode/go"
   },
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y ffmpeg",
   "customizations": {
     "vscode": {
       "extensions": [
