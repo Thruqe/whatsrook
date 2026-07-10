@@ -1,26 +1,36 @@
 {
-  "name": "Docker-Development",
-  "image": "mcr.microsoft.com/devcontainers/base:bookworm",
+	"name": "Docker-Development",
+	"image": "mcr.microsoft.com/devcontainers/base:bookworm",
 
-  "remoteEnv": {
-    "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
-  },
+	"remoteEnv": {
+		"LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
+	},
 
-  "postCreateCommand": "apt-get update && apt-get install -y ffmpeg libwebp-dev curl bash python3 python3-pip && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && chmod a+rx /usr/local/bin/yt-dlp && curl -fsSL https://bun.sh/install | bash && curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash && export NVM_DIR=\"$HOME/.nvm\" && [ -s \"$NVM_DIR/nvm.sh\" ] && \\. \"$NVM_DIR/nvm.sh\" && nvm install node && npm i -g pm2",
+	"mounts": [
+		"source=${localEnv:HOME}/.gitconfig,target=/root/.gitconfig,type=bind,consistency=cached",
+		"source=${localEnv:HOME}/.gnupg,target=/root/.gnupg,type=bind,consistency=cached"
+	],
 
-  "customizations": {
-    "vscode": {
-      "extensions": [
-        "esbenp.prettier-vscode",
-        "yy0931.vscode-sqlite3-editor",
-        "tamasfe.even-better-toml"
-      ],
-      "settings": {
-        "editor.defaultFormatter": "esbenp.prettier-vscode",
-        "editor.formatOnSave": true
-      }
-    }
-  },
+	"runArgs": [
+		"-v",
+		"/run/user/1000/gnupg/S.gpg-agent:/root/.gnupg/S.gpg-agent"
+	],
 
-  "remoteUser": "root"
+	"postCreateCommand": "apt-get update && apt-get install -y ffmpeg libwebp-dev curl bash python3 python3-pip && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && chmod a+rx /usr/local/bin/yt-dlp && curl -fsSL https://bun.sh/install | bash && curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash && export NVM_DIR=\"$HOME/.nvm\" && [ -s \"$NVM_DIR/nvm.sh\" ] && \\. \"$NVM_DIR/nvm.sh\" && nvm install node && npm i -g pm2",
+
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"esbenp.prettier-vscode",
+				"yy0931.vscode-sqlite3-editor",
+				"tamasfe.even-better-toml"
+			],
+			"settings": {
+				"editor.defaultFormatter": "esbenp.prettier-vscode",
+				"editor.formatOnSave": true
+			}
+		}
+	},
+
+	"remoteUser": "root"
 }
