@@ -11,59 +11,59 @@
 import type { BinaryNode, WAProto } from "../Types/index.ts";
 
 export interface CanonicalConnected {
-  type: "connected";
+	type: "connected";
 }
 
 export interface CanonicalDisconnected {
-  type: "disconnected";
+	type: "disconnected";
 }
 
 export interface CanonicalQR {
-  type: "qr";
-  code: string;
+	type: "qr";
+	code: string;
 }
 
 export interface CanonicalPairSuccess {
-  type: "pairSuccess";
-  id: string;
-  lid?: string;
-  platform?: string;
-  businessName?: string;
+	type: "pairSuccess";
+	id: string;
+	lid?: string;
+	platform?: string;
+	businessName?: string;
 }
 
 export interface CanonicalPairError {
-  type: "pairError";
-  error: string;
+	type: "pairError";
+	error: string;
 }
 
 export interface CanonicalLoggedOut {
-  type: "loggedOut";
+	type: "loggedOut";
 }
 
 export interface CanonicalConnectFailure {
-  type: "connectFailure";
-  message?: string;
+	type: "connectFailure";
+	message?: string;
 }
 
 export interface CanonicalStreamError {
-  type: "streamError";
-  code: string;
+	type: "streamError";
+	code: string;
 }
 
 export interface CanonicalStreamReplaced {
-  type: "streamReplaced";
+	type: "streamReplaced";
 }
 
 export interface CanonicalClientOutdated {
-  type: "clientOutdated";
+	type: "clientOutdated";
 }
 
 export interface CanonicalTemporaryBan {
-  type: "temporaryBan";
+	type: "temporaryBan";
 }
 
 export interface CanonicalQrScannedWithoutMultidevice {
-  type: "qrScannedWithoutMultidevice";
+	type: "qrScannedWithoutMultidevice";
 }
 
 // ── Messages ──
@@ -74,176 +74,176 @@ export interface CanonicalQrScannedWithoutMultidevice {
  * is metadata the bridge already extracted from the stanza.
  */
 export interface CanonicalMessage {
-  type: "message";
-  chatJid: string;
-  senderJid?: string;
-  isGroup: boolean;
-  isFromMe: boolean;
-  id: string;
-  timestamp: number;
-  pushName?: string;
+	type: "message";
+	chatJid: string;
+	senderJid?: string;
+	isGroup: boolean;
+	isFromMe: boolean;
+	id: string;
+	timestamp: number;
+	pushName?: string;
 
-  participantAlt?: string;
+	participantAlt?: string;
 
-  remoteJidAlt?: string;
-  isViewOnce?: boolean;
-  messageProto: WAProto.IMessage;
+	remoteJidAlt?: string;
+	isViewOnce?: boolean;
+	messageProto: WAProto.IMessage;
 }
 
 export interface CanonicalReceipt {
-  type: "receipt";
-  chatJid: string;
-  senderJid?: string;
-  isGroup: boolean;
-  isFromMe: boolean;
-  messageIds: string[];
-  timestamp: number;
+	type: "receipt";
+	chatJid: string;
+	senderJid?: string;
+	isGroup: boolean;
+	isFromMe: boolean;
+	messageIds: string[];
+	timestamp: number;
 }
 
 export interface CanonicalPushNameUpdate {
-  type: "pushNameUpdate";
-  jid: string;
-  newPushName?: string;
+	type: "pushNameUpdate";
+	jid: string;
+	newPushName?: string;
 }
 
 export interface CanonicalContactUpdate {
-  type: "contactUpdate";
-  jid: string;
+	type: "contactUpdate";
+	jid: string;
 }
 
 export interface CanonicalPictureUpdate {
-  type: "pictureUpdate";
-  jid: string;
+	type: "pictureUpdate";
+	jid: string;
 }
 
 export interface CanonicalPresence {
-  type: "presence";
-  from: string;
-  unavailable: boolean;
-  lastSeen?: number;
+	type: "presence";
+	from: string;
+	unavailable: boolean;
+	lastSeen?: number;
 }
 
 export interface CanonicalChatPresence {
-  type: "chatPresence";
-  chatJid: string;
-  senderJid: string;
-  state: string;
+	type: "chatPresence";
+	chatJid: string;
+	senderJid: string;
+	state: string;
 }
 
 export interface CanonicalGroupParticipant {
-  jid: string;
-  phoneNumber?: string;
+	jid: string;
+	phoneNumber?: string;
 }
 
 export type CanonicalGroupAction =
-  | { type: "add"; participants: CanonicalGroupParticipant[]; reason?: string }
-  | {
-      type: "remove";
-      participants: CanonicalGroupParticipant[];
-      reason?: string;
-    }
-  | { type: "promote"; participants: CanonicalGroupParticipant[] }
-  | { type: "demote"; participants: CanonicalGroupParticipant[] }
-  | { type: "modify"; participants: CanonicalGroupParticipant[] }
-  | {
-      type: "subject";
-      subject: string;
-      subjectOwner?: string;
-      subjectTime?: number;
-    }
-  | { type: "description"; id: string; description?: string }
-  | { type: "locked" }
-  | { type: "unlocked" }
-  | { type: "announce" }
-  | { type: "notAnnounce" }
-  | { type: "ephemeral"; expiration: number; trigger?: number }
-  | { type: "membershipApprovalMode"; enabled: boolean }
-  | { type: "memberAddMode"; mode: string }
-  | { type: "noFrequentlyForwarded" }
-  | { type: "frequentlyForwardedOk" }
-  | { type: "invite"; code: string }
-  | { type: "revokeInvite" }
-  | { type: "create" }
-  | { type: "delete"; reason?: string }
-  | { type: "link"; linkType: string }
-  | { type: "unlink"; unlinkType: string; unlinkReason?: string }
-  | { type: "unknown"; rawType: string };
+	| { type: "add"; participants: CanonicalGroupParticipant[]; reason?: string }
+	| {
+			type: "remove";
+			participants: CanonicalGroupParticipant[];
+			reason?: string;
+	  }
+	| { type: "promote"; participants: CanonicalGroupParticipant[] }
+	| { type: "demote"; participants: CanonicalGroupParticipant[] }
+	| { type: "modify"; participants: CanonicalGroupParticipant[] }
+	| {
+			type: "subject";
+			subject: string;
+			subjectOwner?: string;
+			subjectTime?: number;
+	  }
+	| { type: "description"; id: string; description?: string }
+	| { type: "locked" }
+	| { type: "unlocked" }
+	| { type: "announce" }
+	| { type: "notAnnounce" }
+	| { type: "ephemeral"; expiration: number; trigger?: number }
+	| { type: "membershipApprovalMode"; enabled: boolean }
+	| { type: "memberAddMode"; mode: string }
+	| { type: "noFrequentlyForwarded" }
+	| { type: "frequentlyForwardedOk" }
+	| { type: "invite"; code: string }
+	| { type: "revokeInvite" }
+	| { type: "create" }
+	| { type: "delete"; reason?: string }
+	| { type: "link"; linkType: string }
+	| { type: "unlink"; unlinkType: string; unlinkReason?: string }
+	| { type: "unknown"; rawType: string };
 
 export interface CanonicalGroupUpdate {
-  type: "groupUpdate";
-  groupJid: string;
-  author?: string;
-  authorPn?: string;
-  timestamp: number;
-  isLidAddressingMode: boolean;
-  action: CanonicalGroupAction;
+	type: "groupUpdate";
+	groupJid: string;
+	author?: string;
+	authorPn?: string;
+	timestamp: number;
+	isLidAddressingMode: boolean;
+	action: CanonicalGroupAction;
 }
 
 export interface CanonicalArchiveUpdate {
-  type: "archiveUpdate";
-  jid: string;
+	type: "archiveUpdate";
+	jid: string;
 }
 
 export interface CanonicalPinUpdate {
-  type: "pinUpdate";
-  jid: string;
-  timestamp?: number;
+	type: "pinUpdate";
+	jid: string;
+	timestamp?: number;
 }
 
 export interface CanonicalMuteUpdate {
-  type: "muteUpdate";
-  jid: string;
-  timestamp?: number;
+	type: "muteUpdate";
+	jid: string;
+	timestamp?: number;
 }
 
 export interface CanonicalStarUpdate {
-  type: "starUpdate";
-  chatJid: string;
-  messageId: string;
-  fromMe: boolean;
-  participantJid?: string;
-  starred: boolean;
+	type: "starUpdate";
+	chatJid: string;
+	messageId: string;
+	fromMe: boolean;
+	participantJid?: string;
+	starred: boolean;
 }
 
 export interface CanonicalMarkChatAsReadUpdate {
-  type: "markChatAsReadUpdate";
-  jid: string;
+	type: "markChatAsReadUpdate";
+	jid: string;
 }
 
 // ── Calls ──
 
 export type CanonicalCallActionType =
-  | "offer"
-  | "preAccept"
-  | "accept"
-  | "reject"
-  | "terminate";
+	| "offer"
+	| "preAccept"
+	| "accept"
+	| "reject"
+	| "terminate";
 
 export interface CanonicalCallAction {
-  type: CanonicalCallActionType;
-  callId: string;
+	type: CanonicalCallActionType;
+	callId: string;
 
-  callerPn?: string;
+	callerPn?: string;
 
-  isVideo?: boolean;
+	isVideo?: boolean;
 }
 
 export interface CanonicalIncomingCall {
-  type: "incomingCall";
-  from: string;
-  timestamp: number;
-  offline: boolean;
-  action: CanonicalCallAction;
+	type: "incomingCall";
+	from: string;
+	timestamp: number;
+	offline: boolean;
+	action: CanonicalCallAction;
 }
 
 export interface CanonicalUndecryptableMessage {
-  type: "undecryptableMessage";
-  raw: unknown;
+	type: "undecryptableMessage";
+	raw: unknown;
 }
 
 export interface CanonicalRawNode {
-  type: "rawNode";
-  node: BinaryNode;
+	type: "rawNode";
+	node: BinaryNode;
 }
 
 /**
@@ -252,9 +252,9 @@ export interface CanonicalRawNode {
  * already cover the well-known stanza variants.
  */
 export interface CanonicalNotification {
-  type: "notification";
-  tag: string;
-  attrs: Record<string, string>;
+	type: "notification";
+	tag: string;
+	attrs: Record<string, string>;
 }
 
 /**
@@ -265,12 +265,12 @@ export interface CanonicalNotification {
  * op_name — consumers in `Socket/events.ts` switch on it.
  */
 export interface CanonicalMexNotification {
-  type: "mexNotification";
-  opName: string;
-  from?: string;
-  stanzaId?: string;
-  offline: boolean;
-  payload: Record<string, unknown>;
+	type: "mexNotification";
+	opName: string;
+	from?: string;
+	stanzaId?: string;
+	offline: boolean;
+	payload: Record<string, unknown>;
 }
 
 /**
@@ -279,41 +279,41 @@ export interface CanonicalMexNotification {
  * exhaustive — adding a new `noop` variant requires a deliberate edit.
  */
 export interface CanonicalNoop {
-  type: "noop";
-  bridgeType: string;
+	type: "noop";
+	bridgeType: string;
 
-  detail?: string;
+	detail?: string;
 }
 
 export type CanonicalEvent =
-  | CanonicalConnected
-  | CanonicalDisconnected
-  | CanonicalQR
-  | CanonicalPairSuccess
-  | CanonicalPairError
-  | CanonicalLoggedOut
-  | CanonicalConnectFailure
-  | CanonicalStreamError
-  | CanonicalStreamReplaced
-  | CanonicalClientOutdated
-  | CanonicalTemporaryBan
-  | CanonicalQrScannedWithoutMultidevice
-  | CanonicalMessage
-  | CanonicalReceipt
-  | CanonicalPushNameUpdate
-  | CanonicalContactUpdate
-  | CanonicalPictureUpdate
-  | CanonicalPresence
-  | CanonicalChatPresence
-  | CanonicalGroupUpdate
-  | CanonicalArchiveUpdate
-  | CanonicalPinUpdate
-  | CanonicalMuteUpdate
-  | CanonicalStarUpdate
-  | CanonicalMarkChatAsReadUpdate
-  | CanonicalIncomingCall
-  | CanonicalUndecryptableMessage
-  | CanonicalRawNode
-  | CanonicalNotification
-  | CanonicalMexNotification
-  | CanonicalNoop;
+	| CanonicalConnected
+	| CanonicalDisconnected
+	| CanonicalQR
+	| CanonicalPairSuccess
+	| CanonicalPairError
+	| CanonicalLoggedOut
+	| CanonicalConnectFailure
+	| CanonicalStreamError
+	| CanonicalStreamReplaced
+	| CanonicalClientOutdated
+	| CanonicalTemporaryBan
+	| CanonicalQrScannedWithoutMultidevice
+	| CanonicalMessage
+	| CanonicalReceipt
+	| CanonicalPushNameUpdate
+	| CanonicalContactUpdate
+	| CanonicalPictureUpdate
+	| CanonicalPresence
+	| CanonicalChatPresence
+	| CanonicalGroupUpdate
+	| CanonicalArchiveUpdate
+	| CanonicalPinUpdate
+	| CanonicalMuteUpdate
+	| CanonicalStarUpdate
+	| CanonicalMarkChatAsReadUpdate
+	| CanonicalIncomingCall
+	| CanonicalUndecryptableMessage
+	| CanonicalRawNode
+	| CanonicalNotification
+	| CanonicalMexNotification
+	| CanonicalNoop;

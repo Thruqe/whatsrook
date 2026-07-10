@@ -2,8 +2,8 @@
 export {};
 
 declare global {
-  interface RequestInit {
-    dispatcher?: unknown;
-    duplex?: "half" | "full";
-  }
+	interface RequestInit {
+		dispatcher?: unknown;
+		duplex?: "half" | "full";
+	}
 }

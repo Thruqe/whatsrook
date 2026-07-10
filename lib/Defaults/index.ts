@@ -1,7 +1,7 @@
 import type {
-  AuthenticationState,
-  SocketConfig,
-  WAVersion,
+	AuthenticationState,
+	SocketConfig,
+	WAVersion
 } from "../Types/index.ts";
 import { Browsers } from "../Utils/browser-utils.ts";
 import logger from "../Utils/logger.ts";
@@ -14,41 +14,41 @@ export const CALL_AUDIO_PREFIX = "https://call.whatsapp.com/voice/";
 export const WA_DEFAULT_EPHEMERAL = 7 * 24 * 60 * 60;
 
 export const URL_REGEX =
-  /https:\/\/(?![^:@/\s]+:[^:@/\s]+@)[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(:\d+)?(\/[^\s]*)?/g;
+	/https:\/\/(?![^:@/\s]+:[^:@/\s]+@)[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(:\d+)?(\/[^\s]*)?/g;
 
 export type MediaType =
-  | "image"
-  | "video"
-  | "audio"
-  | "document"
-  | "sticker"
-  | "thumbnail-link"
-  | "product-catalog-image"
-  | "md-app-state"
-  | "md-msg-hist";
+	| "image"
+	| "video"
+	| "audio"
+	| "document"
+	| "sticker"
+	| "thumbnail-link"
+	| "product-catalog-image"
+	| "md-app-state"
+	| "md-msg-hist";
 
 export const MEDIA_KEYS: MediaType[] = [
-  "image",
-  "video",
-  "document",
-  "audio",
-  "sticker",
-  "thumbnail-link",
-  "product-catalog-image",
-  "md-app-state",
-  "md-msg-hist",
+	"image",
+	"video",
+	"document",
+	"audio",
+	"sticker",
+	"thumbnail-link",
+	"product-catalog-image",
+	"md-app-state",
+	"md-msg-hist"
 ];
 
 export const DEFAULT_CONNECTION_CONFIG: SocketConfig = {
-  version: version as WAVersion,
-  browser: Browsers.ubuntu("Chrome"),
-  waWebSocketUrl: "wss://web.whatsapp.com/ws/chat",
-  connectTimeoutMs: 20_000,
-  keepAliveIntervalMs: 30_000,
-  logger: logger.child({ class: "baileys" }),
-  emitOwnEvents: true,
-  defaultQueryTimeoutMs: 60_000,
-  auth: undefined as unknown as AuthenticationState,
-  shouldIgnoreJid: () => false,
-  options: {},
+	version: version as WAVersion,
+	browser: Browsers.ubuntu("Chrome"),
+	waWebSocketUrl: "wss://web.whatsapp.com/ws/chat",
+	connectTimeoutMs: 20_000,
+	keepAliveIntervalMs: 30_000,
+	logger: logger.child({ class: "baileys" }),
+	emitOwnEvents: true,
+	defaultQueryTimeoutMs: 60_000,
+	auth: undefined as unknown as AuthenticationState,
+	shouldIgnoreJid: () => false,
+	options: {}
 };
