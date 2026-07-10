@@ -1,49 +1,13 @@
 # zevBot
 
-## Installation
+> [!CAUTION]
+> This project is for educational purposes only. It is not affiliated with, endorsed by, or associated with WhatsApp or Meta. The maintainers take no responsibility for any misuse, account bans, or violations of WhatsApp's Terms of Service resulting from its use.
 
-### Docker Deployment
+Third-party WhatsApp client built on top of the whatsapp-rust library. It operates as a WhatsApp Android client, providing direct access to WhatsApp events across personal chats, groups, stories, and channels.
 
-#### Prerequisites
+It establishes a bidirectional communication channel between itself and any connected client, allowing the client to receive events and dispatch actions in real time. zevBot exposes an API for handling incoming events, sending messages, managing groups, and automating WhatsApp interactions programmatically.
 
-- **Docker** installed on your host machine.
-- **Docker Compose** (optional, but recommended for simplified volume and permission management).
-
-#### Pull from GitHub Container Registry
-
-The latest image is published to GHCR and can be pulled directly:
-
-```bash
-docker pull ghcr.io/zevlion/zevbot:latest
-```
-
-#### Build and Run
-
-Build the image locally from source:
-
-```bash
-# Build the Docker image
-docker build -t zevbot .
-
-# Run the container
-docker run -d --name zevbot-instance zevbot
-```
-
-Alternatively, To use the pre-built image instead (Recommended):
-
-```bash
-docker run -d --name zevbot-instance ghcr.io/zevlion/zevbot:latest
-```
-
-#### Development Containers
-
-For contributors using **VS Code** and **Zed**, a pre-configured `.devcontainer` is provided. This environment includes all necessary dependencies and toolchains to streamline the development workflow without polluting the host system.
-
-```bash
-docker run -d \
-  --name zevbot-prod \
-  ghcr.io/zevlion/zevbot:latest
-```
+**_Full documentation coming soon._**
 
 # License
 
