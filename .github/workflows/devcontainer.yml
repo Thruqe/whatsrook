@@ -23,12 +23,18 @@ jobs:
             exit 1
           fi
           python3 << 'EOF'
-          import json, sys
+          import re, json, sys
           with open('.devcontainer/devcontainer.json', 'r') as f:
               content = f.read()
+          # Strip single-line comments
+          content = re.sub(r'//.*', '', content)
+          # Strip multi-line comments
+          content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
+          # Strip trailing commas before ] or }
+          content = re.sub(r',\s*([}\]])', r'\1', content)
           try:
               config = json.loads(content)
-              print('✅ devcontainer.json is valid JSON')
+              print('✅ devcontainer.json is valid')
           except json.JSONDecodeError as e:
               print(f'❌ Invalid JSON: {e}')
               sys.exit(1)
@@ -37,6 +43,7 @@ jobs:
               sys.exit(1)
           print('✅ devcontainer.json has a valid container source')
           EOF
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
