@@ -111,10 +111,6 @@ func isInstagramURL(link string) bool {
 	return matchesHost(link, "instagram.com")
 }
 
-func isTwitterURL(link string) bool {
-	return matchesHost(link, "twitter.com", "x.com")
-}
-
 func isThreadsURL(link string) bool {
 	return matchesHost(link, "threads.net")
 }
