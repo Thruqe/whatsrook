@@ -86,7 +86,7 @@ const startSock = async () => {
       if (connection === "open") {
         retryCount = 0;
         console.log(
-          `[plugin] Loaded ${cmd.commands.length} command(s) from ${cmd.files.length} file(s)`,
+          `[Plugin] Loaded ${cmd.commands.length} command(s) from ${cmd.files.length} file(s)`,
         );
         await delay(2000);
         process.stdout.write(clear);
