@@ -197,10 +197,10 @@ async fn start_session(
             if let Ok(ctrl) = serde_json::from_str::<ControlMessage>(&raw) {
                 match ctrl.kind {
                     ControlType::SendMessage => {
-                        if let Payload::SendMessage { to, text } = ctrl.payload {
-                            // tracing::info!("Sending message to {to}: {text}");
-                            //  client.send_message(to.parse(), messages::Ex).await
-                        }
+                        //   if let Payload::SendMessage { to, text } = ctrl.payload {
+                        // tracing::info!("Sending message to {to}: {text}");
+                        //  client.send_message(to.parse(), messages::Ex).await
+                        //  }
                     }
                     ControlType::GetStatus => {
                         tracing::info!("Status requested");
@@ -211,7 +211,7 @@ async fn start_session(
                     }
                     ControlType::Logout => {
                         tracing::info!("Logout requested");
-                        client.logout().await;
+                        let _ = client.logout().await;
                     }
                 }
             }
