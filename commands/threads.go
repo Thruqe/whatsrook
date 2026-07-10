@@ -19,6 +19,9 @@ func handleThreads(ctx *Context) error {
 	if len(ctx.Args) == 0 {
 		return sendText(ctx, "Usage: !threads <url>")
 	}
+	if !isThreadsURL(ctx.Args[0]) {
+		return sendText(ctx, "_Invaild threads url!_")
+	}
 	data, err := ember.Fetch(ctx.Ctx, ctx.Args[0])
 	if err != nil {
 		return sendText(ctx, fmt.Sprintf("Failed: %s", err))
