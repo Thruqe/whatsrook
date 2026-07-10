@@ -5,7 +5,6 @@ import {
 	useBridgeStore,
 	DisconnectReason,
 } from "zevbot";
-import * as qrcode from "qrcode-terminal";
 
 const logger = createLogger("trace");
 
@@ -24,7 +23,7 @@ const startSock = async () => {
 			const { connection, lastDisconnect, qr } = update;
 
 			if (qr) {
-				qrcode.generate(qr, { small: true });
+				logger.info(qr, )
 			}
 
 			if (connection === "close") {

@@ -4,23 +4,23 @@
 	"author": "Zevlion",
 	"devDependencies": {
 		"@types/bun": "latest",
-		"oxfmt": "^0.50.0",
-		"oxlint": "^1.65.0",
+		"oxfmt": "^0.51.0",
+		"oxlint": "^1.66.0",
 		"typescript": "^6.0.3"
 	},
 	"dependencies": {
 		"audio-decode": "^3.10.1",
 		"music-metadata": "^11.12.3",
-		"qrcode-terminal": "^0.12.0",
 		"sharp": "^0.34.5",
 		"whatsapp-rust-bridge": "0.6.0-alpha.28"
 	},
 	"exports": {
-		".": "./lib/index.ts"
+		".": "./dist/lib/index.js"
 	},
 	"scripts": {
-		"cli": "rpm2 start cli/main.ts --interpreter bun --name zevBot --watch --attach --force",
-		"middleware": "rpm2 start cli/middleware.ts --interpreter bun --name zevBot --watch --attach --force",
-		"fmt": "oxfmt client lib && oxlint --fix"
+		"build": "bun build ./cli/main.ts ./cli/web.ts ./lib/index.ts --outdir ./dist --target bun --external whatsapp-rust-bridge --external audio-decode --external music-metadata --external sharp",
+		"cli": "rpm2 start dist/cli/main.js --interpreter bun --name zevBot --watch --attach --force",
+		"web": "rpm2 start dist/cli/web.js --interpreter bun --name zevBot --watch --attach --force",
+		"fmt": "oxfmt client lib && tsc && oxlint --fix"
 	}
 }
