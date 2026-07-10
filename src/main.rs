@@ -4,7 +4,6 @@ mod ws;
 use axum::{Router, routing::get};
 use std::{env, sync::Arc};
 use tokio::sync::broadcast;
-use tower_http::services::ServeDir;
 use wacore::{
     pair_code::{PairCodeOptions, PlatformId},
     types::events::Event,
@@ -55,13 +54,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let ws_state = WsState::new();
 
-    let serve_dir = ServeDir::new("web")
-        .append_index_html_on_directories(true)
-        .fallback(tower_http::services::ServeFile::new("web/index.html"));
-
+    // Minimal router
     let app = Router::new()
         .route("/ws", get(ws_handler))
-        .fallback_service(serve_dir)
         .with_state(ws_state.clone());
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
