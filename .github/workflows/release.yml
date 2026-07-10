@@ -20,11 +20,11 @@ jobs:
       - name: Parse and Compare Versions
         id: version-check
         run: |
-          CURRENT_VERSION=$(git show HEAD:Cargo.toml | sed -n 's/^version = "\(.*\)"/\1/p' | head -n 1)
+          CURRENT_VERSION=$(git show HEAD:version.toml | sed -n 's/^version = "\(.*\)"/\1/p')
           echo "Current version: $CURRENT_VERSION"
 
           if git rev-parse HEAD~1 >/dev/null 2>&1; then
-            OLD_VERSION=$(git show HEAD~1:Cargo.toml | sed -n 's/^version = "\(.*\)"/\1/p' | head -n 1)
+            OLD_VERSION=$(git show HEAD~1:version.toml | sed -n 's/^version = "\(.*\)"/\1/p')
           else
             OLD_VERSION=""
           fi
@@ -44,14 +44,18 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-      - name: Setup Rust Toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Setup Go Toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install GCC (required for CGO/go-sqlite3)
+        run: sudo apt-get update && sudo apt-get install -y gcc
       - name: Build Binary
-        run: cargo build --release
+        run: CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o zevBot .
       - name: Package Asset
         run: |
           mkdir staging
-          cp target/release/zevBot staging/ 2>/dev/null || cp target/release/zevbot staging/ 2>/dev/null || true
+          cp zevBot staging/
           cp LICENSE staging/ 2>/dev/null || true
           cp README.md staging/ 2>/dev/null || true
           tar -czf zevBot-linux-amd64.tar.gz -C staging .
