@@ -4,7 +4,7 @@ primary_platform = "linux"
 supported_platform = "linux"
 
 [auth]
-strategy = "qr" # Alternative "pairing_code"
+strategy = "qr"       # Alternative "pairing_code"
 qr_timeout_ms = 60000
 
 [connection]
@@ -16,5 +16,5 @@ proxy_url = ""
 auto_download = false # ["image", "video"]
 
 [features]
-enable_logs = false  # Disable for better performance
+enable_logs = false
 bot_name = "zєνвσт"
