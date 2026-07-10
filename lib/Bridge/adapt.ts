@@ -1,14 +1,3 @@
-/**
- * Anti-corruption layer between the bridge runtime and baileyrs domain code.
- *
- * Every inbound bridge event flows through `adaptBridgeEvent`, which returns
- * a strictly-typed `CanonicalEvent` (or `null` when the payload is malformed
- * past recovery). Downstream code (notably `Socket/events.ts`) consumes the
- * canonical union exclusively — no `event.data as Whatever` casts, no
- * defensive optional chains, no implicit knowledge of how serde happens to
- * serialize a particular rust enum today.
- */
-
 import type { WhatsAppEvent } from "whatsapp-rust-bridge";
 import type { ILogger } from "../Utils/logger.ts";
 import type {

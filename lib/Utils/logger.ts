@@ -11,7 +11,7 @@ export interface ILogger {
 }
 
 export default P({
-  name: "baileyrs",
+  name: "logger",
   level: process.env.LOG_LEVEL || "info",
   timestamp: () => `,"time":"${new Date().toJSON()}"`,
   redact: {
