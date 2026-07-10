@@ -21,9 +21,17 @@ zevBot is a modular and performant third-party WhatsApp client engineered to com
 - **Docker** installed on your host machine.
 - **Docker Compose** (optional, but recommended for simplified volume and permission management).
 
+### Pull from GitHub Container Registry
+
+The latest image is published to GHCR and can be pulled directly:
+
+```bash
+docker pull ghcr.io/zevlion/zevbot:latest
+```
+
 ### Build and Run
 
-To build the image and start the container manually, execute the following commands in the project root:
+Build the image locally from source:
 
 ```bash
 # Build the Docker image
@@ -31,6 +39,12 @@ docker build -t zevbot .
 
 # Run the container
 docker run -d --name zevbot-instance zevbot
+```
+
+Alternatively, To use the pre-built image instead (Recommended):
+
+```bash
+docker run -d --name zevbot-instance ghcr.io/zevlion/zevbot:latest
 ```
 
 ### Development Containers
@@ -46,7 +60,7 @@ docker run -d \
   --name zevbot-prod \
   -v $(pwd)/config.toml:/app/config.toml \
   -v $(pwd)/auth_info_baileys:/app/auth_info_baileys \
-  zevbot
+  ghcr.io/zevlion/zevbot:latest
 ```
 
 # License
