@@ -26,10 +26,12 @@ type Context struct {
 type Handler func(ctx *Context) error
 
 type Command struct {
-	Name        string
-	Aliases     []string
-	Description string
-	Handler     Handler
+	Name         string
+	Aliases      []string
+	Description  string
+	Category     string // used to group commands in the menu (e.g. "info", "downloader", "calls")
+	HideFromMenu bool   // set to true for internal/helper commands that should not appear in !menu
+	Handler      Handler
 }
 
 var registry = map[string]*Command{}
@@ -55,6 +57,22 @@ func All() []*Command {
 	out := make([]*Command, 0, len(order))
 	for _, name := range order {
 		out = append(out, registry[name])
+	}
+	return out
+}
+
+// Visible returns only commands that should appear in the menu,
+// deduplicated (aliases share the same *Command pointer).
+func Visible() []*Command {
+	seen := map[*Command]bool{}
+	var out []*Command
+	for _, name := range order {
+		c := registry[name]
+		if c.HideFromMenu || seen[c] {
+			continue
+		}
+		seen[c] = true
+		out = append(out, c)
 	}
 	return out
 }

@@ -8,6 +8,7 @@ func init() {
 	Register(&Command{
 		Name:        "call",
 		Description: "Call a number, playing your saved (or next-provided) audio",
+		Category:    "calls",
 		Handler:     handleCall,
 	})
 }

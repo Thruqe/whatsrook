@@ -11,6 +11,7 @@ func init() {
 	Register(&Command{
 		Name:        "uptime",
 		Description: "Show how long the bot has been running",
+		Category:    "info",
 		Handler:     handleUptime,
 	})
 }

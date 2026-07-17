@@ -10,6 +10,7 @@ func init() {
 	Register(&Command{
 		Name:        "ping",
 		Description: "Check if the bot is alive and measure response latency",
+		Category:    "info",
 		Handler:     handlePing,
 	})
 }

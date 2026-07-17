@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/Thruqe/whatsrook/commands"
 	"go.mau.fi/whatsmeow"
@@ -14,6 +16,11 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
+
+// ErrPairTimeout is returned by runPairCode when WhatsApp does not complete
+// the pairing handshake within the deadline (e.g. the server sends a
+// malformed link_code_pairing notification and the flow stalls).
+var ErrPairTimeout = errors.New("pairing timed out")
 
 // Bot holds shared state so handleControl can access both client and hub.
 type Bot struct {
@@ -114,6 +121,11 @@ func (b *Bot) runPairCode(ctx context.Context) error {
 		Payload: map[string]any{"code": code},
 	})
 
+	// Give WhatsApp up to 60 s to complete the handshake. If the server sends
+	// a malformed notification the pairing stalls silently; the timeout turns
+	// that hang into a typed error so the caller can wipe + retry cleanly.
+	pairDeadline := time.After(60 * time.Second)
+
 	select {
 	case err := <-paired:
 		if err != nil {
@@ -121,6 +133,8 @@ func (b *Bot) runPairCode(ctx context.Context) error {
 		}
 		slog.Info("paired successfully")
 		return nil
+	case <-pairDeadline:
+		return ErrPairTimeout
 	case <-ctx.Done():
 		return nil
 	}

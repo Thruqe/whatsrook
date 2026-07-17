@@ -11,6 +11,7 @@ func init() {
 		Name:        "youtube",
 		Aliases:     []string{"yt"},
 		Description: "Download a YouTube video/short",
+		Category:    "downloader",
 		Handler:     handleYouTube,
 	})
 }
