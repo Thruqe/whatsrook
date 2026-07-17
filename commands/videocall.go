@@ -2,9 +2,11 @@ package commands
 
 func init() {
 	Register(&Command{
-		Name:        "videocall",
-		Description: "Video call a number, playing your saved (or next-provided) video",
-		Handler:     handleVideoCall,
+		Name:         "videocall",
+		Description:  "Video call a number, playing your saved (or next-provided) video",
+		Category:     "calls",
+		HideFromMenu: true, // stub — outbound video is not yet supported
+		Handler:      handleVideoCall,
 	})
 }
 

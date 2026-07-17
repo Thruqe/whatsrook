@@ -11,6 +11,7 @@ func init() {
 		Name:        "facebook",
 		Aliases:     []string{"fb"},
 		Description: "Download a Facebook video/reel",
+		Category:    "downloader",
 		Handler:     handleFacebook,
 	})
 }

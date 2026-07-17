@@ -11,6 +11,7 @@ func init() {
 		Name:        "threads",
 		Aliases:     []string{"th"},
 		Description: "Download a Threads post",
+		Category:    "downloader",
 		Handler:     handleThreads,
 	})
 }

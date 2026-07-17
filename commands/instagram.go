@@ -11,6 +11,7 @@ func init() {
 		Name:        "instagram",
 		Aliases:     []string{"ig"},
 		Description: "Download an Instagram reel/post",
+		Category:    "downloader",
 		Handler:     handleInstagram,
 	})
 }
