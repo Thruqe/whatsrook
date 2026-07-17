@@ -41,7 +41,6 @@ func handleMenu(ctx *Context) error {
 	usedRAM := totalRAM - freeRAM
 	platform := runtime.GOOS
 	total := len(Visible())
-	prefix := "!"
 
 	user := ctx.Evt.Info.PushName
 	if user == "" {
@@ -49,31 +48,31 @@ func handleMenu(ctx *Context) error {
 	}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "╭━━━〔 *WhatsRook* 〕━━━┈⊷\n")
-	fmt.Fprintf(&sb, "┃✵╭──────────────\n")
-	fmt.Fprintf(&sb, "┃✵│ 👤 User    : %s\n", user)
-	fmt.Fprintf(&sb, "┃✵│ 🔌 Plugins : %d\n", total)
-	fmt.Fprintf(&sb, "┃✵│ ⏱️  Runtime : %s\n", uptime)
-	fmt.Fprintf(&sb, "┃✵│ 🖥️  Platform: %s\n", platform)
-	fmt.Fprintf(&sb, "┃✵│ 💾 RAM     : %s / %s\n", formatBytes(usedRAM), formatBytes(totalRAM))
-	fmt.Fprintf(&sb, "┃✵╰──────────────\n")
-	fmt.Fprintf(&sb, "╰━━━━━━━━━━━━━━━┈⊷\n\n")
+	fmt.Fprintf(&sb, "╭━━━〔 *WhatsRook* 〕━━━\n")
+	fmt.Fprintf(&sb, "│╭──────────────\n")
+	fmt.Fprintf(&sb, "││ User    : %s\n", user)
+	fmt.Fprintf(&sb, "││ Plugins : %d\n", total)
+	fmt.Fprintf(&sb, "││ Runtime : %s\n", uptime)
+	fmt.Fprintf(&sb, "││ Platform: %s\n", platform)
+	fmt.Fprintf(&sb, "││ RAM     : %s / %s\n", formatBytes(usedRAM), formatBytes(totalRAM))
+	fmt.Fprintf(&sb, "│╰──────────────\n")
+	fmt.Fprintf(&sb, "╰━━━━━━━━━━━━━━━\n\n")
 
 	for _, cat := range categoryOrder {
 		cmds := categories[cat]
 		catLabel := "*〔 " + strings.ToUpper(cat) + " 〕*"
 
-		fmt.Fprintf(&sb, "╭─────────────┈⊷\n")
+		fmt.Fprintf(&sb, "╭─────────────\n")
 		fmt.Fprintf(&sb, "│ %s\n", catLabel)
-		fmt.Fprintf(&sb, "╰┬────────────┈⊷\n")
+		fmt.Fprintf(&sb, "╰┬────────────\n")
 		fmt.Fprintf(&sb, "┌┤\n")
 
 		for _, e := range cmds {
-			fmt.Fprintf(&sb, "││◦➛ %s%s\n", prefix, e.name)
+			fmt.Fprintf(&sb, "││◦ %s\n", e.name)
 		}
 
-		fmt.Fprintf(&sb, "│╰────────────┈⊷\n")
-		fmt.Fprintf(&sb, "╰─────────────┈⊷\n\n")
+		fmt.Fprintf(&sb, "│╰────────────\n")
+		fmt.Fprintf(&sb, "╰─────────────\n\n")
 	}
 
 	return sendText(ctx, strings.TrimRight(sb.String(), "\n"))
