@@ -48,19 +48,19 @@ func handleMenu(ctx *Context) error {
 	}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "╭━━━〔 *WhatsRook* 〕━━━\n")
+	fmt.Fprintf(&sb, "╭━━━〔 %s 〕━━━\n", toFancy("WhatsRook"))
 	fmt.Fprintf(&sb, "│╭──────────────\n")
-	fmt.Fprintf(&sb, "││ User    : %s\n", user)
-	fmt.Fprintf(&sb, "││ Plugins : %d\n", total)
-	fmt.Fprintf(&sb, "││ Runtime : %s\n", uptime)
-	fmt.Fprintf(&sb, "││ Platform: %s\n", platform)
-	fmt.Fprintf(&sb, "││ RAM     : %s / %s\n", formatBytes(usedRAM), formatBytes(totalRAM))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("User    : %s", user)))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Plugins : %d", total)))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Runtime : %s", uptime)))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Platform: %s", platform)))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Memory  : %s / %s", formatBytes(usedRAM), formatBytes(totalRAM))))
 	fmt.Fprintf(&sb, "│╰──────────────\n")
-	fmt.Fprintf(&sb, "╰━━━━━━━━━━━━━━━\n\n")
+	fmt.Fprintf(&sb, "╰━━━━━━━━━━━━━━━\n")
 
 	for _, cat := range categoryOrder {
 		cmds := categories[cat]
-		catLabel := "*〔 " + strings.ToUpper(cat) + " 〕*"
+		catLabel := "*〔 " + toFancy(strings.ToUpper(cat)) + " 〕*"
 
 		fmt.Fprintf(&sb, "╭─────────────\n")
 		fmt.Fprintf(&sb, "│ %s\n", catLabel)
@@ -68,7 +68,7 @@ func handleMenu(ctx *Context) error {
 		fmt.Fprintf(&sb, "┌┤\n")
 
 		for _, e := range cmds {
-			fmt.Fprintf(&sb, "││◦ %s\n", e.name)
+			fmt.Fprintf(&sb, "││◦ %s\n", toFancy(e.name))
 		}
 
 		fmt.Fprintf(&sb, "│╰────────────\n")
@@ -149,4 +149,20 @@ func parseProcMeminfo() (total, free uint64, err error) {
 		}
 	}
 	return total, free, nil
+}
+
+func toFancy(s string) string {
+	var sb strings.Builder
+	for _, r := range s {
+		if r >= 'a' && r <= 'z' {
+			sb.WriteRune(r - 'a' + 0x1D68A)
+		} else if r >= 'A' && r <= 'Z' {
+			sb.WriteRune(r - 'A' + 0x1D670)
+		} else if r >= '0' && r <= '9' {
+			sb.WriteRune(r - '0' + 0x1D7F6)
+		} else {
+			sb.WriteRune(r)
+		}
+	}
+	return sb.String()
 }
