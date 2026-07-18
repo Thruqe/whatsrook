@@ -18,8 +18,9 @@ import (
 )
 
 func sendText(ctx *Context, text string) error {
+	formatted := formatTextResponseHelper(text)
 	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
-		Conversation: new(text),
+		Conversation: &formatted,
 	})
 	return err
 }
@@ -27,10 +28,28 @@ func sendText(ctx *Context, text string) error {
 // sendTextRaw is like sendText but usable before a *Context exists (e.g. inside
 // HandlePendingAudioReply, which runs ahead of normal command dispatch).
 func sendTextRaw(ctx context.Context, client *whatsmeow.Client, chat types.JID, text string) error {
+	formatted := formatTextResponseHelper(text)
 	_, err := client.SendMessage(ctx, chat, &waE2E.Message{
-		Conversation: new(text),
+		Conversation: &formatted,
 	})
 	return err
+}
+
+func removeEmojis(s string) string {
+	var sb strings.Builder
+	for _, r := range s {
+		if (r >= 0x1F000 && r <= 0x1F9FF) || (r >= 0x2600 && r <= 0x27BF) || (r >= 0x1FA00 && r <= 0x1FAFF) || (r >= 0x1F1E0 && r <= 0x1F1FF) {
+			continue // skip emoji
+		}
+		sb.WriteRune(r)
+	}
+	return sb.String()
+}
+
+func formatTextResponseHelper(text string) string {
+	text = strings.ReplaceAll(text, "*", "")
+	text = removeEmojis(text)
+	return "```\n" + text + "\n```"
 }
 
 // transcodeToMP3 converts any input audio file to MP3 via ffmpeg, returning the

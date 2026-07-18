@@ -2,10 +2,16 @@ package commands
 
 import (
 	"context"
+	"encoding/hex"
+	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/Thruqe/whatsrook/store/sqlstore"
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
 
@@ -16,12 +22,132 @@ const (
 	PrefixSettingKey = "prefix"
 )
 
+var tablesInitOnce sync.Once
+
+func initTables(ctx context.Context, s *sqlstore.SQLStore) {
+	tablesInitOnce.Do(func() {
+		db := s.GetDB()
+		if db == nil {
+			return
+		}
+		// Create bot_filters table
+		_, _ = db.Exec(ctx, `CREATE TABLE IF NOT EXISTS bot_filters (
+			our_jid TEXT,
+			trigger_word TEXT,
+			message_proto TEXT,
+			PRIMARY KEY (our_jid, trigger_word)
+		)`)
+
+		// Create bot_bgm table
+		_, _ = db.Exec(ctx, `CREATE TABLE IF NOT EXISTS bot_bgm (
+			our_jid TEXT,
+			trigger_word TEXT,
+			message_proto TEXT,
+			PRIMARY KEY (our_jid, trigger_word)
+		)`)
+
+		// Create group_stats table
+		_, _ = db.Exec(ctx, `CREATE TABLE IF NOT EXISTS group_stats (
+			group_jid TEXT,
+			user_jid TEXT,
+			date_str TEXT,
+			msg_count INTEGER,
+			PRIMARY KEY (group_jid, user_jid, date_str)
+		)`)
+
+		// Create bot_sticker_cmds table
+		_, _ = db.Exec(ctx, `CREATE TABLE IF NOT EXISTS bot_sticker_cmds (
+			our_jid TEXT,
+			sticker_sha256 TEXT,
+			command_name TEXT,
+			PRIMARY KEY (our_jid, sticker_sha256)
+		)`)
+	})
+}
+
 // Dispatch checks if the message text is a recognised command and runs it.
 // Returns true if a command matched (and was handled), false otherwise.
 func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message) bool {
+	s, okStore := client.Store.Identities.(*sqlstore.SQLStore)
+	if okStore {
+		initTables(ctx, s)
+	}
+
+	// 0. Sticker message command trigger
+	if evt.Message.StickerMessage != nil {
+		if handleStickerCommand(ctx, client, evt) {
+			return true
+		}
+	}
+
+	// 1. Log group message activity
+	if evt.Info.Chat.Server == "g.us" {
+		logGroupMessage(ctx, client, evt.Info.Chat, evt.Info.Sender)
+	}
+
+	// 2. Auto Status Save
+	if evt.Info.Chat.String() == "status@broadcast" {
+		if okStore {
+			raw, _ := s.GetSetting(ctx, "autostatussave")
+			if raw == "on" && client.Store.ID != nil {
+				ownerJID := client.Store.ID.ToNonAD()
+				_, _ = client.SendMessage(ctx, ownerJID, evt.Message)
+			}
+		}
+	}
+
+	// 3. Auto ViewOnce Forwarding
+	isViewOnce := false
+	if evt.Message.ViewOnceMessage != nil || evt.Message.ViewOnceMessageV2 != nil || evt.Message.ViewOnceMessageV2Extension != nil {
+		isViewOnce = true
+	} else if img := evt.Message.GetImageMessage(); img != nil && img.GetViewOnce() {
+		isViewOnce = true
+	} else if vid := evt.Message.GetVideoMessage(); vid != nil && vid.GetViewOnce() {
+		isViewOnce = true
+	}
+
+	if isViewOnce && okStore {
+		raw, _ := s.GetSetting(ctx, "autovv")
+		if raw == "on" && client.Store.ID != nil {
+			ownerJID := client.Store.ID.ToNonAD()
+			unwrapped := ExtractViewOnceMessage(evt.Message)
+			if unwrapped != nil {
+				_, _ = client.SendMessage(ctx, ownerJID, unwrapped)
+			}
+		}
+	}
+
+	// Auto Mention Response
+	if isBotMentioned(client, evt) && okStore {
+		db := s.GetDB()
+		if db != nil {
+			var mentionProto string
+			err := db.QueryRow(ctx, `SELECT value FROM bot_settings WHERE our_jid=$1 AND key='mention_proto'`, client.Store.ID.ToNonAD().String()).Scan(&mentionProto)
+			if err == nil && mentionProto != "" {
+				if msg, err := DecodeProtoMessage(mentionProto); err == nil {
+					setReplyContextInfo(msg, evt.Info.Chat, evt)
+					_ = client.SendChatPresence(ctx, evt.Info.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaText)
+					time.Sleep(3 * time.Second)
+					_, _ = client.SendMessage(ctx, evt.Info.Chat, msg)
+					return true
+				}
+			}
+		}
+	}
+
 	text := extractText(evt)
 	if text == "" {
 		return false
+	}
+
+	// 4. Group moderation (anti-link / anti-word)
+	if handleGroupModeration(ctx, client, evt, text) {
+		return true
+	}
+
+	// 5. Check BGM / general filters (auto-response)
+	if handleFiltersAndBGM(ctx, client, evt, text) {
+		return true
 	}
 
 	prefixes := activePrefixes(ctx, client)
@@ -41,7 +167,25 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	// Empty prefix: treat the whole message as a potential command.
 	if hasEmpty {
-		return runCommand(ctx, client, evt, strings.TrimSpace(text))
+		body := strings.TrimSpace(text)
+		fields := strings.Fields(body)
+		if len(fields) > 0 {
+			first := fields[0]
+			// 1. Direct match without prefix
+			if _, exists := Get(strings.ToLower(first)); exists {
+				return runCommand(ctx, client, evt, body)
+			}
+			// 2. Match with standard common prefixes
+			for _, common := range []string{".", "!", ",", "/", "?"} {
+				if strings.HasPrefix(first, common) {
+					strippedName := first[len(common):]
+					if _, exists := Get(strings.ToLower(strippedName)); exists {
+						strippedBody := strings.TrimSpace(body[len(common):])
+						return runCommand(ctx, client, evt, strippedBody)
+					}
+				}
+			}
+		}
 	}
 
 	return false
@@ -62,8 +206,8 @@ func activePrefixes(ctx context.Context, client *whatsmeow.Client) []string {
 	parts := strings.Fields(raw)
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {
-		if strings.EqualFold(p, "none") {
-			out = append(out, "") // "none" → empty prefix
+		if strings.EqualFold(p, "none") || strings.EqualFold(p, "empty") {
+			out = append(out, "") // "none"/"empty" → empty prefix
 		} else {
 			out = append(out, p)
 		}
@@ -78,6 +222,9 @@ func activePrefixes(ctx context.Context, client *whatsmeow.Client) []string {
 // command in a goroutine. Returns false if no command matched.
 func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, body string) bool {
 	if body == "" {
+		return false
+	}
+	if isSenderBanned(ctx, client, evt.Info.Sender) {
 		return false
 	}
 
@@ -106,7 +253,47 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		Sender:  evt.Info.Sender,
 	}
 
+	s, okSetting := client.Store.Identities.(*sqlstore.SQLStore)
+
 	go func() {
+		// 1. Group-only check
+		if cmd.GroupOnly && cctx.Chat.Server != "g.us" {
+			_ = cctx.Reply("❌ This command can only be used in a group chat.")
+			return
+		}
+
+		// 2. Public vs Sudo check
+		if okSetting {
+			botMode, _ := s.GetSetting(ctx, "mode")
+			if botMode == "private" && !cctx.IsSudo() {
+				_ = cctx.Reply("❌ The bot is currently in private mode. Only sudoers/owners can use it.")
+				return
+			}
+		}
+
+		if !cmd.IsPublic && !cctx.IsSudo() {
+			_ = cctx.Reply("❌ This command is restricted to sudoers/owners only.")
+			return
+		}
+
+		// 3. Disabled check
+		if okSetting {
+			raw, _ := s.GetSetting(ctx, "disabled_commands")
+			if raw != "" {
+				isDisabled := false
+				for _, disabled := range strings.Fields(raw) {
+					if strings.EqualFold(disabled, name) {
+						isDisabled = true
+						break
+					}
+				}
+				if isDisabled {
+					_ = cctx.Reply(fmt.Sprintf("❌ Command %q is currently disabled.", name))
+					return
+				}
+			}
+		}
+
 		if err := cmd.Handler(cctx); err != nil {
 			logHandlerErr(name, err)
 		}
@@ -125,3 +312,368 @@ func extractText(evt *events.Message) string {
 	return ""
 }
 
+func isSenderBanned(ctx context.Context, client *whatsmeow.Client, sender types.JID) bool {
+	if client.Store.ID == nil {
+		return false
+	}
+	ownerJID := client.Store.ID.ToNonAD()
+	senderJID := sender.ToNonAD()
+	if senderJID == ownerJID {
+		return false
+	}
+
+	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return false
+	}
+
+	rawSudo, _ := s.GetSetting(ctx, "sudoers")
+	for _, sudoerStr := range strings.Fields(rawSudo) {
+		sudoerJID, err := types.ParseJID(sudoerStr)
+		if err == nil {
+			if senderJID == sudoerJID.ToNonAD() {
+				return false
+			}
+		}
+	}
+
+	rawBanned, _ := s.GetSetting(ctx, "banned_users")
+	for _, bannedStr := range strings.Fields(rawBanned) {
+		bannedJID, err := types.ParseJID(bannedStr)
+		if err == nil {
+			if senderJID == bannedJID.ToNonAD() {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func setReplyContextInfo(msg *waE2E.Message, chat types.JID, evt *events.Message) {
+	stanzaID := evt.Info.ID
+	participant := evt.Info.Sender.ToNonAD().String()
+	ci := &waE2E.ContextInfo{
+		StanzaID:      &stanzaID,
+		Participant:   &participant,
+		QuotedMessage: evt.Message,
+	}
+
+	if msg.ExtendedTextMessage != nil {
+		msg.ExtendedTextMessage.ContextInfo = ci
+	} else if msg.ImageMessage != nil {
+		msg.ImageMessage.ContextInfo = ci
+	} else if msg.VideoMessage != nil {
+		msg.VideoMessage.ContextInfo = ci
+	} else if msg.AudioMessage != nil {
+		msg.AudioMessage.ContextInfo = ci
+	} else if msg.DocumentMessage != nil {
+		msg.DocumentMessage.ContextInfo = ci
+	} else if msg.StickerMessage != nil {
+		msg.StickerMessage.ContextInfo = ci
+	}
+}
+
+
+
+func logGroupMessage(ctx context.Context, client *whatsmeow.Client, chat, sender types.JID) {
+	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return
+	}
+	initTables(ctx, s)
+	db := s.GetDB()
+	if db == nil {
+		return
+	}
+	dateStr := time.Now().Format("2006-01-02")
+	query := `
+		INSERT INTO group_stats (group_jid, user_jid, date_str, msg_count)
+		VALUES ($1, $2, $3, 1)
+		ON CONFLICT(group_jid, user_jid, date_str) DO UPDATE SET msg_count = group_stats.msg_count + 1
+	`
+	_, _ = db.Exec(ctx, query, chat.String(), sender.ToNonAD().String(), dateStr)
+}
+
+func handleFiltersAndBGM(ctx context.Context, client *whatsmeow.Client, evt *events.Message, text string) bool {
+	if evt.Info.Chat.Server == "g.us" {
+		return false
+	}
+	if isSenderBanned(ctx, client, evt.Info.Sender) {
+		return false
+	}
+	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return false
+	}
+	db := s.GetDB()
+	if db == nil {
+		return false
+	}
+
+	ourJID := client.Store.ID.ToNonAD().String()
+	trigger := strings.TrimSpace(strings.ToLower(text))
+
+	// 1. Check BGM first
+	var bgmProto string
+	err := db.QueryRow(ctx, `SELECT message_proto FROM bot_bgm WHERE our_jid=$1 AND trigger_word=$2`, ourJID, trigger).Scan(&bgmProto)
+	if err == nil && bgmProto != "" {
+		if msg, err := DecodeProtoMessage(bgmProto); err == nil {
+			setReplyContextInfo(msg, evt.Info.Chat, evt)
+			_ = client.SendChatPresence(ctx, evt.Info.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaAudio)
+			time.Sleep(3 * time.Second)
+			_, _ = client.SendMessage(ctx, evt.Info.Chat, msg)
+			return true
+		}
+	}
+
+	// 2. Check general filters
+	var filterProto string
+	err = db.QueryRow(ctx, `SELECT message_proto FROM bot_filters WHERE our_jid=$1 AND trigger_word=$2`, ourJID, trigger).Scan(&filterProto)
+	if err == nil && filterProto != "" {
+		if msg, err := DecodeProtoMessage(filterProto); err == nil {
+			setReplyContextInfo(msg, evt.Info.Chat, evt)
+			_ = client.SendChatPresence(ctx, evt.Info.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaText)
+			time.Sleep(3 * time.Second)
+			_, _ = client.SendMessage(ctx, evt.Info.Chat, msg)
+			return true
+		}
+	}
+
+	return false
+}
+
+func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *events.Message, text string) bool {
+	if evt.Info.Chat.Server != "g.us" {
+		return false
+	}
+	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return false
+	}
+
+	chatStr := evt.Info.Chat.String()
+	sender := evt.Info.Sender.ToNonAD()
+
+	// Check if antilink is enabled
+	antiLinkEnabled := false
+	rawLink, _ := s.GetSetting(ctx, "antilink:"+chatStr)
+	if rawLink == "on" {
+		antiLinkEnabled = true
+	}
+
+	// Check if antiword is configured
+	var bannedWords []string
+	rawWord, _ := s.GetSetting(ctx, "antiword:"+chatStr)
+	if rawWord != "" {
+		bannedWords = strings.Fields(strings.ToLower(rawWord))
+	}
+
+	if !antiLinkEnabled && len(bannedWords) == 0 {
+		return false
+	}
+
+	// Check if sender is admin
+	info, err := client.GetGroupInfo(ctx, evt.Info.Chat)
+	if err != nil {
+		return false
+	}
+
+	isAdmin := false
+	for _, p := range info.Participants {
+		if p.JID.ToNonAD() == sender {
+			if p.IsAdmin || p.IsSuperAdmin {
+				isAdmin = true
+				break
+			}
+		}
+	}
+
+	if isAdmin {
+		return false
+	}
+
+	violation := false
+	reason := ""
+
+	if antiLinkEnabled {
+		lowerText := strings.ToLower(text)
+		if strings.Contains(lowerText, "http://") || strings.Contains(lowerText, "https://") || strings.Contains(lowerText, "www.") || strings.Contains(lowerText, ".com") || strings.Contains(lowerText, ".net") || strings.Contains(lowerText, ".org") {
+			violation = true
+			reason = "links"
+		}
+	}
+
+	if !violation && len(bannedWords) > 0 {
+		lowerText := strings.ToLower(text)
+		for _, w := range bannedWords {
+			if strings.Contains(lowerText, w) {
+				violation = true
+				reason = "banned words"
+				break
+			}
+		}
+	}
+
+	if violation {
+		botIsAdmin := false
+		ourJID := client.Store.ID.ToNonAD()
+		for _, p := range info.Participants {
+			if p.JID.ToNonAD() == ourJID {
+				if p.IsAdmin || p.IsSuperAdmin {
+					botIsAdmin = true
+					break
+				}
+			}
+		}
+
+		if botIsAdmin {
+			_, _ = client.SendMessage(ctx, evt.Info.Chat, client.BuildRevoke(evt.Info.Chat, evt.Info.Sender, evt.Info.ID))
+			textMsg := fmt.Sprintf("⚠️ Message from @%s deleted: contains %s.", sender.User, reason)
+			_, _ = client.SendMessage(ctx, evt.Info.Chat, &waE2E.Message{
+				ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+					Text: &textMsg,
+					ContextInfo: &waE2E.ContextInfo{
+						MentionedJID: []string{evt.Info.Sender.ToNonAD().String()},
+					},
+				},
+			})
+			return true
+		}
+	}
+
+	return false
+}
+
+func isBotMentioned(client *whatsmeow.Client, evt *events.Message) bool {
+	if client.Store.ID == nil {
+		return false
+	}
+	ourJID := client.Store.ID.ToNonAD()
+
+	var mentions []string
+	if ext := evt.Message.GetExtendedTextMessage(); ext != nil {
+		if ci := ext.GetContextInfo(); ci != nil {
+			mentions = ci.MentionedJID
+		}
+	}
+
+	ourLID := ourJID
+	if ourJID.Server == types.DefaultUserServer && client.Store.LIDs != nil {
+		if lid, err := client.Store.LIDs.GetLIDForPN(context.Background(), ourJID); err == nil && !lid.IsEmpty() {
+			ourLID = lid.ToNonAD()
+		}
+	} else if ourJID.Server == types.HiddenUserServer && client.Store.LIDs != nil {
+		if pn, err := client.Store.LIDs.GetPNForLID(context.Background(), ourJID); err == nil && !pn.IsEmpty() {
+			ourLID = pn.ToNonAD()
+		}
+	}
+
+	for _, m := range mentions {
+		mj, err := types.ParseJID(m)
+		if err == nil {
+			mj = mj.ToNonAD()
+			if mj == ourJID || mj == ourLID {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func handleStickerCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message) bool {
+	stk := evt.Message.StickerMessage
+	if stk == nil || len(stk.FileSHA256) == 0 {
+		return false
+	}
+
+	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return false
+	}
+	db := s.GetDB()
+	if db == nil {
+		return false
+	}
+
+	ourJID := client.Store.ID.ToNonAD().String()
+	shaHex := hex.EncodeToString(stk.FileSHA256)
+
+	var cmdName string
+	err := db.QueryRow(ctx, `SELECT command_name FROM bot_sticker_cmds WHERE our_jid=$1 AND sticker_sha256=$2`, ourJID, shaHex).Scan(&cmdName)
+	if err != nil || cmdName == "" {
+		return false
+	}
+
+	cmd, exists := Get(cmdName)
+	if !exists {
+		return false
+	}
+
+	var args []string
+	var rawArgs string
+
+	if ext := evt.Message.GetExtendedTextMessage(); ext != nil {
+		if ci := ext.GetContextInfo(); ci != nil && ci.QuotedMessage != nil {
+			quotedText := extractTextFromProto(ci.QuotedMessage)
+			if quotedText != "" {
+				args = strings.Fields(quotedText)
+				rawArgs = quotedText
+			}
+		}
+	} else if ci := stk.GetContextInfo(); ci != nil && ci.QuotedMessage != nil {
+		quotedText := extractTextFromProto(ci.QuotedMessage)
+		if quotedText != "" {
+			args = strings.Fields(quotedText)
+			rawArgs = quotedText
+		}
+	}
+
+	cctx := &Context{
+		Ctx:     ctx,
+		Client:  client,
+		Evt:     evt,
+		Command: cmdName,
+		Args:    args,
+		RawArgs: rawArgs,
+		Chat:    evt.Info.Chat,
+		Sender:  evt.Info.Sender,
+	}
+
+	go func() {
+		botMode, _ := s.GetSetting(ctx, "mode")
+		if botMode == "private" && !cctx.IsSudo() {
+			_ = cctx.Reply("❌ The bot is currently in private mode. Only sudoers/owners can use it.")
+			return
+		}
+
+		raw, _ := s.GetSetting(ctx, "disabled_commands")
+		if raw != "" {
+			for _, disabled := range strings.Fields(raw) {
+				if strings.EqualFold(disabled, cmdName) {
+					_ = cctx.Reply(fmt.Sprintf("❌ Command %q is currently disabled.", cmdName))
+					return
+				}
+			}
+		}
+
+		if err := cmd.Handler(cctx); err != nil {
+			logHandlerErr(cmdName, err)
+		}
+	}()
+
+	return true
+}
+
+func extractTextFromProto(msg *waE2E.Message) string {
+	if msg == nil {
+		return ""
+	}
+	if msg.GetConversation() != "" {
+		return msg.GetConversation()
+	}
+	if msg.GetExtendedTextMessage() != nil {
+		return msg.GetExtendedTextMessage().GetText()
+	}
+	return ""
+}
