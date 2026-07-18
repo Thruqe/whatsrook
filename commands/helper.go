@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -37,10 +38,25 @@ func sendTextRaw(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 // OpusFile can't reliably play back (silent output) — MP3 works cleanly instead.
 func transcodeToMP3(inputPath string) (string, error) {
 	outputPath := strings.TrimSuffix(inputPath, filepath.Ext(inputPath)) + ".mp3"
-	cmd := exec.Command("ffmpeg", "-y", "-i", inputPath, "-ar", "16000", "-ac", "1", outputPath)
+	actualOut := outputPath
+	if outputPath == inputPath {
+		actualOut = inputPath + ".tmp.mp3"
+	}
+
+	cmd := exec.Command("ffmpeg", "-y", "-i", inputPath, "-ar", "16000", "-ac", "1", actualOut)
 	if out, err := cmd.CombinedOutput(); err != nil {
+		if outputPath == inputPath {
+			_ = os.Remove(actualOut)
+		}
 		return "", fmt.Errorf("ffmpeg transcode failed: %w (%s)", err, string(out))
 	}
+
+	if outputPath == inputPath {
+		if err := os.Rename(actualOut, inputPath); err != nil {
+			return "", fmt.Errorf("rename transcoded file: %w", err)
+		}
+	}
+
 	return outputPath, nil
 }
 

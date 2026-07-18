@@ -76,6 +76,10 @@ func New(ctx context.Context, dialect, address string, log waLog.Logger) (*Conta
 //	container := sqlstore.NewWithDB(...)
 //	err := container.Upgrade()
 func NewWithDB(db *sql.DB, dialect string, log waLog.Logger) *Container {
+	if dialect == "sqlite3" || dialect == "sqlite" {
+		db.SetMaxOpenConns(1)
+		db.SetMaxIdleConns(1)
+	}
 	wrapped, err := dbutil.NewWithDB(db, dialect)
 	if err != nil {
 		// This will only panic if the dialect is invalid
