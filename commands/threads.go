@@ -12,6 +12,7 @@ func init() {
 		Aliases:     []string{"th"},
 		Description: "Download a Threads post",
 		Category:    "downloader",
+		IsPublic:     true,
 		Handler:     handleThreads,
 	})
 }

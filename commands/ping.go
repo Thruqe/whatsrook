@@ -11,6 +11,7 @@ func init() {
 		Name:        "ping",
 		Description: "Check if the bot is alive and measure response latency",
 		Category:    "info",
+		IsPublic:     true,
 		Handler:     handlePing,
 	})
 }

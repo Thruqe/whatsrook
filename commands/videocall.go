@@ -6,6 +6,7 @@ func init() {
 		Description:  "Video call a number, playing your saved (or next-provided) video",
 		Category:     "calls",
 		HideFromMenu: true, // stub — outbound video is not yet supported
+		IsPublic:     true,
 		Handler:      handleVideoCall,
 	})
 }

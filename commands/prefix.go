@@ -34,21 +34,31 @@ func handlePrefix(ctx *Context) error {
 		return sendText(ctx, fmt.Sprintf("Prefix(es): %s", raw))
 	}
 
-	// Validate tokens — each must be a single printable word or the keyword "none".
 	parts := strings.Fields(ctx.RawArgs)
 	if len(parts) == 0 {
-		return sendText(ctx, "Usage: prefix <symbol...>  (use 'none' for no prefix required)")
+		return sendText(ctx, "Usage: prefix <symbol...>  (use 'empty' or 'none' for no prefix required)")
 	}
 
-	stored := strings.Join(parts, " ")
+	var parsedParts []string
+	for _, p := range parts {
+		if strings.EqualFold(p, "none") || strings.EqualFold(p, "empty") {
+			parsedParts = append(parsedParts, "empty")
+		} else {
+			for _, r := range p {
+				parsedParts = append(parsedParts, string(r))
+			}
+		}
+	}
+
+	stored := strings.Join(parsedParts, " ")
 	if err := s.PutSetting(ctx.Ctx, PrefixSettingKey, stored); err != nil {
 		return err
 	}
 
 	// Build a human-readable confirmation.
-	display := make([]string, 0, len(parts))
-	for _, p := range parts {
-		if strings.EqualFold(p, "none") {
+	display := make([]string, 0, len(parsedParts))
+	for _, p := range parsedParts {
+		if p == "empty" {
 			display = append(display, "(no prefix)")
 		} else {
 			display = append(display, fmt.Sprintf("%q", p))

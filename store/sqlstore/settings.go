@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"go.mau.fi/util/dbutil"
 )
 
 const (
@@ -34,4 +35,9 @@ func (s *SQLStore) PutSetting(ctx context.Context, key, value string) error {
 func (s *SQLStore) DeleteSetting(ctx context.Context, key string) error {
 	_, err := s.db.Exec(ctx, deleteSettingQuery, s.JID, key)
 	return err
+}
+
+// GetDB returns the database connection.
+func (s *SQLStore) GetDB() *dbutil.Database {
+	return s.db
 }

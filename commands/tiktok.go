@@ -12,6 +12,7 @@ func init() {
 		Aliases:     []string{"tt"},
 		Description: "Download a TikTok video",
 		Category:    "downloader",
+		IsPublic:     true,
 		Handler:     handleTikTok,
 	})
 }

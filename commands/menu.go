@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/Thruqe/whatsrook/store/sqlstore"
 )
 
 func init() {
@@ -14,6 +16,7 @@ func init() {
 		Name:        "menu",
 		Description: "Show all available commands grouped by category",
 		Category:    "info",
+		IsPublic:     true,
 		Handler:     handleMenu,
 	})
 }
@@ -47,10 +50,19 @@ func handleMenu(ctx *Context) error {
 		user = ctx.Sender.User
 	}
 
+	botMode := "public"
+	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	if ok {
+		if rawMode, err := s.GetSetting(ctx.Ctx, "mode"); err == nil && rawMode != "" {
+			botMode = rawMode
+		}
+	}
+
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "╭━━━〔 %s 〕━━━\n", toFancy("WhatsRook"))
 	fmt.Fprintf(&sb, "│╭──────────────\n")
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("User    : %s", user)))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Mode    : %s", botMode)))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Plugins : %d", total)))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Runtime : %s", uptime)))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Platform: %s", platform)))

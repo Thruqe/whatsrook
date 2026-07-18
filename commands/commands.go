@@ -31,6 +31,8 @@ type Command struct {
 	Description  string
 	Category     string // used to group commands in the menu (e.g. "info", "downloader", "calls")
 	HideFromMenu bool   // set to true for internal/helper commands that should not appear in !menu
+	GroupOnly    bool   // if true, command can only be used in groups
+	IsPublic     bool   // if true, command can be used by anyone; if false, restricted to sudoers/owner
 	Handler      Handler
 }
 
