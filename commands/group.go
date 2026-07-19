@@ -83,6 +83,22 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleGStats,
 	})
+	Register(&Command{
+		Name:        "poll",
+		Description: "Create a poll. Usage: poll Question | Option 1 | Option 2 | ...",
+		Category:    "group",
+		GroupOnly:   true,
+		IsPublic:    true,
+		Handler:     handlePoll,
+	})
+	Register(&Command{
+		Name:        "invite",
+		Description: "Get the group invite link",
+		Category:    "group",
+		GroupOnly:   true,
+		IsPublic:    true,
+		Handler:     handleInvite,
+	})
 }
 
 func handleTagAll(ctx *Context) error {
@@ -445,39 +461,26 @@ func handleGStats(ctx *Context) error {
 	chatStr := ctx.Chat.String()
 
 	var totalMsgs int
-	err := db.QueryRow(ctx.Ctx, `SELECT COALESCE(SUM(msg_count), 0) FROM group_stats WHERE group_jid=$1`, chatStr).Scan(&totalMsgs)
+	err := db.QueryRow(ctx.Ctx, `SELECT COUNT(*) FROM message_secrets WHERE chat_jid=$1`, chatStr).Scan(&totalMsgs)
 	if err != nil {
 		return err
 	}
 
 	if totalMsgs == 0 {
-		return ctx.Reply("📊 No message activity logged yet in this group.")
+		return ctx.Reply("📊 No message activity found in database for this group.")
 	}
 
-	var activeDays int
-	err = db.QueryRow(ctx.Ctx, `SELECT COUNT(DISTINCT date_str) FROM group_stats WHERE group_jid=$1`, chatStr).Scan(&activeDays)
-	if err != nil || activeDays == 0 {
-		activeDays = 1
-	}
-
-	var avgActiveUsers float64
-	err = db.QueryRow(ctx.Ctx, `
-		SELECT COALESCE(AVG(daily_users), 0.0) FROM (
-			SELECT COUNT(DISTINCT user_jid) as daily_users 
-			FROM group_stats 
-			WHERE group_jid=$1 
-			GROUP BY date_str
-		)
-	`, chatStr).Scan(&avgActiveUsers)
+	var activeUsers int
+	err = db.QueryRow(ctx.Ctx, `SELECT COUNT(DISTINCT sender_jid) FROM message_secrets WHERE chat_jid=$1`, chatStr).Scan(&activeUsers)
 	if err != nil {
-		avgActiveUsers = 0.0
+		activeUsers = 0
 	}
 
 	rows, err := db.Query(ctx.Ctx, `
-		SELECT user_jid, SUM(msg_count) as total 
-		FROM group_stats 
-		WHERE group_jid=$1 
-		GROUP BY user_jid 
+		SELECT sender_jid, COUNT(*) as total 
+		FROM message_secrets 
+		WHERE chat_jid=$1 
+		GROUP BY sender_jid 
 		ORDER BY total DESC 
 		LIMIT 10
 	`, chatStr)
@@ -488,11 +491,9 @@ func handleGStats(ctx *Context) error {
 
 	var mentions []types.JID
 	var sb strings.Builder
-	sb.WriteString("📊 *Group Activity Statistics*\n\n")
-	sb.WriteString(fmt.Sprintf("• Total messages logged: %d\n", totalMsgs))
-	sb.WriteString(fmt.Sprintf("• Tracking duration: %d days\n", activeDays))
-	sb.WriteString(fmt.Sprintf("• Average messages / day: %.1f\n", float64(totalMsgs)/float64(activeDays)))
-	sb.WriteString(fmt.Sprintf("• Average active participants / day: %.1f\n\n", avgActiveUsers))
+	sb.WriteString("📊 *Group Activity Statistics (from message secrets)*\n\n")
+	sb.WriteString(fmt.Sprintf("• Total messages tracked: %d\n", totalMsgs))
+	sb.WriteString(fmt.Sprintf("• Unique active senders: %d\n\n", activeUsers))
 	sb.WriteString("🏆 *Top Active Participants:*\n")
 
 	rank := 1
@@ -503,18 +504,51 @@ func handleGStats(ctx *Context) error {
 			uj, err := types.ParseJID(userStr)
 			if err == nil {
 				uj = uj.ToNonAD()
-				displayJID := uj
-				if uj.Server == types.HiddenUserServer && ctx.Client.Store.LIDs != nil {
-					if pn, err := ctx.Client.Store.LIDs.GetPNForLID(ctx.Ctx, uj); err == nil && !pn.IsEmpty() {
-						displayJID = pn.ToNonAD()
-					}
-				}
-				fmt.Fprintf(&sb, "%d. @%s (%d msgs)\n", rank, displayJID.User, count)
-				mentions = append(mentions, uj)
+				resolvedJID, username := ctx.ResolveMention(uj)
+				fmt.Fprintf(&sb, "%d. @%s (%d msgs)\n", rank, username, count)
+				mentions = append(mentions, resolvedJID)
 				rank++
 			}
 		}
 	}
 
 	return ctx.ReplyWithMentions(sb.String(), mentions)
+}
+
+func handlePoll(ctx *Context) error {
+	parts := strings.Split(ctx.RawArgs, "|")
+	if len(parts) < 3 {
+		return ctx.Reply("❌ Usage: poll Question | Option 1 | Option 2 | ...")
+	}
+	question := strings.TrimSpace(parts[0])
+	var options []string
+	for _, opt := range parts[1:] {
+		trimmed := strings.TrimSpace(opt)
+		if trimmed != "" {
+			options = append(options, trimmed)
+		}
+	}
+	if len(options) < 2 {
+		return ctx.Reply("❌ Please provide at least 2 options.")
+	}
+
+	pollMsg := ctx.Client.BuildPollCreation(question, options, 0)
+	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, pollMsg)
+	return err
+}
+
+func handleInvite(ctx *Context) error {
+	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
+	if err != nil {
+		return ctx.Reply(fmt.Sprintf("❌ Failed to get group info: %v", err))
+	}
+	if !ctx.IsSenderAdmin(info) {
+		return ctx.Reply("❌ Only group admins can retrieve the invite link.")
+	}
+
+	link, err := ctx.Client.GetGroupInviteLink(ctx.Ctx, ctx.Chat, false)
+	if err != nil {
+		return ctx.Reply(fmt.Sprintf("❌ Failed to get invite link: %v", err))
+	}
+	return ctx.Reply(link)
 }

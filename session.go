@@ -233,7 +233,7 @@ func (b *Bot) handleWAEvent(evt any) {
 			Payload: map[string]any{"call_id": v.CallID},
 		})
 
-	case *events.Receipt, *events.PushName, *events.Presence, *events.ChatPresence, *events.AppState, *events.AppStateSyncComplete, *events.Contact:
+	case *events.Receipt, *events.PushName, *events.Presence, *events.ChatPresence, *events.AppState, *events.AppStateSyncComplete, *events.Contact, *events.OfflineSyncPreview, *events.OfflineSyncCompleted:
 		// Ignore common presence/receipt/keepalive/sync events to avoid debug log clutter
 
 	default:

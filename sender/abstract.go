@@ -17,11 +17,11 @@ import (
 
 // FormatTextResponseRaw formats a text response with monospace format, removing asterisks and emojis unless it's already formatted.
 func FormatTextResponseRaw(text string) string {
+	text = strings.ReplaceAll(text, "*", "")
+	text = removeEmojis(text)
 	if strings.HasPrefix(text, "```") && strings.HasSuffix(text, "```") {
 		return text
 	}
-	text = strings.ReplaceAll(text, "*", "")
-	text = removeEmojis(text)
 	return "```\n" + text + "\n```"
 }
 
