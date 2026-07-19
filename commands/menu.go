@@ -62,6 +62,7 @@ func handleMenu(ctx *Context) error {
 	fmt.Fprintf(&sb, "╭━━━〔 %s 〕━━━\n", toFancy("WhatsRook"))
 	fmt.Fprintf(&sb, "│╭──────────────\n")
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("User    : %s", user)))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Version : %s", "4.0.0")))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Mode    : %s", botMode)))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Plugins : %d", total)))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Runtime : %s", uptime)))
