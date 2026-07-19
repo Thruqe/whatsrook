@@ -255,8 +255,6 @@ func handleSteal(ctx *Context) error {
 	return ctx.ReplyWithSticker(updatedData)
 }
 
-
-
 func processSticker(ctx *Context, data []byte, isVideo bool, packName, author string, filter string) ([]byte, error) {
 	tempIn, err := os.CreateTemp("", "sticker_in_*")
 	if err != nil {
@@ -281,7 +279,7 @@ func processSticker(ctx *Context, data []byte, isVideo bool, packName, author st
 			{fps: 15, quality: 40},
 			{fps: 12, quality: 30},
 			{fps: 10, quality: 20},
-			{fps: 7,  quality: 10},
+			{fps: 7, quality: 10},
 		}
 
 		var lastErr error
