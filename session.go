@@ -162,6 +162,7 @@ func (b *Bot) runQR(ctx context.Context) error {
 }
 
 func (b *Bot) handleWAEvent(evt any) {
+	slog.Debug("handleWAEvent received event", "type", fmt.Sprintf("%T", evt))
 	switch v := evt.(type) {
 	case *events.QR:
 		_ = v // handled via qrChan in runQR
@@ -232,8 +233,8 @@ func (b *Bot) handleWAEvent(evt any) {
 			Payload: map[string]any{"call_id": v.CallID},
 		})
 
-	case *events.Receipt, *events.PushName, *events.Presence, *events.ChatPresence:
-		// Ignore common presence/receipt/keepalive events to avoid debug log clutter
+	case *events.Receipt, *events.PushName, *events.Presence, *events.ChatPresence, *events.AppState, *events.AppStateSyncComplete, *events.Contact:
+		// Ignore common presence/receipt/keepalive/sync events to avoid debug log clutter
 
 	default:
 		slog.Debug("unhandled event", "type", fmt.Sprintf("%T", evt))
