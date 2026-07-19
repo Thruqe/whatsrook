@@ -390,8 +390,6 @@ func setReplyContextInfo(msg *waE2E.Message, chat types.JID, evt *events.Message
 	}
 }
 
-
-
 func logGroupMessage(ctx context.Context, client *whatsmeow.Client, chat, sender types.JID) {
 	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {

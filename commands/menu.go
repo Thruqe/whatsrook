@@ -16,7 +16,7 @@ func init() {
 		Name:        "menu",
 		Description: "Show all available commands grouped by category",
 		Category:    "info",
-		IsPublic:     true,
+		IsPublic:    true,
 		Handler:     handleMenu,
 	})
 }

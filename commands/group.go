@@ -16,72 +16,72 @@ func init() {
 		Aliases:     []string{"everyone"},
 		Description: "Mention everyone in the group",
 		Category:    "group",
-		GroupOnly:    true,
-		IsPublic:     true,
+		GroupOnly:   true,
+		IsPublic:    true,
 		Handler:     handleTagAll,
 	})
 	Register(&Command{
 		Name:        "kick",
 		Description: "Remove a member from the group (reply, tag, or number)",
 		Category:    "group",
-		GroupOnly:    true,
-		IsPublic:     true,
+		GroupOnly:   true,
+		IsPublic:    true,
 		Handler:     handleKick,
 	})
 	Register(&Command{
 		Name:        "add",
 		Description: "Add a member to the group (phone number/JID)",
 		Category:    "group",
-		GroupOnly:    true,
-		IsPublic:     true,
+		GroupOnly:   true,
+		IsPublic:    true,
 		Handler:     handleAdd,
 	})
 	Register(&Command{
 		Name:        "promote",
 		Description: "Promote a member to admin (reply, tag, or number)",
 		Category:    "group",
-		GroupOnly:    true,
-		IsPublic:     true,
+		GroupOnly:   true,
+		IsPublic:    true,
 		Handler:     handlePromote,
 	})
 	Register(&Command{
 		Name:        "demote",
 		Description: "Demote a member from admin (reply, tag, or number)",
 		Category:    "group",
-		GroupOnly:    true,
-		IsPublic:     true,
+		GroupOnly:   true,
+		IsPublic:    true,
 		Handler:     handleDemote,
 	})
 	Register(&Command{
 		Name:        "group",
 		Description: "Manage group settings (open, close, lock, unlock)",
 		Category:    "group",
-		GroupOnly:    true,
-		IsPublic:     true,
+		GroupOnly:   true,
+		IsPublic:    true,
 		Handler:     handleGroup,
 	})
 	Register(&Command{
 		Name:        "antilink",
 		Description: "Enable or disable anti-link protection (on/off)",
 		Category:    "group",
-		GroupOnly:    true,
-		IsPublic:     true,
+		GroupOnly:   true,
+		IsPublic:    true,
 		Handler:     handleAntiLink,
 	})
 	Register(&Command{
 		Name:        "antiword",
 		Description: "Manage banned words (add [word], del [word], list)",
 		Category:    "group",
-		GroupOnly:    true,
-		IsPublic:     true,
+		GroupOnly:   true,
+		IsPublic:    true,
 		Handler:     handleAntiWord,
 	})
 	Register(&Command{
 		Name:        "gstats",
 		Description: "Provide statistics on the most active group participants",
 		Category:    "group",
-		GroupOnly:    true,
-		IsPublic:     true,
+		GroupOnly:   true,
+		IsPublic:    true,
 		Handler:     handleGStats,
 	})
 }
@@ -543,4 +543,3 @@ func handleGStats(ctx *Context) error {
 
 	return ctx.ReplyWithMentions(sb.String(), mentions)
 }
-

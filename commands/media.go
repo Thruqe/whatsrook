@@ -19,65 +19,73 @@ func init() {
 	Register(&Command{
 		Name:        "sticker",
 		Aliases:     []string{"s"},
-		Description: "Convert an image/video to a sticker. Optional pack metadata: sticker [pack] | [author]",
+		Description: "Convert an image/video to a sticker. Optional pack metadata: sticker [author] | [pack]",
 		Category:    "media",
-		IsPublic:     true,
+		IsPublic:    true,
 		Handler:     handleSticker,
 	})
 	Register(&Command{
 		Name:        "circle",
-		Description: "Convert an image/video to a circular sticker. Optional pack metadata: circle [pack] | [author]",
+		Description: "Convert an image/video to a circular sticker. Optional pack metadata: circle [author] | [pack]",
 		Category:    "media",
-		IsPublic:     true,
+		IsPublic:    true,
 		Handler:     handleCircle,
 	})
 	Register(&Command{
 		Name:        "crop",
-		Description: "Convert an image/video to a square cropped sticker. Optional pack metadata: crop [pack] | [author]",
+		Description: "Convert an image/video to a square cropped sticker. Optional pack metadata: crop [author] | [pack]",
 		Category:    "media",
-		IsPublic:     true,
+		IsPublic:    true,
 		Handler:     handleCrop,
+	})
+	Register(&Command{
+		Name:        "steal",
+		Aliases:     []string{"take"},
+		Description: "Steal/take a sticker and customize its metadata. Usage: reply to a sticker and optionally specify [author] | [pack]",
+		Category:    "media",
+		IsPublic:    true,
+		Handler:     handleSteal,
 	})
 	Register(&Command{
 		Name:        "mp4",
 		Description: "Convert an animated sticker/video to MP4 format",
 		Category:    "media",
-		IsPublic:     true,
+		IsPublic:    true,
 		Handler:     handleMP4,
 	})
 	Register(&Command{
 		Name:        "mp3",
 		Description: "Convert a video/audio to MP3 format",
 		Category:    "media",
-		IsPublic:     true,
+		IsPublic:    true,
 		Handler:     handleMP3,
 	})
 	Register(&Command{
 		Name:        "mp4url",
 		Description: "Download video from direct URL and send as MP4",
 		Category:    "media",
-		IsPublic:     true,
+		IsPublic:    true,
 		Handler:     handleMP4URL,
 	})
 	Register(&Command{
 		Name:        "black",
 		Description: "Create a black video using the audio of a video/audio file",
 		Category:    "media",
-		IsPublic:     true,
+		IsPublic:    true,
 		Handler:     handleBlack,
 	})
 	Register(&Command{
 		Name:        "trim",
 		Description: "Trim a video. Usage: trim [start] [end] or trim [duration]",
 		Category:    "media",
-		IsPublic:     true,
+		IsPublic:    true,
 		Handler:     handleTrim,
 	})
 	Register(&Command{
 		Name:        "vv",
 		Description: "Unwrap a ViewOnce message and resend it as a normal message (replying to a ViewOnce message)",
 		Category:    "media",
-		IsPublic:     true,
+		IsPublic:    true,
 		Handler:     handleVV,
 	})
 }
@@ -206,78 +214,48 @@ func handleBlack(ctx *Context) error {
 }
 
 func parseStickerMetadata(raw string) (string, string) {
-	packName := "WhatsRook Pack"
-	author := "WhatsRook Bot"
+	packName := "WhatsRook"
+	author := "Thruqe"
 	if raw != "" {
 		parts := strings.Split(raw, "|")
 		if len(parts) > 0 {
-			packName = strings.TrimSpace(parts[0])
+			author = strings.TrimSpace(parts[0])
 		}
 		if len(parts) > 1 {
-			author = strings.TrimSpace(parts[1])
+			packName = strings.TrimSpace(parts[1])
 		}
 	}
 	return packName, author
 }
 
-func generateStickerExif(packName, author string) []byte {
-	jsonStr := fmt.Sprintf(`{"sticker-pack-id":"whatsrook.pack","sticker-pack-name":%q,"sticker-pack-publisher":%q}`, packName, author)
-	jsonBytes := []byte(jsonStr)
-	jsonLen := uint32(len(jsonBytes))
+func handleSteal(ctx *Context) error {
+	quoted := ctx.GetQuotedMessage()
+	if quoted == nil || quoted.StickerMessage == nil {
+		return ctx.Reply("❌ Please reply to a sticker message.")
+	}
 
-	exifHeader := []byte("Exif\x00\x00")
-	tiffHeader := []byte("II\x2a\x00\x08\x00\x00\x00")
-	numEntries := []byte{0x01, 0x00}
-
-	entry := make([]byte, 12)
-	entry[0] = 0x41
-	entry[1] = 0x57
-	entry[2] = 0x07
-	entry[3] = 0x00
-	entry[4] = byte(jsonLen)
-	entry[5] = byte(jsonLen >> 8)
-	entry[6] = byte(jsonLen >> 16)
-	entry[7] = byte(jsonLen >> 24)
-	entry[8] = 0x1A
-	entry[9] = 0x00
-	entry[10] = 0x00
-	entry[11] = 0x00
-
-	nextIFD := []byte{0x00, 0x00, 0x00, 0x00}
-
-	var buf bytes.Buffer
-	buf.Write(exifHeader)
-	buf.Write(tiffHeader)
-	buf.Write(numEntries)
-	buf.Write(entry)
-	buf.Write(nextIFD)
-	buf.Write(jsonBytes)
-
-	return buf.Bytes()
-}
-
-func writeStickerMetadata(inputPath, packName, author string) (string, error) {
-	exifBytes := generateStickerExif(packName, author)
-	exifFile, err := os.CreateTemp("", "sticker_exif_*.exif")
+	data, mimetype, err := ctx.GetMedia()
 	if err != nil {
-		return "", fmt.Errorf("failed to create exif temp file: %w", err)
-	}
-	defer os.Remove(exifFile.Name())
-
-	if _, err := exifFile.Write(exifBytes); err != nil {
-		exifFile.Close()
-		return "", fmt.Errorf("failed to write exif bytes: %w", err)
-	}
-	exifFile.Close()
-
-	outputPath := inputPath + ".metadata.webp"
-	cmd := exec.Command("webpmux", "-set", "exif", exifFile.Name(), inputPath, "-o", outputPath)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("webpmux failed: %w (output: %s)", err, string(out))
+		return ctx.Reply(fmt.Sprintf("❌ Failed to get sticker media: %v", err))
 	}
 
-	return outputPath, nil
+	if !strings.Contains(mimetype, "webp") {
+		return ctx.Reply("❌ The replied message is not a valid sticker (WebP).")
+	}
+
+	packName, author := parseStickerMetadata(ctx.RawArgs)
+
+	_ = ctx.Reply("⏳ Remapping sticker metadata...")
+
+	updatedData, err := AddStickerMetadata(data, packName, author)
+	if err != nil {
+		return ctx.Reply(fmt.Sprintf("❌ Failed to update sticker metadata: %v", err))
+	}
+
+	return ctx.ReplyWithSticker(updatedData)
 }
+
+
 
 func processSticker(ctx *Context, data []byte, isVideo bool, packName, author string, filter string) ([]byte, error) {
 	tempIn, err := os.CreateTemp("", "sticker_in_*")
@@ -293,32 +271,96 @@ func processSticker(ctx *Context, data []byte, isVideo bool, packName, author st
 	tempOut := tempIn.Name() + ".out.webp"
 	defer os.Remove(tempOut)
 
-	var cmd *exec.Cmd
 	if isVideo {
-		vf := "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0"
-		if filter != "" {
-			vf = filter
+		// Define encoding attempts with decreasing quality/fps/preset settings to fit under 500KB (512,000 bytes)
+		type attempt struct {
+			fps     int
+			quality int
 		}
-		cmd = exec.Command("ffmpeg", "-y", "-i", tempIn.Name(), "-t", "6", "-vf", vf, "-vcodec", "libwebp", "-lossless", "0", "-q:v", "50", "-loop", "0", "-preset", "default", "-an", "-vsync", "0", tempOut)
+		attempts := []attempt{
+			{fps: 15, quality: 40},
+			{fps: 12, quality: 30},
+			{fps: 10, quality: 20},
+			{fps: 7,  quality: 10},
+		}
+
+		var lastErr error
+		var finalData []byte
+
+		for idx, att := range attempts {
+			_ = os.Remove(tempOut)
+
+			// Formulate the filter
+			vf := fmt.Sprintf("fps=%d,format=yuva420p,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0", att.fps)
+			if filter != "" {
+				vf = filter
+				if strings.Contains(vf, "fps=") {
+					vf = strings.ReplaceAll(vf, "fps=15", fmt.Sprintf("fps=%d", att.fps))
+				} else {
+					vf = fmt.Sprintf("fps=%d,", att.fps) + vf
+				}
+				if !strings.Contains(vf, "format=yuva420p") {
+					vf = "format=yuva420p," + vf
+				}
+			}
+
+			cmd := exec.Command("ffmpeg", "-y", "-i", tempIn.Name(), "-t", "8", "-vf", vf, "-vcodec", "libwebp", "-lossless", "0", "-q:v", fmt.Sprintf("%d", att.quality), "-compression_level", "6", "-loop", "0", "-preset", "default", "-an", "-vsync", "0", "-pix_fmt", "yuva420p", tempOut)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				lastErr = fmt.Errorf("ffmpeg failed at attempt %d (fps=%d, q=%d): %w (output: %s)", idx, att.fps, att.quality, err, string(out))
+				continue
+			}
+
+			// Add sticker metadata
+			finalPath, err := writeStickerMetadata(tempOut, packName, author)
+			if err != nil {
+				lastErr = fmt.Errorf("failed to write sticker metadata at attempt %d: %w", idx, err)
+				continue
+			}
+
+			data, err := os.ReadFile(finalPath)
+			_ = os.Remove(finalPath)
+			if err != nil {
+				lastErr = fmt.Errorf("failed to read final sticker path at attempt %d: %w", idx, err)
+				continue
+			}
+
+			// Check size (500KB limit)
+			if len(data) <= 500*1024 {
+				return data, nil
+			}
+
+			// Keep track of the last encoded one in case all attempts exceed 500KB
+			finalData = data
+		}
+
+		if finalData != nil {
+			return finalData, nil
+		}
+		if lastErr != nil {
+			return nil, lastErr
+		}
+		return nil, fmt.Errorf("failed to process video sticker")
 	} else {
-		vf := "scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0"
+		vf := "format=yuva420p,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0"
 		if filter != "" {
 			vf = filter
+			if !strings.Contains(vf, "format=yuva420p") {
+				vf = "format=yuva420p," + vf
+			}
 		}
-		cmd = exec.Command("ffmpeg", "-y", "-i", tempIn.Name(), "-vf", vf, "-vcodec", "libwebp", "-lossless", "0", "-q:v", "50", tempOut)
-	}
+		cmd := exec.Command("ffmpeg", "-y", "-i", tempIn.Name(), "-vf", vf, "-vcodec", "libwebp", "-lossless", "0", "-q:v", "40", "-compression_level", "6", "-pix_fmt", "yuva420p", tempOut)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return nil, fmt.Errorf("ffmpeg failed: %w (output: %s)", err, string(out))
+		}
 
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("ffmpeg failed: %w (output: %s)", err, string(out))
-	}
+		finalPath, err := writeStickerMetadata(tempOut, packName, author)
+		if err != nil {
+			return nil, err
+		}
+		defer os.Remove(finalPath)
 
-	finalPath, err := writeStickerMetadata(tempOut, packName, author)
-	if err != nil {
-		return nil, err
+		return os.ReadFile(finalPath)
 	}
-	defer os.Remove(finalPath)
-
-	return os.ReadFile(finalPath)
 }
 
 func processMP4(data []byte) ([]byte, error) {
@@ -535,4 +577,3 @@ func handleVV(ctx *Context) error {
 	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, unwrapped)
 	return err
 }
-

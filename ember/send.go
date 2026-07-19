@@ -169,14 +169,14 @@ func SendResult(ctx context.Context, client *whatsmeow.Client, chat types.JID, d
 
 func transcodeVideo(ctx context.Context, inputData []byte) ([]byte, error) {
 	slog.Info("ember.transcodeVideo: starting transcoding via ffmpeg")
-	
+
 	tmpIn, err := os.CreateTemp("", "whatsapp_in_*.mp4")
 	if err != nil {
 		slog.Error("ember.transcodeVideo: failed to create temp input file", "err", err)
 		return nil, fmt.Errorf("failed to create temp input file: %w", err)
 	}
 	defer os.Remove(tmpIn.Name())
-	
+
 	if _, err := tmpIn.Write(inputData); err != nil {
 		slog.Error("ember.transcodeVideo: failed to write input bytes", "err", err)
 		tmpIn.Close()
@@ -211,14 +211,14 @@ func transcodeVideo(ctx context.Context, inputData []byte) ([]byte, error) {
 
 func transcodeAudio(ctx context.Context, inputData []byte) ([]byte, error) {
 	slog.Info("ember.transcodeAudio: starting transcoding via ffmpeg")
-	
+
 	tmpIn, err := os.CreateTemp("", "whatsapp_in_audio_*")
 	if err != nil {
 		slog.Error("ember.transcodeAudio: failed to create temp input file", "err", err)
 		return nil, fmt.Errorf("failed to create temp input file: %w", err)
 	}
 	defer os.Remove(tmpIn.Name())
-	
+
 	if _, err := tmpIn.Write(inputData); err != nil {
 		slog.Error("ember.transcodeAudio: failed to write input bytes", "err", err)
 		tmpIn.Close()
