@@ -85,8 +85,6 @@ func init() {
 	})
 }
 
-
-
 func handleTagAll(ctx *Context) error {
 	if ctx.Chat.Server != "g.us" {
 		return ctx.Reply("❌ This command can only be used in a group.")
