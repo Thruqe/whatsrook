@@ -710,17 +710,17 @@ func ExtractViewOnceMessage(msg *waE2E.Message) *waE2E.Message {
 		inner = msg
 	}
 
-	res := *inner
+	cloned := proto.Clone(inner).(*waE2E.Message)
 
-	if res.ImageMessage != nil {
-		res.ImageMessage.ViewOnce = new(bool)
+	if cloned.ImageMessage != nil {
+		cloned.ImageMessage.ViewOnce = new(bool)
 	}
-	if res.VideoMessage != nil {
-		res.VideoMessage.ViewOnce = new(bool)
+	if cloned.VideoMessage != nil {
+		cloned.VideoMessage.ViewOnce = new(bool)
 	}
-	if res.AudioMessage != nil {
-		res.AudioMessage.ViewOnce = new(bool)
+	if cloned.AudioMessage != nil {
+		cloned.AudioMessage.ViewOnce = new(bool)
 	}
 
-	return &res
+	return cloned
 }
