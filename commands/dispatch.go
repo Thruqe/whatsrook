@@ -70,6 +70,11 @@ func initTables(ctx context.Context, s *sqlstore.SQLStore) {
 // Dispatch checks if the message text is a recognised command and runs it.
 // Returns true if a command matched (and was handled), false otherwise.
 func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message) bool {
+	chatStr := evt.Info.Chat.String()
+	senderStr := evt.Info.Sender.String()
+	text := extractText(evt)
+	slog.Info("Incoming message received", "chat", chatStr, "sender", senderStr, "is_from_me", evt.Info.IsFromMe, "text", text)
+
 	s, okStore := client.Store.Identities.(*sqlstore.SQLStore)
 	if okStore {
 		initTables(ctx, s)
@@ -84,6 +89,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	// 1. Log group message activity
 	if evt.Info.Chat.Server == "g.us" {
+		slog.Debug("Processing group message", "chat", chatStr, "sender", senderStr)
 		logGroupMessage(ctx, client, evt.Info.Chat, evt.Info.Sender)
 	}
 
@@ -137,7 +143,6 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		}
 	}
 
-	text := extractText(evt)
 	if text == "" {
 		return false
 	}
@@ -153,6 +158,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	}
 
 	prefixes := activePrefixes(ctx, client)
+	slog.Debug("Checking active prefixes", "prefixes", prefixes, "text", text)
 	hasEmpty := false
 
 	// Try non-empty prefixes first.
@@ -163,6 +169,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		}
 		if strings.HasPrefix(text, p) {
 			body := strings.TrimSpace(text[len(p):])
+			slog.Info("Prefix matched, executing command", "prefix", p, "body", body)
 			return runCommand(ctx, client, evt, body)
 		}
 	}
@@ -175,6 +182,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 			first := fields[0]
 			// 1. Direct match without prefix
 			if _, exists := Get(strings.ToLower(first)); exists {
+				slog.Info("Direct command matched (empty prefix)", "command", first, "body", body)
 				return runCommand(ctx, client, evt, body)
 			}
 			// 2. Match with standard common prefixes
@@ -183,12 +191,15 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 					strippedName := first[len(common):]
 					if _, exists := Get(strings.ToLower(strippedName)); exists {
 						strippedBody := strings.TrimSpace(body[len(common):])
+						slog.Info("Common prefix matched (empty prefix)", "prefix", common, "command", strippedName, "body", strippedBody)
 						return runCommand(ctx, client, evt, strippedBody)
 					}
 				}
 			}
 		}
 	}
+
+	slog.Debug("No command prefix matched", "text", text)
 
 	return false
 }
@@ -224,9 +235,11 @@ func activePrefixes(ctx context.Context, client *whatsmeow.Client) []string {
 // command in a goroutine. Returns false if no command matched.
 func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Message, body string) bool {
 	if body == "" {
+		slog.Debug("Empty command body, skipping execution", "chat", evt.Info.Chat.String())
 		return false
 	}
 	if isSenderBanned(ctx, client, evt.Info.Sender) {
+		slog.Warn("Sender is banned, ignoring command", "sender", evt.Info.Sender.String(), "chat", evt.Info.Chat.String())
 		return false
 	}
 
@@ -236,6 +249,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 
 	cmd, ok := Get(name)
 	if !ok {
+		slog.Debug("Command not found", "name", name, "chat", evt.Info.Chat.String())
 		return false
 	}
 
@@ -271,6 +285,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 	go func() {
 		// 1. Group-only check
 		if cmd.GroupOnly && cctx.Chat.Server != "g.us" {
+			slog.Warn("Group-only command executed in non-group chat JID", "command", name, "chat", cctx.Chat.String())
 			_ = cctx.Reply("❌ This command can only be used in a group chat.")
 			return
 		}
@@ -279,12 +294,14 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		if okSetting {
 			botMode, _ := s.GetSetting(ctx, "mode")
 			if botMode == "private" && !cctx.IsSudo() {
+				slog.Warn("Private mode check failed", "command", name, "sender", cctx.Sender.String())
 				_ = cctx.Reply("❌ The bot is currently in private mode. Only sudoers/owners can use it.")
 				return
 			}
 		}
 
 		if !cmd.IsPublic && !cctx.IsSudo() {
+			slog.Warn("Sudoer command check failed", "command", name, "sender", cctx.Sender.String())
 			_ = cctx.Reply("❌ This command is restricted to sudoers/owners only.")
 			return
 		}
@@ -301,6 +318,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 					}
 				}
 				if isDisabled {
+					slog.Warn("Disabled command check failed", "command", name)
 					_ = cctx.Reply(fmt.Sprintf("❌ Command %q is currently disabled.", name))
 					return
 				}
