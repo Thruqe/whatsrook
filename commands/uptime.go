@@ -19,5 +19,5 @@ func init() {
 
 func handleUptime(ctx *Context) error {
 	d := time.Since(startTime).Round(time.Second)
-	return sendText(ctx, fmt.Sprintf("_Uptime: %s_", d))
+	return sendText(ctx, fmt.Sprintf("Uptime: %s", d))
 }

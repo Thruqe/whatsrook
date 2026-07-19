@@ -193,7 +193,7 @@ func handleListSudo(ctx *Context) error {
 	sudoers := strings.Fields(raw)
 	var mentions []types.JID
 	var sb strings.Builder
-	sb.WriteString("👑 *Sudoers List*\n\n")
+	sb.WriteString("Sudo List\n\n")
 
 	if ctx.Client.Store.ID != nil {
 		ownerJID := ctx.Client.Store.ID.ToNonAD()
@@ -428,15 +428,9 @@ func handleBan(ctx *Context) error {
 
 		if !already {
 			bannedUsers = append(bannedUsers, targetStr)
-			bannedJIDs = append(bannedJIDs, target)
-
-			displayJID := target
-			if target.Server == types.HiddenUserServer && ctx.Client.Store.LIDs != nil {
-				if pn, err := ctx.Client.Store.LIDs.GetPNForLID(ctx.Ctx, target); err == nil && !pn.IsEmpty() {
-					displayJID = pn.ToNonAD()
-				}
-			}
-			displayNames = append(displayNames, "@"+displayJID.User)
+			resolvedJID, username := ctx.ResolveMention(target)
+			bannedJIDs = append(bannedJIDs, resolvedJID)
+			displayNames = append(displayNames, "@"+username)
 		}
 	}
 
@@ -482,15 +476,9 @@ func handleUnban(ctx *Context) error {
 			bj, err := types.ParseJID(b)
 			if err == nil && ctx.IsSameUser(target, bj) {
 				matched = true
-				unbannedJIDs = append(unbannedJIDs, target)
-
-				displayJID := target
-				if target.Server == types.HiddenUserServer && ctx.Client.Store.LIDs != nil {
-					if pn, err := ctx.Client.Store.LIDs.GetPNForLID(ctx.Ctx, target); err == nil && !pn.IsEmpty() {
-						displayJID = pn.ToNonAD()
-					}
-				}
-				displayNames = append(displayNames, "@"+displayJID.User)
+				resolvedJID, username := ctx.ResolveMention(target)
+				unbannedJIDs = append(unbannedJIDs, resolvedJID)
+				displayNames = append(displayNames, "@"+username)
 				break
 			}
 		}

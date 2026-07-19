@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/Thruqe/whatsrook/ember"
+	"github.com/Thruqe/whatsrook/sender"
 )
 
 func init() {
@@ -22,11 +23,11 @@ func handleInstagram(ctx *Context) error {
 	slog.Info("handleInstagram started", "args", ctx.Args)
 	if len(ctx.Args) == 0 {
 		slog.Warn("handleInstagram: no URL provided")
-		return sendText(ctx, "_Usage: !instagram <url>_")
+		return sendText(ctx, "Usage: !instagram <url>")
 	}
 	if !isInstagramURL(ctx.Args[0]) {
 		slog.Warn("handleInstagram: invalid URL", "url", ctx.Args[0])
-		return sendText(ctx, "_Invaild instagram url!_")
+		return sendText(ctx, "Invalid instagram url!")
 	}
 	slog.Info("handleInstagram: calling Fetch", "url", ctx.Args[0])
 	data, err := ember.Fetch(ctx.Ctx, ctx.Args[0], "")
@@ -35,5 +36,5 @@ func handleInstagram(ctx *Context) error {
 		return sendText(ctx, fmt.Sprintf("Failed: %s", err))
 	}
 	slog.Info("handleInstagram: Fetch success, calling SendResult")
-	return ember.SendResult(ctx.Ctx, ctx.Client, ctx.Chat, data)
+	return sender.SendResult(ctx.Ctx, ctx.Client, ctx.Chat, data)
 }

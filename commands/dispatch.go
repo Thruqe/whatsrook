@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	waSender "github.com/Thruqe/whatsrook/sender"
 	"github.com/Thruqe/whatsrook/store/sqlstore"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -111,7 +112,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		raw, _ := s.GetSetting(ctx, "autovv")
 		if raw == "on" && client.Store.ID != nil {
 			ownerJID := client.Store.ID.ToNonAD()
-			unwrapped := ExtractViewOnceMessage(evt.Message)
+			unwrapped := waSender.ExtractViewOnceMessage(evt.Message)
 			if unwrapped != nil {
 				_, _ = client.SendMessage(ctx, ownerJID, unwrapped)
 			}
@@ -125,7 +126,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 			var mentionProto string
 			err := db.QueryRow(ctx, `SELECT value FROM bot_settings WHERE our_jid=$1 AND key='mention_proto'`, client.Store.ID.ToNonAD().String()).Scan(&mentionProto)
 			if err == nil && mentionProto != "" {
-				if msg, err := DecodeProtoMessage(mentionProto); err == nil {
+				if msg, err := waSender.DecodeProtoMessage(mentionProto); err == nil {
 					setReplyContextInfo(msg, evt.Info.Chat, evt)
 					_ = client.SendChatPresence(ctx, evt.Info.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaText)
 					time.Sleep(3 * time.Second)
@@ -432,7 +433,7 @@ func handleFiltersAndBGM(ctx context.Context, client *whatsmeow.Client, evt *eve
 	var bgmProto string
 	err := db.QueryRow(ctx, `SELECT message_proto FROM bot_bgm WHERE our_jid=$1 AND trigger_word=$2`, ourJID, trigger).Scan(&bgmProto)
 	if err == nil && bgmProto != "" {
-		if msg, err := DecodeProtoMessage(bgmProto); err == nil {
+		if msg, err := waSender.DecodeProtoMessage(bgmProto); err == nil {
 			setReplyContextInfo(msg, evt.Info.Chat, evt)
 			_ = client.SendChatPresence(ctx, evt.Info.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaAudio)
 			time.Sleep(3 * time.Second)
@@ -445,7 +446,7 @@ func handleFiltersAndBGM(ctx context.Context, client *whatsmeow.Client, evt *eve
 	var filterProto string
 	err = db.QueryRow(ctx, `SELECT message_proto FROM bot_filters WHERE our_jid=$1 AND trigger_word=$2`, ourJID, trigger).Scan(&filterProto)
 	if err == nil && filterProto != "" {
-		if msg, err := DecodeProtoMessage(filterProto); err == nil {
+		if msg, err := waSender.DecodeProtoMessage(filterProto); err == nil {
 			setReplyContextInfo(msg, evt.Info.Chat, evt)
 			_ = client.SendChatPresence(ctx, evt.Info.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaText)
 			time.Sleep(3 * time.Second)
@@ -493,17 +494,7 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 		return false
 	}
 
-	isAdmin := false
-	for _, p := range info.Participants {
-		if p.JID.ToNonAD() == sender {
-			if p.IsAdmin || p.IsSuperAdmin {
-				isAdmin = true
-				break
-			}
-		}
-	}
-
-	if isAdmin {
+	if waSender.IsAdminRaw(ctx, client, info, sender) {
 		return false
 	}
 
@@ -531,24 +522,19 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 
 	if violation {
 		botIsAdmin := false
-		ourJID := client.Store.ID.ToNonAD()
-		for _, p := range info.Participants {
-			if p.JID.ToNonAD() == ourJID {
-				if p.IsAdmin || p.IsSuperAdmin {
-					botIsAdmin = true
-					break
-				}
-			}
+		if client.Store.ID != nil {
+			botIsAdmin = waSender.IsAdminRaw(ctx, client, info, *client.Store.ID)
 		}
 
 		if botIsAdmin {
 			_, _ = client.SendMessage(ctx, evt.Info.Chat, client.BuildRevoke(evt.Info.Chat, evt.Info.Sender, evt.Info.ID))
-			textMsg := fmt.Sprintf("⚠️ Message from @%s deleted: contains %s.", sender.User, reason)
+			resolvedJID, username := waSender.ResolveMentionRaw(ctx, client, evt.Info.Sender)
+			textMsg := fmt.Sprintf("⚠️ Message from @%s deleted: contains %s.", username, reason)
 			_, _ = client.SendMessage(ctx, evt.Info.Chat, &waE2E.Message{
 				ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 					Text: &textMsg,
 					ContextInfo: &waE2E.ContextInfo{
-						MentionedJID: []string{evt.Info.Sender.ToNonAD().String()},
+						MentionedJID: []string{resolvedJID.ToNonAD().String()},
 					},
 				},
 			})

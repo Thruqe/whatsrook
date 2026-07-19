@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Thruqe/whatsrook/logger"
 	"github.com/Thruqe/whatsrook/store/sqlstore"
 	_ "github.com/mattn/go-sqlite3"
 	"go.mau.fi/whatsmeow"
@@ -22,11 +23,11 @@ import (
 func main() {
 	cli := parseArgs()
 
-	logLevel := slog.LevelInfo
-	if cli.Debug {
-		logLevel = slog.LevelDebug
+	if err := logger.InitLogger(cli.Debug || cli.Verbose); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
+		os.Exit(1)
 	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})))
+	defer logger.Close()
 
 	if cli.Dev {
 		slog.Warn("dev mode enabled — WebSocket CORS origin check disabled")

@@ -35,6 +35,7 @@ type CliArgs struct {
 	QRCode  bool
 	Logout  bool
 	Debug   bool
+	Verbose bool
 	Dev     bool
 	Client  ClientType
 }
@@ -55,6 +56,7 @@ Options:
   --qrcode              Print the QR code to stdout for scanning
   --logout              Remove the session auth files and exit
   --debug               Enable debug logging
+  --verbose             Enable verbose logging for application (excluding whatsmeow)
   --dev                 Dev mode: disables CORS origin check on WebSocket
   -h, --help            Show this help message
 `)
@@ -117,6 +119,7 @@ Options:
 		QRCode:  hasFlag("--qrcode"),
 		Logout:  hasFlag("--logout"),
 		Debug:   hasFlag("--debug"),
+		Verbose: hasFlag("--verbose"),
 		Dev:     hasFlag("--dev"),
 		Client:  client,
 	}
