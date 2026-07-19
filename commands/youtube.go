@@ -13,7 +13,7 @@ func init() {
 		Aliases:     []string{"yt"},
 		Description: "Download a YouTube video/short",
 		Category:    "downloader",
-		IsPublic:     true,
+		IsPublic:    true,
 		Handler:     handleYouTube,
 	})
 }

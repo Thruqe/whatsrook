@@ -12,10 +12,10 @@ func TestParseStickerMetadata(t *testing.T) {
 		wantPack string
 		wantAuth string
 	}{
-		{"", "WhatsRook Pack", "WhatsRook Bot"},
-		{"My Pack", "My Pack", "WhatsRook Bot"},
-		{"My Pack|My Author", "My Pack", "My Author"},
-		{"   My Pack   |   My Author   ", "My Pack", "My Author"},
+		{"", "WhatsRook", "Thruqe"},
+		{"My Author", "WhatsRook", "My Author"},
+		{"My Author|My Pack", "My Pack", "My Author"},
+		{"   My Author   |   My Pack   ", "My Pack", "My Author"},
 	}
 
 	for _, tt := range tests {
@@ -29,10 +29,17 @@ func TestParseStickerMetadata(t *testing.T) {
 func TestGenerateStickerExif(t *testing.T) {
 	pack := "Test Pack"
 	auth := "Test Author"
-	exif := generateStickerExif(pack, auth)
+	meta := &exifStickerMetadata{
+		PackName:  pack,
+		Publisher: auth,
+	}
+	exif, err := buildExif(meta)
+	if err != nil {
+		t.Fatalf("failed to build exif: %v", err)
+	}
 
-	// Check headers
-	if !bytes.HasPrefix(exif, []byte("Exif\x00\x00II\x2a\x00")) {
+	// Check headers: must start with Little-endian TIFF ("II\x2a\x00")
+	if !bytes.HasPrefix(exif, []byte("II\x2a\x00")) {
 		t.Errorf("exif has invalid header: %q", exif[:12])
 	}
 

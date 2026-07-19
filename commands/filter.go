@@ -13,21 +13,21 @@ func init() {
 		Name:        "filter",
 		Description: "Add, delete, or list auto-response filters (P2P chats only). Usage: filter [word] [response text] (or reply to media), filter del [word], filter list",
 		Category:    "filters",
-		IsPublic:     true,
+		IsPublic:    true,
 		Handler:     handleFilter,
 	})
 	Register(&Command{
 		Name:        "bgm",
 		Description: "Add, delete, or list audio auto-responses (P2P chats only). Usage: bgm [word] (replying to audio), bgm del [word], bgm list",
 		Category:    "filters",
-		IsPublic:     true,
+		IsPublic:    true,
 		Handler:     handleBGM,
 	})
 	Register(&Command{
 		Name:        "mention",
 		Description: "Configure auto-response when the bot is tagged. Usage: mention [text...], mention add (replying to a message), mention del, mention list",
 		Category:    "filters",
-		IsPublic:     true,
+		IsPublic:    true,
 		Handler:     handleMention,
 	})
 }

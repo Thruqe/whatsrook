@@ -13,14 +13,14 @@ func init() {
 		Name:        "save",
 		Description: "Forward a replied message to your DM (or save status)",
 		Category:    "misc",
-		IsPublic:     true,
+		IsPublic:    true,
 		Handler:     handleSave,
 	})
 	Register(&Command{
 		Name:        "weather",
 		Description: "Check real-time weather forecast for a city or town. Usage: weather [city]",
 		Category:    "misc",
-		IsPublic:     true,
+		IsPublic:    true,
 		Handler:     handleWeather,
 	})
 }

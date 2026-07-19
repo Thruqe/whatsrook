@@ -13,7 +13,7 @@ func init() {
 		Aliases:     []string{"ig"},
 		Description: "Download an Instagram reel/post",
 		Category:    "downloader",
-		IsPublic:     true,
+		IsPublic:    true,
 		Handler:     handleInstagram,
 	})
 }

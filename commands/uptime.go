@@ -12,7 +12,7 @@ func init() {
 		Name:        "uptime",
 		Description: "Show how long the bot has been running",
 		Category:    "info",
-		IsPublic:     true,
+		IsPublic:    true,
 		Handler:     handleUptime,
 	})
 }
