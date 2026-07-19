@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
-	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -20,8 +19,11 @@ func init() {
 func handlePing(ctx *Context) error {
 	start := time.Now()
 
+	pongText := new(string)
+	*pongText = "🏓 Pong..."
+
 	resp, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
-		Conversation: proto.String("🏓 Pong..."),
+		Conversation: pongText,
 	})
 	if err != nil {
 		return err
@@ -29,8 +31,11 @@ func handlePing(ctx *Context) error {
 
 	elapsed := time.Since(start)
 
+	elapsedText := new(string)
+	*elapsedText = "🏓 Pong! " + elapsed.String()
+
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, ctx.Client.BuildEdit(ctx.Chat, resp.ID, &waE2E.Message{
-		Conversation: proto.String("🏓 Pong! " + elapsed.String()),
+		Conversation: elapsedText,
 	}))
 	if err != nil {
 		return err
