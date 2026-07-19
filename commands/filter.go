@@ -31,6 +31,34 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleMention,
 	})
+	Register(&Command{
+		Name:        "addfilter",
+		Description: "Add an auto-response filter for a trigger word. Usage: addfilter [word] [response text] (or reply to a message)",
+		Category:    "filter",
+		IsPublic:    true,
+		Handler:     handleAddFilter,
+	})
+	Register(&Command{
+		Name:        "getfilter",
+		Description: "Get the auto-response message for a trigger word. Usage: getfilter [word]",
+		Category:    "filter",
+		IsPublic:    true,
+		Handler:     handleGetFilter,
+	})
+	Register(&Command{
+		Name:        "listfilters",
+		Description: "List all active auto-response filters. Usage: listfilters",
+		Category:    "filter",
+		IsPublic:    true,
+		Handler:     handleListFilters,
+	})
+	Register(&Command{
+		Name:        "delfilter",
+		Description: "Remove an auto-response filter. Usage: delfilter [word]",
+		Category:    "filter",
+		IsPublic:    true,
+		Handler:     handleDelFilter,
+	})
 }
 
 func handleFilter(ctx *Context) error {
@@ -335,4 +363,147 @@ func handleMention(ctx *Context) error {
 
 		return ctx.Reply("✅ Tag auto-response configured.")
 	}
+}
+
+func handleAddFilter(ctx *Context) error {
+	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return ctx.Reply("❌ Settings store unavailable.")
+	}
+	db := s.GetDB()
+	if db == nil {
+		return ctx.Reply("❌ Database unavailable.")
+	}
+
+	ourJID := ctx.Client.Store.ID.ToNonAD().String()
+
+	if len(ctx.Args) == 0 {
+		return ctx.Reply("❌ Usage: addfilter [word] [response text] (or reply to a message)")
+	}
+
+	trigger := strings.ToLower(ctx.Args[0])
+	var responseProtoMsg *waE2E.Message
+	quoted := ctx.GetQuotedMessage()
+
+	if quoted != nil {
+		responseProtoMsg = quoted
+	} else {
+		if len(ctx.Args) < 2 {
+			return ctx.Reply("❌ Please specify the response text or reply to a message.")
+		}
+		textVal := strings.Join(ctx.Args[1:], " ")
+		responseProtoMsg = &waE2E.Message{
+			Conversation: &textVal,
+		}
+	}
+
+	encoded, err := sender.EncodeProtoMessage(responseProtoMsg)
+	if err != nil {
+		return ctx.Reply(fmt.Sprintf("❌ Failed to encode filter message: %v", err))
+	}
+
+	_, err = db.Exec(ctx.Ctx, `
+		INSERT INTO bot_filters (our_jid, trigger_word, message_proto)
+		VALUES ($1, $2, $3)
+		ON CONFLICT(our_jid, trigger_word) DO UPDATE SET message_proto=excluded.message_proto
+	`, ourJID, trigger, encoded)
+	if err != nil {
+		return err
+	}
+
+	return ctx.Reply(fmt.Sprintf("✅ Filter added for word %q.", trigger))
+}
+
+func handleGetFilter(ctx *Context) error {
+	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return ctx.Reply("❌ Settings store unavailable.")
+	}
+	db := s.GetDB()
+	if db == nil {
+		return ctx.Reply("❌ Database unavailable.")
+	}
+
+	ourJID := ctx.Client.Store.ID.ToNonAD().String()
+
+	if len(ctx.Args) == 0 {
+		return ctx.Reply("❌ Usage: getfilter [word]")
+	}
+
+	trigger := strings.ToLower(ctx.Args[0])
+
+	var filterProto string
+	err := db.QueryRow(ctx.Ctx, `SELECT message_proto FROM bot_filters WHERE our_jid=$1 AND trigger_word=$2`, ourJID, trigger).Scan(&filterProto)
+	if err != nil {
+		return ctx.Reply(fmt.Sprintf("❌ Filter for word %q not found.", trigger))
+	}
+
+	msg, err := sender.DecodeProtoMessage(filterProto)
+	if err != nil {
+		return ctx.Reply(fmt.Sprintf("❌ Failed to decode filter: %v", err))
+	}
+
+	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
+	return err
+}
+
+func handleListFilters(ctx *Context) error {
+	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return ctx.Reply("❌ Settings store unavailable.")
+	}
+	db := s.GetDB()
+	if db == nil {
+		return ctx.Reply("❌ Database unavailable.")
+	}
+
+	ourJID := ctx.Client.Store.ID.ToNonAD().String()
+
+	rows, err := db.Query(ctx.Ctx, `SELECT trigger_word FROM bot_filters WHERE our_jid=$1`, ourJID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var triggers []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err == nil {
+			triggers = append(triggers, t)
+		}
+	}
+
+	if len(triggers) == 0 {
+		return ctx.Reply("ℹ️ No filters configured.")
+	}
+	return ctx.Reply(fmt.Sprintf("🔍 *Active Filters:*\n- %s", strings.Join(triggers, "\n- ")))
+}
+
+func handleDelFilter(ctx *Context) error {
+	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return ctx.Reply("❌ Settings store unavailable.")
+	}
+	db := s.GetDB()
+	if db == nil {
+		return ctx.Reply("❌ Database unavailable.")
+	}
+
+	ourJID := ctx.Client.Store.ID.ToNonAD().String()
+
+	if len(ctx.Args) == 0 {
+		return ctx.Reply("❌ Usage: delfilter [word]")
+	}
+
+	trigger := strings.ToLower(ctx.Args[0])
+
+	res, err := db.Exec(ctx.Ctx, `DELETE FROM bot_filters WHERE our_jid=$1 AND trigger_word=$2`, ourJID, trigger)
+	if err != nil {
+		return err
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return ctx.Reply(fmt.Sprintf("ℹ️ Filter for word %q not found.", trigger))
+	}
+	return ctx.Reply(fmt.Sprintf("✅ Filter for word %q removed.", trigger))
 }

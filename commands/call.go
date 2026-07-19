@@ -1,7 +1,12 @@
 package commands
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/Thruqe/whatsrook/store/sqlstore"
+	"go.mau.fi/whatsmeow/proto/waE2E"
 )
 
 func init() {
@@ -11,6 +16,13 @@ func init() {
 		Category:    "calls",
 		IsPublic:    true,
 		Handler:     handleCall,
+	})
+	Register(&Command{
+		Name:        "setcallaudio",
+		Description: "Set your default audio file to be played when calling",
+		Category:    "calls",
+		IsPublic:    true,
+		Handler:     handleSetCallAudio,
 	})
 }
 
@@ -28,4 +40,44 @@ func handleCall(ctx *Context) error {
 	setPending(ctx.Sender, &pendingCall{Target: target, Kind: sqlstore.CallMediaAudio})
 	return sendText(ctx, "Reply to an audio file to use for the call.\n"+
 		"Reply \"save\" to that audio to make it your default for future calls.")
+}
+
+func handleSetCallAudio(ctx *Context) error {
+	var audioMsg *waE2E.AudioMessage
+	if ext := ctx.Evt.Message.GetExtendedTextMessage(); ext != nil {
+		if ci := ext.GetContextInfo(); ci != nil && ci.QuotedMessage != nil {
+			audioMsg = ci.QuotedMessage.GetAudioMessage()
+		}
+	}
+
+	if audioMsg == nil {
+		return ctx.Reply("❌ Reply to the audio file you want to set as your default call audio.")
+	}
+
+	data, err := ctx.Client.Download(ctx.Ctx, audioMsg)
+	if err != nil {
+		return ctx.Reply(fmt.Sprintf("❌ Failed to download audio: %v", err))
+	}
+
+	if err := os.MkdirAll("media", 0755); err != nil {
+		return ctx.Reply(fmt.Sprintf("❌ Failed to create media directory: %v", err))
+	}
+
+	ext := extensionFor(audioMsg.GetMimetype())
+	path := filepath.Join("media", sanitizeJID(ctx.Sender.String())+ext)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return ctx.Reply(fmt.Sprintf("❌ Failed to save audio: %v", err))
+	}
+
+	// Transcode to MP3
+	path, err = transcodeToMP3(path)
+	if err != nil {
+		return ctx.Reply(fmt.Sprintf("❌ Failed to transcode audio: %v", err))
+	}
+
+	if err := saveAudio(ctx, ctx.Sender, path); err != nil {
+		return ctx.Reply(fmt.Sprintf("❌ Failed to save call audio: %v", err))
+	}
+
+	return ctx.Reply("✅ Default call audio set successfully.")
 }
