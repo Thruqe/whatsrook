@@ -24,7 +24,7 @@ func handleInstagram(ctx *Context) error {
 	if !isInstagramURL(ctx.Args[0]) {
 		return sendText(ctx, "_Invaild instagram url!_")
 	}
-	data, err := ember.Fetch(ctx.Ctx, ctx.Args[0])
+	data, err := ember.Fetch(ctx.Ctx, ctx.Args[0], "")
 	if err != nil {
 		return sendText(ctx, fmt.Sprintf("Failed: %s", err))
 	}

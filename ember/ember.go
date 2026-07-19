@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
-const baseURL = "https://embers-uk0r.onrender.com/download"
+const baseURL string = "https://embers-0kn7.onrender.com/download"
 
 type Owner struct {
 	Username string `json:"username"`
@@ -23,6 +25,17 @@ type Media struct {
 	IsAudio   bool   `json:"is_audio"`
 }
 
+type FormatInfo struct {
+	FormatID   *string     `json:"format_id"`
+	URL        *string     `json:"url"`
+	Ext        *string     `json:"ext"`
+	Resolution interface{} `json:"resolution"`
+	Filesize   interface{} `json:"filesize"`
+	VCodec     *string     `json:"vcodec"`
+	ACodec     *string     `json:"acodec"`
+	FPS        interface{} `json:"fps"`
+}
+
 type Result struct {
 	Error    bool   `json:"error"`
 	ErrorMsg string `json:"message,omitempty"`
@@ -30,21 +43,38 @@ type Result struct {
 }
 
 type Data struct {
-	URL       string  `json:"url"`
-	Source    string  `json:"source"`
-	Title     string  `json:"title"`
-	Author    string  `json:"author"`
-	Thumbnail string  `json:"thumbnail"`
-	Owner     Owner   `json:"owner"`
-	Type      string  `json:"type"` // "single" or "multiple"
-	Medias    []Media `json:"medias"`
+	ID           *string                `json:"id"`
+	RawTitle     *string                `json:"title"`
+	Description  *string                `json:"description"`
+	Duration     interface{}            `json:"duration"`
+	RawThumbnail *string                `json:"thumbnail"`
+	Thumbnails   interface{}            `json:"thumbnails"`
+	Uploader     *string                `json:"uploader"`
+	UploaderURL  *string                `json:"uploader_url"`
+	WebpageURL   *string                `json:"webpage_url"`
+	Extractor    *string                `json:"extractor"`
+	Formats      []FormatInfo           `json:"formats"`
+	Raw          map[string]interface{} `json:"raw"`
+
+	// Derived fields for backward compatibility
+	URL       string  `json:"-"`
+	Source    string  `json:"-"`
+	Title     string  `json:"-"`
+	Author    string  `json:"-"`
+	Thumbnail string  `json:"-"`
+	Owner     Owner   `json:"-"`
+	Type      string  `json:"-"`
+	Medias    []Media `json:"-"`
 }
 
 var httpClient = &http.Client{Timeout: 30 * time.Second}
 
-// Fetch calls the Ember API for the given post/video URL.
-func Fetch(ctx context.Context, postURL string) (*Data, error) {
+// Fetch calls the Ember API for the given post/video URL with an optional cookie.
+func Fetch(ctx context.Context, postURL string, cookie string) (*Data, error) {
 	q := url.Values{"url": {postURL}}
+	if cookie != "" {
+		q.Set("cookie", cookie)
+	}
 	fullURL := baseURL + "?" + q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
@@ -71,6 +101,8 @@ func Fetch(ctx context.Context, postURL string) (*Data, error) {
 		return nil, fmt.Errorf("ember: %s", msg)
 	}
 
+	result.Data.PopulateCompat()
+
 	return &result.Data, nil
 }
 
@@ -96,4 +128,261 @@ func (d *Data) Caption() string {
 		return fmt.Sprintf("%s\n— %s", d.Title, d.Author)
 	}
 	return d.Title
+}
+
+// PopulateCompat populates fields needed for backward compatibility.
+func (d *Data) PopulateCompat() {
+	if d.RawTitle != nil {
+		d.Title = *d.RawTitle
+	}
+	if d.RawThumbnail != nil {
+		d.Thumbnail = *d.RawThumbnail
+	}
+	if d.WebpageURL != nil {
+		d.Source = *d.WebpageURL
+	}
+	if d.Uploader != nil {
+		d.Author = *d.Uploader
+	}
+
+	d.Medias = extractMediasFromData(d)
+	if len(d.Medias) > 1 {
+		d.Type = "multiple"
+	} else {
+		d.Type = "single"
+	}
+	if len(d.Medias) > 0 {
+		d.URL = d.Medias[0].URL
+	}
+}
+
+func extractMediasFromData(d *Data) []Media {
+	if d == nil {
+		return nil
+	}
+
+	// First check if raw entries exist for carousel/playlist
+	if d.Raw != nil {
+		if entriesVal, ok := d.Raw["entries"]; ok && entriesVal != nil {
+			if entries, ok := entriesVal.([]interface{}); ok {
+				var list []Media
+				for _, entryVal := range entries {
+					if entry, ok := entryVal.(map[string]interface{}); ok {
+						list = append(list, extractMediasFromMap(entry)...)
+					}
+				}
+				if len(list) > 0 {
+					return list
+				}
+			}
+		}
+	}
+
+	// Otherwise, extract from the main Formats list
+	var bestVideoAndAudio *FormatInfo
+	var bestVideoOnly *FormatInfo
+	var bestAudioOnly *FormatInfo
+
+	for i := range d.Formats {
+		f := &d.Formats[i]
+		if f.URL == nil || *f.URL == "" {
+			continue
+		}
+
+		vcodec := ""
+		if f.VCodec != nil {
+			vcodec = *f.VCodec
+		}
+		acodec := ""
+		if f.ACodec != nil {
+			acodec = *f.ACodec
+		}
+
+		hasVideo := vcodec != "" && vcodec != "none"
+		hasAudio := acodec != "" && acodec != "none"
+
+		if hasVideo && hasAudio {
+			bestVideoAndAudio = f
+		} else if hasVideo {
+			bestVideoOnly = f
+		} else if hasAudio {
+			bestAudioOnly = f
+		}
+	}
+
+	var mediaURL string
+	var mediaType string
+	var ext string
+
+	if bestVideoAndAudio != nil {
+		mediaURL = *bestVideoAndAudio.URL
+		mediaType = "video"
+		if bestVideoAndAudio.Ext != nil {
+			ext = *bestVideoAndAudio.Ext
+		}
+	} else if bestVideoOnly != nil {
+		mediaURL = *bestVideoOnly.URL
+		mediaType = "video"
+		if bestVideoOnly.Ext != nil {
+			ext = *bestVideoOnly.Ext
+		}
+	} else if bestAudioOnly != nil {
+		mediaURL = *bestAudioOnly.URL
+		mediaType = "audio"
+		if bestAudioOnly.Ext != nil {
+			ext = *bestAudioOnly.Ext
+		}
+	} else {
+		// Fallback to top-level fields
+		// Check raw top-level URL
+		if d.Raw != nil {
+			if topURL, ok := d.Raw["url"].(string); ok && topURL != "" {
+				mediaURL = topURL
+				if topExt, ok := d.Raw["ext"].(string); ok {
+					ext = topExt
+				}
+			}
+		}
+		if mediaURL == "" && d.RawThumbnail != nil && *d.RawThumbnail != "" {
+			mediaURL = *d.RawThumbnail
+			mediaType = "image"
+		}
+
+		if mediaURL != "" {
+			if ext == "" {
+				if u, err := url.Parse(mediaURL); err == nil {
+					ext = filepath.Ext(u.Path)
+				}
+			}
+			ext = strings.TrimPrefix(ext, ".")
+			switch strings.ToLower(ext) {
+			case "jpg", "jpeg", "png", "webp", "gif":
+				mediaType = "image"
+			case "mp3", "m4a", "ogg", "opus", "wav":
+				mediaType = "audio"
+			default:
+				mediaType = "video"
+			}
+		}
+	}
+
+	if mediaURL != "" {
+		return []Media{
+			{
+				URL:       mediaURL,
+				Type:      mediaType,
+				Extension: ext,
+				IsAudio:   mediaType == "audio",
+			},
+		}
+	}
+
+	return nil
+}
+
+func extractMediasFromMap(info map[string]interface{}) []Media {
+	if info == nil {
+		return nil
+	}
+
+	// Handle playlist/carousel entries
+	if entriesVal, ok := info["entries"]; ok && entriesVal != nil {
+		if entries, ok := entriesVal.([]interface{}); ok {
+			var list []Media
+			for _, entryVal := range entries {
+				if entry, ok := entryVal.(map[string]interface{}); ok {
+					list = append(list, extractMediasFromMap(entry)...)
+				}
+			}
+			if len(list) > 0 {
+				return list
+			}
+		}
+	}
+
+	// Determine if there are formats
+	var formats []interface{}
+	if fmts, ok := info["formats"].([]interface{}); ok {
+		formats = fmts
+	}
+
+	var bestVideoAndAudio map[string]interface{}
+	var bestVideoOnly map[string]interface{}
+	var bestAudioOnly map[string]interface{}
+
+	for _, fVal := range formats {
+		f, ok := fVal.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		fURL, _ := f["url"].(string)
+		if fURL == "" {
+			continue
+		}
+
+		vcodec, _ := f["vcodec"].(string)
+		acodec, _ := f["acodec"].(string)
+
+		hasVideo := vcodec != "" && vcodec != "none"
+		hasAudio := acodec != "" && acodec != "none"
+
+		if hasVideo && hasAudio {
+			bestVideoAndAudio = f
+		} else if hasVideo {
+			bestVideoOnly = f
+		} else if hasAudio {
+			bestAudioOnly = f
+		}
+	}
+
+	var mediaURL string
+	var mediaType string
+	var ext string
+
+	if bestVideoAndAudio != nil {
+		mediaURL, _ = bestVideoAndAudio["url"].(string)
+		mediaType = "video"
+		ext, _ = bestVideoAndAudio["ext"].(string)
+	} else if bestVideoOnly != nil {
+		mediaURL, _ = bestVideoOnly["url"].(string)
+		mediaType = "video"
+		ext, _ = bestVideoOnly["ext"].(string)
+	} else if bestAudioOnly != nil {
+		mediaURL, _ = bestAudioOnly["url"].(string)
+		mediaType = "audio"
+		ext, _ = bestAudioOnly["ext"].(string)
+	} else {
+		// Fallback to top-level URL
+		if topURL, ok := info["url"].(string); ok && topURL != "" {
+			mediaURL = topURL
+			ext, _ = info["ext"].(string)
+			if ext == "" {
+				if u, err := url.Parse(topURL); err == nil {
+					ext = filepath.Ext(u.Path)
+				}
+			}
+			ext = strings.TrimPrefix(ext, ".")
+			switch strings.ToLower(ext) {
+			case "jpg", "jpeg", "png", "webp", "gif":
+				mediaType = "image"
+			case "mp3", "m4a", "ogg", "opus", "wav":
+				mediaType = "audio"
+			default:
+				mediaType = "video"
+			}
+		}
+	}
+
+	if mediaURL != "" {
+		return []Media{
+			{
+				URL:       mediaURL,
+				Type:      mediaType,
+				Extension: ext,
+				IsAudio:   mediaType == "audio",
+			},
+		}
+	}
+
+	return nil
 }

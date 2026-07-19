@@ -8,21 +8,21 @@ import (
 
 func init() {
 	Register(&Command{
-		Name:        "threads",
-		Aliases:     []string{"th"},
-		Description: "Download a Threads post",
+		Name:        "twitter",
+		Aliases:     []string{"x", "twt"},
+		Description: "Download a Twitter/X video/media",
 		Category:    "downloader",
-		IsPublic:     true,
-		Handler:     handleThreads,
+		IsPublic:    true,
+		Handler:     handleTwitter,
 	})
 }
 
-func handleThreads(ctx *Context) error {
+func handleTwitter(ctx *Context) error {
 	if len(ctx.Args) == 0 {
-		return sendText(ctx, "Usage: !threads <url>")
+		return sendText(ctx, "_Usage: !twitter <url>_")
 	}
-	if !isThreadsURL(ctx.Args[0]) {
-		return sendText(ctx, "_Invaild threads url!_")
+	if !isTwitterURL(ctx.Args[0]) {
+		return sendText(ctx, "_Invaild twitter/x url!_")
 	}
 	data, err := ember.Fetch(ctx.Ctx, ctx.Args[0], "")
 	if err != nil {

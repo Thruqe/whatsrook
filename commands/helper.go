@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Thruqe/whatsrook/store/sqlstore"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
@@ -146,8 +147,12 @@ func isInstagramURL(link string) bool {
 	return matchesHost(link, "instagram.com")
 }
 
+func isTwitterURL(link string) bool {
+	return matchesHost(link, "twitter.com", "x.com")
+}
+
 func isThreadsURL(link string) bool {
-	return matchesHost(link, "threads.net")
+	return matchesHost(link, "threads.net", "threads.com")
 }
 
 func isYouTubeURL(link string) bool {
@@ -175,4 +180,13 @@ func matchesHost(link string, domains ...string) bool {
 		}
 	}
 	return false
+}
+
+func getYouTubeCookie(ctx *Context) string {
+	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return ""
+	}
+	cookie, _ := s.GetSetting(ctx.Ctx, "youtube_cookie")
+	return cookie
 }
