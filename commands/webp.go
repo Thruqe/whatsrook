@@ -47,9 +47,8 @@ func buildExif(metadata *exifStickerMetadata) ([]byte, error) {
 		return nil, err
 	}
 
-	exif := make([]byte, len(ExifHeader)+len(jsonBytes))
-	copy(exif, ExifHeader[:])
-	copy(exif[len(ExifHeader):], jsonBytes)
+	exif := append([]byte(nil), ExifHeader[:]...)
+	exif = append(exif, jsonBytes...)
 
 	// Write the JSON length at offset 14 (little-endian u32)
 	binary.LittleEndian.PutUint32(exif[14:18], uint32(len(jsonBytes)))
