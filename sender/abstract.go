@@ -472,9 +472,11 @@ func (ctx *Context) GetArgsJIDs() []types.JID {
 
 // IsSameUserRaw compares two JIDs, resolving and matching any LID mappings.
 func IsSameUserRaw(ctx context.Context, client *whatsmeow.Client, a, b types.JID) bool {
+	slog.Debug("IsSameUserRaw checking", "a", a.String(), "b", b.String())
 	a = a.ToNonAD()
 	b = b.ToNonAD()
 	if a == b {
+		slog.Debug("IsSameUserRaw result: true (direct match)", "a", a.String(), "b", b.String())
 		return true
 	}
 
@@ -493,6 +495,7 @@ func IsSameUserRaw(ctx context.Context, client *whatsmeow.Client, a, b types.JID
 	}
 
 	if aPN == bPN {
+		slog.Debug("IsSameUserRaw result: true (PN match)", "a", a.String(), "b", b.String())
 		return true
 	}
 
@@ -509,12 +512,16 @@ func IsSameUserRaw(ctx context.Context, client *whatsmeow.Client, a, b types.JID
 		}
 	}
 
-	return aLID == bLID
+	res := aLID == bLID
+	slog.Debug("IsSameUserRaw result", "a", a.String(), "b", b.String(), "result", res)
+	return res
 }
 
 // IsSameUser compares two JIDs, resolving and matching any LID mappings.
 func (ctx *Context) IsSameUser(a, b types.JID) bool {
-	return IsSameUserRaw(ctx.Ctx, ctx.Client, a, b)
+	res := IsSameUserRaw(ctx.Ctx, ctx.Client, a, b)
+	slog.Debug("IsSameUser helper check", "a", a.String(), "b", b.String(), "result", res)
+	return res
 }
 
 // GetTargets resolves targets from reply, mentions, or arguments.
@@ -571,18 +578,22 @@ func (ctx *Context) GetTargets() []types.JID {
 
 // IsSudo checks if the message sender is a registered sudo user or the bot owner.
 func (ctx *Context) IsSudo() bool {
+	slog.Debug("IsSudo checking", "sender", ctx.Sender.String())
 	if ctx.Client.Store.ID != nil {
 		if ctx.IsSameUser(ctx.Sender, *ctx.Client.Store.ID) {
+			slog.Debug("IsSudo result: true (bot owner)", "sender", ctx.Sender.String())
 			return true
 		}
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
+		slog.Debug("IsSudo result: false (settings store unavailable)", "sender", ctx.Sender.String())
 		return false
 	}
 	raw, err := s.GetSetting(ctx.Ctx, "sudoers")
 	if err != nil || raw == "" {
+		slog.Debug("IsSudo result: false (no sudoers configured)", "sender", ctx.Sender.String())
 		return false
 	}
 
@@ -590,10 +601,12 @@ func (ctx *Context) IsSudo() bool {
 		sudoerJID, err := types.ParseJID(sudoerStr)
 		if err == nil {
 			if ctx.IsSameUser(ctx.Sender, sudoerJID) {
+				slog.Debug("IsSudo result: true (sudoer list match)", "sender", ctx.Sender.String())
 				return true
 			}
 		}
 	}
+	slog.Debug("IsSudo result: false", "sender", ctx.Sender.String())
 	return false
 }
 
@@ -869,34 +882,48 @@ func ExtractViewOnceMessage(msg *waE2E.Message) *waE2E.Message {
 
 // IsAdminRaw checks if a specific JID is a group admin.
 func IsAdminRaw(ctx context.Context, client *whatsmeow.Client, info *types.GroupInfo, jid types.JID) bool {
+	slog.Debug("IsAdminRaw checking", "jid", jid.String(), "group", info.JID.String())
 	target := jid.ToNonAD()
 	for _, p := range info.Participants {
 		if IsSameUserRaw(ctx, client, p.JID, target) {
-			return p.IsAdmin || p.IsSuperAdmin
+			res := p.IsAdmin || p.IsSuperAdmin
+			slog.Debug("IsAdminRaw result", "jid", jid.String(), "isAdmin", res, "isSuperAdmin", p.IsSuperAdmin)
+			return res
 		}
 	}
+	slog.Debug("IsAdminRaw result: false (not a participant)", "jid", jid.String())
 	return false
 }
 
 // IsAdmin checks if a specific JID is a group admin.
 func (ctx *Context) IsAdmin(info *types.GroupInfo, jid types.JID) bool {
-	return IsAdminRaw(ctx.Ctx, ctx.Client, info, jid)
+	res := IsAdminRaw(ctx.Ctx, ctx.Client, info, jid)
+	slog.Debug("IsAdmin helper check", "jid", jid.String(), "result", res)
+	return res
 }
 
 // AmIAdmin checks if the bot itself is an admin in the group.
 func (ctx *Context) AmIAdmin(info *types.GroupInfo) bool {
+	slog.Debug("AmIAdmin checking")
 	if ctx.Client.Store.ID == nil {
+		slog.Debug("AmIAdmin result: false (bot JID nil)")
 		return false
 	}
-	return ctx.IsAdmin(info, *ctx.Client.Store.ID)
+	res := ctx.IsAdmin(info, *ctx.Client.Store.ID)
+	slog.Debug("AmIAdmin result", "result", res)
+	return res
 }
 
 // IsSenderAdmin checks if the command sender is a group admin or bot sudoer.
 func (ctx *Context) IsSenderAdmin(info *types.GroupInfo) bool {
+	slog.Debug("IsSenderAdmin checking", "sender", ctx.Sender.String())
 	if ctx.IsSudo() {
+		slog.Debug("IsSenderAdmin result: true (is sudo)")
 		return true
 	}
-	return ctx.IsAdmin(info, ctx.Sender)
+	res := ctx.IsAdmin(info, ctx.Sender)
+	slog.Debug("IsSenderAdmin result", "sender", ctx.Sender.String(), "result", res)
+	return res
 }
 
 func removeEmojis(s string) string {
