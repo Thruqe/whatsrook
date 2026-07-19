@@ -11,8 +11,8 @@ func TestWebPMetadataLossy(t *testing.T) {
 	vp8Payload := []byte{
 		0x00, 0x00, 0x00, // frame tag
 		0x9d, 0x01, 0x2a, // keyframe start code
-		0x00, 0x02,       // width 512 (little endian)
-		0x00, 0x02,       // height 512 (little endian)
+		0x00, 0x02, // width 512 (little endian)
+		0x00, 0x02, // height 512 (little endian)
 	}
 
 	var mockWebP bytes.Buffer
@@ -68,7 +68,7 @@ func TestWebPMetadataLossless(t *testing.T) {
 	// bit 28: 0 (no alpha)
 	// val = 511 | (511 << 14) = 511 | 8372224 = 8372735 = 0x7FC1FF
 	vp8lPayload := []byte{
-		0x2f,             // signature
+		0x2f,                   // signature
 		0xff, 0xc1, 0x7f, 0x00, // val (0x7FC1FF)
 	}
 
