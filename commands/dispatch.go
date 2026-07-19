@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -242,6 +243,17 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		rawArgs = strings.TrimSpace(body[len(fields[0]):])
 	}
 
+	// If no arguments are provided, and this is a reply to another message,
+	// treat the quoted message text/caption as the arguments.
+	if len(args) == 0 {
+		if quoted := getQuotedMessageFromEvent(evt); quoted != nil {
+			if quotedText := extractTextFromProto(quoted); quotedText != "" {
+				args = strings.Fields(quotedText)
+				rawArgs = quotedText
+			}
+		}
+	}
+
 	cctx := &Context{
 		Ctx:     ctx,
 		Client:  client,
@@ -294,8 +306,12 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 			}
 		}
 
+		slog.Info("Executing command", "command", name, "chat", cctx.Chat.String(), "sender", cctx.Sender.String(), "args", cctx.Args)
 		if err := cmd.Handler(cctx); err != nil {
+			slog.Error("Command handler failed", "command", name, "err", err)
 			logHandlerErr(name, err)
+		} else {
+			slog.Info("Command completed successfully", "command", name)
 		}
 	}()
 
@@ -675,5 +691,37 @@ func extractTextFromProto(msg *waE2E.Message) string {
 	if msg.GetExtendedTextMessage() != nil {
 		return msg.GetExtendedTextMessage().GetText()
 	}
+	if msg.GetImageMessage() != nil && msg.GetImageMessage().GetCaption() != "" {
+		return msg.GetImageMessage().GetCaption()
+	}
+	if msg.GetVideoMessage() != nil && msg.GetVideoMessage().GetCaption() != "" {
+		return msg.GetVideoMessage().GetCaption()
+	}
+	if msg.GetDocumentMessage() != nil && msg.GetDocumentMessage().GetCaption() != "" {
+		return msg.GetDocumentMessage().GetCaption()
+	}
 	return ""
+}
+
+func getQuotedMessageFromEvent(evt *events.Message) *waE2E.Message {
+	if evt == nil || evt.Message == nil {
+		return nil
+	}
+	var ci *waE2E.ContextInfo
+	msg := evt.Message
+	if msg.GetExtendedTextMessage() != nil {
+		ci = msg.GetExtendedTextMessage().GetContextInfo()
+	} else if msg.GetImageMessage() != nil {
+		ci = msg.GetImageMessage().GetContextInfo()
+	} else if msg.GetVideoMessage() != nil {
+		ci = msg.GetVideoMessage().GetContextInfo()
+	} else if msg.GetAudioMessage() != nil {
+		ci = msg.GetAudioMessage().GetContextInfo()
+	} else if msg.GetDocumentMessage() != nil {
+		ci = msg.GetDocumentMessage().GetContextInfo()
+	}
+	if ci != nil {
+		return ci.QuotedMessage
+	}
+	return nil
 }

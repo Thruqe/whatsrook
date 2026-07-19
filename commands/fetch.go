@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 
@@ -22,22 +23,30 @@ func init() {
 }
 
 func handleFetch(ctx *Context) error {
+	slog.Info("handleFetch started", "raw_args", ctx.RawArgs)
 	link := resolveFetchURL(ctx)
 	if link == "" {
+		slog.Warn("handleFetch: no URL resolved")
 		return sendText(ctx, "_Usage: !fetch <url> (or reply to a message containing a url)_")
 	}
+	slog.Info("handleFetch: resolved URL", "url", link)
 	if !isSupportedFetchURL(link) {
+		slog.Warn("handleFetch: URL is unsupported", "url", link)
 		return sendText(ctx, "_Unsupported url. Supported: Instagram, TikTok, YouTube, Facebook, Threads, Twitter/X_")
 	}
 
 	var cookie string
 	if isYouTubeURL(link) {
 		cookie = getYouTubeCookie(ctx)
+		slog.Info("handleFetch: YouTube cookie retrieved", "cookie_len", len(cookie))
 	}
+	slog.Info("handleFetch: calling ember.Fetch", "url", link)
 	data, err := ember.Fetch(ctx.Ctx, link, cookie)
 	if err != nil {
+		slog.Error("handleFetch: ember.Fetch failed", "err", err)
 		return sendText(ctx, fmt.Sprintf("Failed: %s", err))
 	}
+	slog.Info("handleFetch: ember.Fetch success, calling SendResult", "title", data.Title, "medias_count", len(data.Medias))
 	return ember.SendResult(ctx.Ctx, ctx.Client, ctx.Chat, data)
 }
 

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -496,45 +497,38 @@ func handleVV(ctx *Context) error {
 	}
 
 	if quotedStanzaID != "" && quotedParticipant != "" {
-		// Clone quoted message by doing a shallow copy of its main struct
-		quotedClone := *quoted
+		quotedClone := proto.Clone(quoted).(*waE2E.Message)
 
 		// Clear any context info inside the cloned quoted message to break circular references completely!
 		if quotedClone.ImageMessage != nil {
-			clonedImg := *quotedClone.ImageMessage
-			clonedImg.ContextInfo = nil
-			quotedClone.ImageMessage = &clonedImg
+			quotedClone.ImageMessage.ContextInfo = nil
 		}
 		if quotedClone.VideoMessage != nil {
-			clonedVid := *quotedClone.VideoMessage
-			clonedVid.ContextInfo = nil
-			quotedClone.VideoMessage = &clonedVid
+			quotedClone.VideoMessage.ContextInfo = nil
 		}
 		if quotedClone.AudioMessage != nil {
-			clonedAud := *quotedClone.AudioMessage
-			clonedAud.ContextInfo = nil
-			quotedClone.AudioMessage = &clonedAud
+			quotedClone.AudioMessage.ContextInfo = nil
 		}
 
 		ci := &waE2E.ContextInfo{
 			StanzaID:      &quotedStanzaID,
 			Participant:   &quotedParticipant,
-			QuotedMessage: &quotedClone,
+			QuotedMessage: quotedClone,
 		}
 
 		// Also clone unwrapped.ImageMessage / VideoMessage / AudioMessage to prevent modifying the original quoted message!
 		if unwrapped.ImageMessage != nil {
-			newImg := *unwrapped.ImageMessage
+			newImg := proto.Clone(unwrapped.ImageMessage).(*waE2E.ImageMessage)
 			newImg.ContextInfo = ci
-			unwrapped.ImageMessage = &newImg
+			unwrapped.ImageMessage = newImg
 		} else if unwrapped.VideoMessage != nil {
-			newVid := *unwrapped.VideoMessage
+			newVid := proto.Clone(unwrapped.VideoMessage).(*waE2E.VideoMessage)
 			newVid.ContextInfo = ci
-			unwrapped.VideoMessage = &newVid
+			unwrapped.VideoMessage = newVid
 		} else if unwrapped.AudioMessage != nil {
-			newAud := *unwrapped.AudioMessage
+			newAud := proto.Clone(unwrapped.AudioMessage).(*waE2E.AudioMessage)
 			newAud.ContextInfo = ci
-			unwrapped.AudioMessage = &newAud
+			unwrapped.AudioMessage = newAud
 		}
 	}
 

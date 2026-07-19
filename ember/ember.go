@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -77,19 +78,24 @@ func Fetch(ctx context.Context, postURL string, cookie string) (*Data, error) {
 	}
 	fullURL := baseURL + "?" + q.Encode()
 
+	slog.Info("ember.Fetch: sending HTTP request", "url", fullURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
 	if err != nil {
+		slog.Error("ember.Fetch: failed to create request", "err", err)
 		return nil, err
 	}
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
+		slog.Error("ember.Fetch: httpClient.Do failed", "err", err)
 		return nil, fmt.Errorf("ember request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
+	slog.Info("ember.Fetch: HTTP response received", "status_code", resp.StatusCode)
 	var result Result
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		slog.Error("ember.Fetch: failed to decode JSON", "err", err)
 		return nil, fmt.Errorf("ember decode failed: %w", err)
 	}
 
@@ -98,10 +104,12 @@ func Fetch(ctx context.Context, postURL string, cookie string) (*Data, error) {
 		if msg == "" {
 			msg = "unknown error from ember api"
 		}
+		slog.Error("ember.Fetch: API returned error", "msg", msg)
 		return nil, fmt.Errorf("ember: %s", msg)
 	}
 
 	result.Data.PopulateCompat()
+	slog.Info("ember.Fetch: successfully populated compat data", "title", result.Data.Title, "medias_count", len(result.Data.Medias))
 
 	return &result.Data, nil
 }
@@ -189,6 +197,15 @@ func extractMediasFromData(d *Data) []Media {
 			continue
 		}
 
+		// Skip HLS/m3u8 playlists
+		extVal := ""
+		if f.Ext != nil {
+			extVal = *f.Ext
+		}
+		if extVal == "m3u8" || strings.Contains(strings.ToLower(*f.URL), ".m3u8") {
+			continue
+		}
+
 		vcodec := ""
 		if f.VCodec != nil {
 			vcodec = *f.VCodec
@@ -237,9 +254,11 @@ func extractMediasFromData(d *Data) []Media {
 		// Check raw top-level URL
 		if d.Raw != nil {
 			if topURL, ok := d.Raw["url"].(string); ok && topURL != "" {
-				mediaURL = topURL
-				if topExt, ok := d.Raw["ext"].(string); ok {
-					ext = topExt
+				if !strings.Contains(strings.ToLower(topURL), ".m3u8") {
+					mediaURL = topURL
+					if topExt, ok := d.Raw["ext"].(string); ok {
+						ext = topExt
+					}
 				}
 			}
 		}
@@ -317,6 +336,12 @@ func extractMediasFromMap(info map[string]interface{}) []Media {
 		}
 		fURL, _ := f["url"].(string)
 		if fURL == "" {
+			continue
+		}
+
+		// Skip HLS/m3u8 playlists
+		extVal, _ := f["ext"].(string)
+		if extVal == "m3u8" || strings.Contains(strings.ToLower(fURL), ".m3u8") {
 			continue
 		}
 
