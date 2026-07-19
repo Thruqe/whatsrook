@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main, master ]
 
+permissions:
+  contents: read
+
 jobs:
   go-checks:
     name: Code Quality & Tests
@@ -34,11 +37,11 @@ jobs:
       - name: Vet Code (go vet)
         run: go vet ./...
 
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          args: --timeout 5m
+        run: $(go env GOPATH)/bin/golangci-lint run --timeout 5m
 
       - name: Run Tests (go test)
         run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
