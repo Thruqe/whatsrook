@@ -7,9 +7,11 @@ Real-time WhatsApp API built on [whatsmeow](https://github.com/tulir/whatsmeow).
 
 Connect your app to WhatsApp and receive live events — messages, groups, stories, channels — then send actions back programmatically.
 
-![Go Version](https://img.shields.io/github/go-mod/go-version/Thruqe/whatsrook)
-![License](https://img.shields.io/github/license/Thruqe/whatsrook)
-![Release](https://img.shields.io/github/v/release/Thruqe/whatsrook)
+[![Go Code Quality & Tests](https://github.com/Thruqe/whatsrook/actions/workflows/go-checks.yml/badge.svg)](https://github.com/Thruqe/whatsrook/actions/workflows/go-checks.yml)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/Thruqe/whatsrook)](https://github.com/Thruqe/whatsrook/blob/master/go.mod)
+[![Release](https://img.shields.io/github/v/release/Thruqe/whatsrook)](https://github.com/Thruqe/whatsrook/releases)
+[![License](https://img.shields.io/github/license/Thruqe/whatsrook)](LICENSE)
+
 
 ## Features
 
