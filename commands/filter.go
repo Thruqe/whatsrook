@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Thruqe/whatsrook/sender"
 	"github.com/Thruqe/whatsrook/store/sqlstore"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 )
@@ -126,7 +127,7 @@ func handleFilter(ctx *Context) error {
 	}
 
 	if responseProtoMsg != nil {
-		encoded, err := EncodeProtoMessage(responseProtoMsg)
+		encoded, err := sender.EncodeProtoMessage(responseProtoMsg)
 		if err != nil {
 			return ctx.Reply(fmt.Sprintf("❌ Failed to encode filter message: %v", err))
 		}
@@ -232,7 +233,7 @@ func handleBGM(ctx *Context) error {
 	}
 
 	if responseProtoMsg != nil {
-		encoded, err := EncodeProtoMessage(responseProtoMsg)
+		encoded, err := sender.EncodeProtoMessage(responseProtoMsg)
 		if err != nil {
 			return ctx.Reply(fmt.Sprintf("❌ Failed to encode BGM message: %v", err))
 		}
@@ -282,7 +283,7 @@ func handleMention(ctx *Context) error {
 			}
 		}
 
-		encoded, err := EncodeProtoMessage(quoted)
+		encoded, err := sender.EncodeProtoMessage(quoted)
 		if err != nil {
 			return ctx.Reply(fmt.Sprintf("❌ Failed to encode mention message: %v", err))
 		}
@@ -319,7 +320,7 @@ func handleMention(ctx *Context) error {
 			Conversation: &textVal,
 		}
 
-		encoded, err := EncodeProtoMessage(quoted)
+		encoded, err := sender.EncodeProtoMessage(quoted)
 		if err != nil {
 			return ctx.Reply(fmt.Sprintf("❌ Failed to encode mention message: %v", err))
 		}

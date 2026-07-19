@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Thruqe/whatsrook/sender"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"google.golang.org/protobuf/proto"
 )
@@ -517,7 +518,7 @@ func handleVV(ctx *Context) error {
 		return ctx.Reply("❌ The replied message is not a ViewOnce message.")
 	}
 
-	unwrapped := ExtractViewOnceMessage(quoted)
+	unwrapped := sender.ExtractViewOnceMessage(quoted)
 	if unwrapped == nil {
 		return ctx.Reply("❌ Failed to unwrap ViewOnce message.")
 	}

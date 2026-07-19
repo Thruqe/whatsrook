@@ -6,7 +6,6 @@ import (
 
 	"github.com/Thruqe/whatsrook/store/sqlstore"
 	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 )
 
@@ -86,33 +85,7 @@ func init() {
 	})
 }
 
-// AmIAdmin checks if the bot itself is an admin in the group.
-func (ctx *Context) AmIAdmin(info *types.GroupInfo) bool {
-	if ctx.Client.Store.ID == nil {
-		return false
-	}
-	ourJID := ctx.Client.Store.ID.ToNonAD()
-	for _, p := range info.Participants {
-		if p.JID.ToNonAD() == ourJID {
-			return p.IsAdmin || p.IsSuperAdmin
-		}
-	}
-	return false
-}
 
-// IsSenderAdmin checks if the command sender is a group admin or bot sudoer.
-func (ctx *Context) IsSenderAdmin(info *types.GroupInfo) bool {
-	if ctx.IsSudo() {
-		return true
-	}
-	senderJID := ctx.Sender.ToNonAD()
-	for _, p := range info.Participants {
-		if p.JID.ToNonAD() == senderJID {
-			return p.IsAdmin || p.IsSuperAdmin
-		}
-	}
-	return false
-}
 
 func handleTagAll(ctx *Context) error {
 	if ctx.Chat.Server != "g.us" {
@@ -134,22 +107,14 @@ func handleTagAll(ctx *Context) error {
 		sb.WriteString("\n")
 	}
 
-	var mentioned []string
+	var mentions []types.JID
 	for _, p := range info.Participants {
-		sb.WriteString(fmt.Sprintf("@%s ", p.JID.User))
-		mentioned = append(mentioned, p.JID.String())
+		resolvedJID, username := ctx.ResolveMention(p.JID)
+		sb.WriteString(fmt.Sprintf("@%s ", username))
+		mentions = append(mentions, resolvedJID)
 	}
 
-	textStr := sb.String()
-	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
-		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-			Text: &textStr,
-			ContextInfo: &waE2E.ContextInfo{
-				MentionedJID: mentioned,
-			},
-		},
-	})
-	return err
+	return ctx.ReplyWithMentions(sb.String(), mentions)
 }
 
 func handleKick(ctx *Context) error {
@@ -173,17 +138,20 @@ func handleKick(ctx *Context) error {
 	}
 
 	var kicked []string
+	var kickedJIDs []types.JID
 	for _, target := range targets {
 		_, err := ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, []types.JID{target}, whatsmeow.ParticipantChangeRemove)
+		resolvedJID, username := ctx.ResolveMention(target)
 		if err != nil {
-			_ = ctx.Reply(fmt.Sprintf("❌ Failed to kick %s: %v", target.User, err))
+			_ = ctx.Reply(fmt.Sprintf("❌ Failed to kick %s: %v", username, err))
 		} else {
-			kicked = append(kicked, "@"+target.User)
+			kicked = append(kicked, "@"+username)
+			kickedJIDs = append(kickedJIDs, resolvedJID)
 		}
 	}
 
 	if len(kicked) > 0 {
-		return ctx.Reply(fmt.Sprintf("✅ Kicked: %s", strings.Join(kicked, ", ")))
+		return ctx.ReplyWithMentions(fmt.Sprintf("✅ Kicked: %s", strings.Join(kicked, ", ")), kickedJIDs)
 	}
 	return nil
 }
@@ -209,17 +177,20 @@ func handleAdd(ctx *Context) error {
 	}
 
 	var added []string
+	var addedJIDs []types.JID
 	for _, target := range targets {
 		_, err := ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, []types.JID{target}, whatsmeow.ParticipantChangeAdd)
+		resolvedJID, username := ctx.ResolveMention(target)
 		if err != nil {
-			_ = ctx.Reply(fmt.Sprintf("❌ Failed to add %s: %v", target.User, err))
+			_ = ctx.Reply(fmt.Sprintf("❌ Failed to add %s: %v", username, err))
 		} else {
-			added = append(added, "@"+target.User)
+			added = append(added, "@"+username)
+			addedJIDs = append(addedJIDs, resolvedJID)
 		}
 	}
 
 	if len(added) > 0 {
-		return ctx.Reply(fmt.Sprintf("✅ Added: %s", strings.Join(added, ", ")))
+		return ctx.ReplyWithMentions(fmt.Sprintf("✅ Added: %s", strings.Join(added, ", ")), addedJIDs)
 	}
 	return nil
 }
@@ -245,17 +216,20 @@ func handlePromote(ctx *Context) error {
 	}
 
 	var promoted []string
+	var promotedJIDs []types.JID
 	for _, target := range targets {
 		_, err := ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, []types.JID{target}, whatsmeow.ParticipantChangePromote)
+		resolvedJID, username := ctx.ResolveMention(target)
 		if err != nil {
-			_ = ctx.Reply(fmt.Sprintf("❌ Failed to promote %s: %v", target.User, err))
+			_ = ctx.Reply(fmt.Sprintf("❌ Failed to promote %s: %v", username, err))
 		} else {
-			promoted = append(promoted, "@"+target.User)
+			promoted = append(promoted, "@"+username)
+			promotedJIDs = append(promotedJIDs, resolvedJID)
 		}
 	}
 
 	if len(promoted) > 0 {
-		return ctx.Reply(fmt.Sprintf("✅ Promoted: %s", strings.Join(promoted, ", ")))
+		return ctx.ReplyWithMentions(fmt.Sprintf("✅ Promoted: %s", strings.Join(promoted, ", ")), promotedJIDs)
 	}
 	return nil
 }
@@ -281,17 +255,20 @@ func handleDemote(ctx *Context) error {
 	}
 
 	var demoted []string
+	var demotedJIDs []types.JID
 	for _, target := range targets {
 		_, err := ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, []types.JID{target}, whatsmeow.ParticipantChangeDemote)
+		resolvedJID, username := ctx.ResolveMention(target)
 		if err != nil {
-			_ = ctx.Reply(fmt.Sprintf("❌ Failed to demote %s: %v", target.User, err))
+			_ = ctx.Reply(fmt.Sprintf("❌ Failed to demote %s: %v", username, err))
 		} else {
-			demoted = append(demoted, "@"+target.User)
+			demoted = append(demoted, "@"+username)
+			demotedJIDs = append(demotedJIDs, resolvedJID)
 		}
 	}
 
 	if len(demoted) > 0 {
-		return ctx.Reply(fmt.Sprintf("✅ Demoted: %s", strings.Join(demoted, ", ")))
+		return ctx.ReplyWithMentions(fmt.Sprintf("✅ Demoted: %s", strings.Join(demoted, ", ")), demotedJIDs)
 	}
 	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Thruqe/whatsrook/ember"
+	"github.com/Thruqe/whatsrook/sender"
 )
 
 var urlPattern = regexp.MustCompile(`https?://[^\s<>"']+`)
@@ -27,12 +28,12 @@ func handleFetch(ctx *Context) error {
 	link := resolveFetchURL(ctx)
 	if link == "" {
 		slog.Warn("handleFetch: no URL resolved")
-		return sendText(ctx, "_Usage: !fetch <url> (or reply to a message containing a url)_")
+		return sendText(ctx, "Usage: !fetch <url> (or reply to a message containing a url)")
 	}
 	slog.Info("handleFetch: resolved URL", "url", link)
 	if !isSupportedFetchURL(link) {
 		slog.Warn("handleFetch: URL is unsupported", "url", link)
-		return sendText(ctx, "_Unsupported url. Supported: Instagram, TikTok, YouTube, Facebook, Threads, Twitter/X_")
+		return sendText(ctx, "Unsupported url. Supported: Instagram, TikTok, YouTube, Facebook, Threads, Twitter/X")
 	}
 
 	var cookie string
@@ -47,7 +48,7 @@ func handleFetch(ctx *Context) error {
 		return sendText(ctx, fmt.Sprintf("Failed: %s", err))
 	}
 	slog.Info("handleFetch: ember.Fetch success, calling SendResult", "title", data.Title, "medias_count", len(data.Medias))
-	return ember.SendResult(ctx.Ctx, ctx.Client, ctx.Chat, data)
+	return sender.SendResult(ctx.Ctx, ctx.Client, ctx.Chat, data)
 }
 
 // resolveFetchURL picks a media URL from command args, otherwise from a quoted message.

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/Thruqe/whatsrook/ember"
+	"github.com/Thruqe/whatsrook/sender"
 )
 
 func init() {
@@ -26,7 +27,7 @@ func handleThreads(ctx *Context) error {
 	}
 	if !isThreadsURL(ctx.Args[0]) {
 		slog.Warn("handleThreads: invalid URL", "url", ctx.Args[0])
-		return sendText(ctx, "_Invaild threads url!_")
+		return sendText(ctx, "Invalid threads url!")
 	}
 	slog.Info("handleThreads: calling Fetch", "url", ctx.Args[0])
 	data, err := ember.Fetch(ctx.Ctx, ctx.Args[0], "")
@@ -35,5 +36,5 @@ func handleThreads(ctx *Context) error {
 		return sendText(ctx, fmt.Sprintf("Failed: %s", err))
 	}
 	slog.Info("handleThreads: Fetch success, calling SendResult")
-	return ember.SendResult(ctx.Ctx, ctx.Client, ctx.Chat, data)
+	return sender.SendResult(ctx.Ctx, ctx.Client, ctx.Chat, data)
 }

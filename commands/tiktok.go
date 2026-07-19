@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/Thruqe/whatsrook/ember"
+	"github.com/Thruqe/whatsrook/sender"
 )
 
 func init() {
@@ -26,7 +27,7 @@ func handleTikTok(ctx *Context) error {
 	}
 	if !isTikTokURL(ctx.Args[0]) {
 		slog.Warn("handleTikTok: invalid URL", "url", ctx.Args[0])
-		return sendText(ctx, "_Invaild tiktok url!_")
+		return sendText(ctx, "Invalid tiktok url!")
 	}
 	slog.Info("handleTikTok: calling Fetch", "url", ctx.Args[0])
 	data, err := ember.Fetch(ctx.Ctx, ctx.Args[0], "")
@@ -35,5 +36,5 @@ func handleTikTok(ctx *Context) error {
 		return sendText(ctx, fmt.Sprintf("Failed: %s", err))
 	}
 	slog.Info("handleTikTok: Fetch success, calling SendResult")
-	return ember.SendResult(ctx.Ctx, ctx.Client, ctx.Chat, data)
+	return sender.SendResult(ctx.Ctx, ctx.Client, ctx.Chat, data)
 }

@@ -50,7 +50,7 @@ func handleAI(ctx *Context) error {
 
 	if len(ctx.Args) == 0 {
 		slog.Warn("handleAI: no query provided")
-		return sendText(ctx, "_Usage: !ai <question> (or reply to a message with !ai)_")
+		return sendText(ctx, "Usage: !ai <question> (or reply to a message with !ai)")
 	}
 
 	query := ctx.RawArgs

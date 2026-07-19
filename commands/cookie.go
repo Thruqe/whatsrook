@@ -39,7 +39,7 @@ func handleSetCookie(ctx *Context) error {
 	}
 
 	if ctx.RawArgs == "" {
-		return sendText(ctx, "_Usage: !setcookie <cookie_content>_")
+		return sendText(ctx, "Usage: !setcookie <cookie_content>")
 	}
 
 	cookie := strings.TrimSpace(ctx.RawArgs)
