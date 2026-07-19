@@ -24,7 +24,7 @@ func handleYouTube(ctx *Context) error {
 	if !isYouTubeURL(ctx.Args[0]) {
 		return sendText(ctx, "_Invaild youtube url!_")
 	}
-	data, err := ember.Fetch(ctx.Ctx, ctx.Args[0])
+	data, err := ember.Fetch(ctx.Ctx, ctx.Args[0], getYouTubeCookie(ctx))
 	if err != nil {
 		return sendText(ctx, fmt.Sprintf("Failed: %s", err))
 	}

@@ -24,7 +24,7 @@ func handleFacebook(ctx *Context) error {
 	if !isFacebookURL(ctx.Args[0]) {
 		return sendText(ctx, "_Invaild facebook url!_")
 	}
-	data, err := ember.Fetch(ctx.Ctx, ctx.Args[0])
+	data, err := ember.Fetch(ctx.Ctx, ctx.Args[0], "")
 	if err != nil {
 		return sendText(ctx, fmt.Sprintf("Failed: %s", err))
 	}
