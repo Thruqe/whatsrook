@@ -232,6 +232,9 @@ func (b *Bot) handleWAEvent(evt any) {
 			Payload: map[string]any{"call_id": v.CallID},
 		})
 
+	case *events.Receipt, *events.PushName, *events.Presence, *events.ChatPresence:
+		// Ignore common presence/receipt/keepalive events to avoid debug log clutter
+
 	default:
 		slog.Debug("unhandled event", "type", fmt.Sprintf("%T", evt))
 	}
