@@ -67,15 +67,14 @@ func handleTemplate(ctx *Context) error {
 			{
 				Tag: "interactive",
 				Attrs: waBinary.Attrs{
-					"type": "native_flow",
+					"type": "template",
 					"v":    "1",
 				},
 				Content: []waBinary.Node{
 					{
-						Tag: "native_flow",
+						Tag: "template",
 						Attrs: waBinary.Attrs{
-							"v":    "9",
-							"name": "mixed",
+							"v": "1",
 						},
 					},
 				},
