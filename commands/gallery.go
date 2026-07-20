@@ -27,7 +27,7 @@ func init() {
 	Register(&Command{
 		Name:        "gallery",
 		Description: "Send an interactive image gallery carousel",
-		Category:    "misc",
+		Category:    "example",
 		IsPublic:    true,
 		Handler:     handleGallery,
 	})
@@ -133,7 +133,7 @@ func handleGallery(ctx *Context) error {
 						Text: proto.String("*Gallery*\n\nSwipe left or right to browse the images."),
 					},
 					Footer: &waE2E.InteractiveMessage_Footer{
-						Text: proto.String("Powered by ABZTECH"),
+						Text: proto.String("Powered by Thruqe"),
 					},
 					InteractiveMessage: &waE2E.InteractiveMessage_CarouselMessage_{
 						CarouselMessage: &waE2E.InteractiveMessage_CarouselMessage{
