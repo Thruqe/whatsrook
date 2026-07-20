@@ -125,16 +125,20 @@ func handleGallery(ctx *Context) error {
 	}
 
 	msg := &waE2E.Message{
-		InteractiveMessage: &waE2E.InteractiveMessage{
-			Body: &waE2E.InteractiveMessage_Body{
-				Text: proto.String("*Gallery*\n\nSwipe left or right to browse the images."),
-			},
-			Footer: &waE2E.InteractiveMessage_Footer{
-				Text: proto.String("Powered by ABZTECH"),
-			},
-			InteractiveMessage: &waE2E.InteractiveMessage_CarouselMessage_{
-				CarouselMessage: &waE2E.InteractiveMessage_CarouselMessage{
-					Cards: cards,
+		ViewOnceMessage: &waE2E.FutureProofMessage{
+			Message: &waE2E.Message{
+				InteractiveMessage: &waE2E.InteractiveMessage{
+					Body: &waE2E.InteractiveMessage_Body{
+						Text: proto.String("*Gallery*\n\nSwipe left or right to browse the images."),
+					},
+					Footer: &waE2E.InteractiveMessage_Footer{
+						Text: proto.String("Powered by ABZTECH"),
+					},
+					InteractiveMessage: &waE2E.InteractiveMessage_CarouselMessage_{
+						CarouselMessage: &waE2E.InteractiveMessage_CarouselMessage{
+							Cards: cards,
+						},
+					},
 				},
 			},
 		},
