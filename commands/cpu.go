@@ -79,7 +79,7 @@ func getLoadAvg() string {
 }
 
 type cpuStats struct {
-	user, nice, system, idle, iowait, irq, softirq, steal, guest, guestnice uint64
+	user, nice, system, idle, iowait, irq, softirq, steal uint64
 }
 
 func getCPUStats() (cpuStats, error) {
