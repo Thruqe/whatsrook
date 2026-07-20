@@ -4,10 +4,10 @@ import (
 	"testing"
 )
 
-func TestGalleryCommandRegistration(t *testing.T) {
-	cmd, ok := Get("gallery")
+func TestButtonsCommandRegistration(t *testing.T) {
+	cmd, ok := Get("buttons")
 	if !ok {
-		t.Fatal("expected 'gallery' command to be registered")
+		t.Fatal("expected 'buttons' command to be registered")
 	}
 
 	if cmd.Category != "misc" {
