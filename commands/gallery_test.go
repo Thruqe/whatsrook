@@ -10,8 +10,8 @@ func TestGalleryCommandRegistration(t *testing.T) {
 		t.Fatal("expected 'gallery' command to be registered")
 	}
 
-	if cmd.Category != "misc" {
-		t.Errorf("expected category 'misc', got %q", cmd.Category)
+	if cmd.Category != "example" {
+		t.Errorf("expected category 'example', got %q", cmd.Category)
 	}
 
 	if cmd.Handler == nil {

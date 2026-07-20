@@ -9,15 +9,15 @@ import (
 
 func init() {
 	Register(&Command{
-		Name:        "buttons",
-		Description: "Send an interactive message with action buttons",
+		Name:        "selectlist",
+		Description: "Send a dropdown list/menu of options",
 		Category:    "example",
 		IsPublic:    true,
-		Handler:     handleButtons,
+		Handler:     handleSelectList,
 	})
 }
 
-func handleButtons(ctx *Context) error {
+func handleSelectList(ctx *Context) error {
 	msgVersion := int32(1)
 
 	msg := &waE2E.Message{
@@ -25,7 +25,7 @@ func handleButtons(ctx *Context) error {
 			Message: &waE2E.Message{
 				InteractiveMessage: &waE2E.InteractiveMessage{
 					Body: &waE2E.InteractiveMessage_Body{
-						Text: proto.String("🤖 *Interactive Buttons*\n\nChoose an action below to proceed."),
+						Text: proto.String("📋 *Select an Option*\n\nClick the button below to view the available items."),
 					},
 					Footer: &waE2E.InteractiveMessage_Footer{
 						Text: proto.String("Powered by Thruqe"),
@@ -34,20 +34,42 @@ func handleButtons(ctx *Context) error {
 						NativeFlowMessage: &waE2E.InteractiveMessage_NativeFlowMessage{
 							Buttons: []*waE2E.InteractiveMessage_NativeFlowMessage_NativeFlowButton{
 								{
-									Name:             proto.String("quick_reply"),
-									ButtonParamsJSON: proto.String(`{"display_text":"👋 Say Hello","id":"hello_reply"}`),
-								},
-								{
-									Name:             proto.String("cta_url"),
-									ButtonParamsJSON: proto.String(`{"display_text":"🌐 Visit Website","url":"https://github.com/Thruqe/whatsrook","merchant_url":"https://github.com/Thruqe/whatsrook"}`),
-								},
-								{
-									Name:             proto.String("cta_call"),
-									ButtonParamsJSON: proto.String(`{"display_text":"📞 Call Support","phone_number":"+1234567890"}`),
-								},
-								{
-									Name:             proto.String("cta_copy"),
-									ButtonParamsJSON: proto.String(`{"display_text":"📋 Copy Command","id":"copy_cmd","copy_code":".ping"}`),
+									Name: proto.String("single_select"),
+									ButtonParamsJSON: proto.String(`{
+										"title": "View List Menu",
+										"sections": [
+											{
+												"title": "Interactive Demos",
+												"rows": [
+													{
+														"id": "demo_buttons",
+														"title": "Action Buttons",
+														"description": "Send a demo of buttons"
+													},
+													{
+														"id": "demo_gallery",
+														"title": "Image Carousel Gallery",
+														"description": "Send a demo of image carousel"
+													}
+												]
+											},
+											{
+												"title": "System Commands",
+												"rows": [
+													{
+														"id": "cmd_ping",
+														"title": "Ping Latency Check",
+														"description": "Measure connection speed"
+													},
+													{
+														"id": "cmd_sysinfo",
+														"title": "System Status",
+														"description": "Show cpu and memory info"
+													}
+												]
+											}
+										]
+									}`),
 								},
 							},
 							MessageVersion: &msgVersion,

@@ -4,10 +4,10 @@ import (
 	"testing"
 )
 
-func TestButtonsCommandRegistration(t *testing.T) {
-	cmd, ok := Get("buttons")
+func TestSelectListCommandRegistration(t *testing.T) {
+	cmd, ok := Get("selectlist")
 	if !ok {
-		t.Fatal("expected 'buttons' command to be registered")
+		t.Fatal("expected 'selectlist' command to be registered")
 	}
 
 	if cmd.Category != "example" {
