@@ -1,6 +1,8 @@
 package commands
 
 import (
+	"go.mau.fi/whatsmeow"
+	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"google.golang.org/protobuf/proto"
 )
@@ -58,6 +60,33 @@ func handleTemplate(ctx *Context) error {
 		},
 	}
 
-	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
+	bizNode := waBinary.Node{
+		Tag:   "biz",
+		Attrs: waBinary.Attrs{},
+		Content: []waBinary.Node{
+			{
+				Tag: "interactive",
+				Attrs: waBinary.Attrs{
+					"type": "native_flow",
+					"v":    "1",
+				},
+				Content: []waBinary.Node{
+					{
+						Tag: "native_flow",
+						Attrs: waBinary.Attrs{
+							"v":    "9",
+							"name": "mixed",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	extra := whatsmeow.SendRequestExtra{
+		AdditionalNodes: &[]waBinary.Node{bizNode},
+	}
+
+	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
 	return err
 }
