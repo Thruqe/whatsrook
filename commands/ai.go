@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Thruqe/whatsrook/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 )
 
@@ -32,6 +34,7 @@ type AIChatRequest struct {
 var (
 	aiHistory   = make(map[string][]AIMessage)
 	aiHistoryMu sync.Mutex
+	dbInitOnce  sync.Once
 )
 
 func init() {
@@ -45,6 +48,24 @@ func init() {
 	})
 }
 
+func resolveContactName(ctx *Context, jid types.JID, pushName string) string {
+	if contact, err := ctx.Client.Store.Contacts.GetContact(ctx.Ctx, jid); err == nil && contact.Found {
+		if contact.FullName != "" {
+			return contact.FullName
+		}
+		if contact.FirstName != "" {
+			return contact.FirstName
+		}
+		if contact.PushName != "" {
+			return contact.PushName
+		}
+	}
+	if pushName != "" {
+		return pushName
+	}
+	return jid.User
+}
+
 func handleAI(ctx *Context) error {
 	slog.Info("handleAI started", "args", ctx.Args)
 
@@ -56,35 +77,84 @@ func handleAI(ctx *Context) error {
 	query := ctx.RawArgs
 	chatKey := ctx.Chat.String()
 
+	// Get database connection if available
+	var db *sql.DB
+	if sqs, ok := ctx.Client.Store.Contacts.(*sqlstore.SQLStore); ok {
+		db = sqs.GetDB().RawDB
+	}
+
+	if db != nil {
+		dbInitOnce.Do(func() {
+			_, err := db.Exec(`CREATE TABLE IF NOT EXISTS ai_history (
+				chat_jid TEXT,
+				role TEXT,
+				content TEXT,
+				timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+			)`)
+			if err != nil {
+				slog.Error("failed to create ai_history table", "err", err)
+			}
+		})
+	}
+
 	// Check if they want to clear history
 	if strings.EqualFold(query, "clear") {
-		aiHistoryMu.Lock()
-		delete(aiHistory, chatKey)
-		aiHistoryMu.Unlock()
+		if db != nil {
+			_, err := db.ExecContext(ctx.Ctx, "DELETE FROM ai_history WHERE chat_jid = ?", chatKey)
+			if err != nil {
+				slog.Error("failed to clear history from db", "err", err)
+			}
+		} else {
+			aiHistoryMu.Lock()
+			delete(aiHistory, chatKey)
+			aiHistoryMu.Unlock()
+		}
 		slog.Info("handleAI: cleared conversation history", "chat", chatKey)
 		return sendText(ctx, "AI conversation history cleared.")
 	}
 
 	// Retrieve existing history
-	aiHistoryMu.Lock()
-	history := aiHistory[chatKey]
-	aiHistoryMu.Unlock()
+	var history []AIMessage
+	if db != nil {
+		// Clean up records older than 48 hours
+		_, _ = db.ExecContext(ctx.Ctx, "DELETE FROM ai_history WHERE timestamp < datetime('now', '-48 hours')")
+
+		rows, err := db.QueryContext(ctx.Ctx, "SELECT role, content FROM ai_history WHERE chat_jid = ? ORDER BY timestamp DESC LIMIT 10", chatKey)
+		if err == nil {
+			defer rows.Close()
+			var temp []AIMessage
+			for rows.Next() {
+				var m AIMessage
+				if err := rows.Scan(&m.Role, &m.Content); err == nil {
+					temp = append(temp, m)
+				}
+			}
+			// Reverse temp to restore chronological order
+			for i := len(temp) - 1; i >= 0; i-- {
+				history = append(history, temp[i])
+			}
+		} else {
+			slog.Error("failed to query ai_history from db", "err", err)
+		}
+	} else {
+		aiHistoryMu.Lock()
+		history = aiHistory[chatKey]
+		aiHistoryMu.Unlock()
+	}
+
+	// Format user query with sender metadata so AI can distinguish participants
+	senderName := resolveContactName(ctx, ctx.Sender, ctx.Evt.Info.PushName)
+	formattedQuery := fmt.Sprintf("[%s (%s)]: %s", senderName, ctx.Sender.User, query)
 
 	// Append user question
-	history = append(history, AIMessage{Role: "user", Content: query})
+	history = append(history, AIMessage{Role: "user", Content: formattedQuery})
 
-	// Limit history size to last 10 messages to keep prompt size reasonable
-	if len(history) > 10 {
+	// Limit history size to last 10 messages (only needed for fallback memory)
+	if db == nil && len(history) > 10 {
 		history = history[len(history)-10:]
 	}
 
 	// Construct a rich system prompt with sender and group metadata
-	pushName := ctx.Evt.Info.PushName
-	if pushName == "" {
-		pushName = "Unknown"
-	}
-	senderPhone := ctx.Sender.User
-	senderJID := ctx.Sender.String()
 	currentTime := time.Now().Format("2006-01-02 15:04:05 MST")
 
 	privilege := "Regular User"
@@ -94,6 +164,7 @@ func handleAI(ctx *Context) error {
 
 	var groupName, groupTopic, groupJID string
 	var participantCount int
+	var groupAdminsList string
 	isGroup := ctx.Chat.Server == "g.us"
 
 	if isGroup {
@@ -104,16 +175,19 @@ func handleAI(ctx *Context) error {
 			participantCount = groupInfo.ParticipantCount
 			groupJID = groupInfo.JID.String()
 
+			adminNames := make([]string, 0)
 			for _, p := range groupInfo.Participants {
-				if p.JID.ToNonAD() == ctx.Sender.ToNonAD() {
-					if p.IsAdmin || p.IsSuperAdmin {
+				if p.IsAdmin || p.IsSuperAdmin {
+					name := resolveContactName(ctx, p.JID, "")
+					adminNames = append(adminNames, fmt.Sprintf("%s (%s)", name, p.JID.User))
+					if p.JID.ToNonAD() == ctx.Sender.ToNonAD() {
 						if privilege != "Owner/Sudoer" {
 							privilege = "Group Admin"
 						}
 					}
-					break
 				}
 			}
+			groupAdminsList = strings.Join(adminNames, ", ")
 		}
 	}
 
@@ -124,7 +198,7 @@ func handleAI(ctx *Context) error {
 			"- Sender JID: %s\n"+
 			"- Sender Privilege/Role: %s\n"+
 			"- Current Local Time: %s\n",
-		pushName, senderPhone, senderJID, privilege, currentTime,
+		senderName, ctx.Sender.User, ctx.Sender.String(), privilege, currentTime,
 	)
 
 	if isGroup {
@@ -133,8 +207,9 @@ func handleAI(ctx *Context) error {
 				"- Group Name: %s\n"+
 				"- Group Description: %s\n"+
 				"- Group Participant Count: %d\n"+
+				"- Group Admins: %s\n"+
 				"- Group JID: %s\n",
-			groupName, groupTopic, participantCount, groupJID,
+			groupName, groupTopic, participantCount, groupAdminsList, groupJID,
 		)
 	} else {
 		systemPrompt += "- Chat Type: Direct Message (Private Chat)\n"
@@ -158,13 +233,20 @@ func handleAI(ctx *Context) error {
 
 	slog.Info("handleAI: AI response received", "reply_len", len(reply))
 
-	// Append assistant response to history
-	history = append(history, AIMessage{Role: "assistant", Content: reply})
-
 	// Save back history
-	aiHistoryMu.Lock()
-	aiHistory[chatKey] = history
-	aiHistoryMu.Unlock()
+	if db != nil {
+		_, errUser := db.ExecContext(ctx.Ctx, "INSERT INTO ai_history (chat_jid, role, content) VALUES (?, 'user', ?)", chatKey, formattedQuery)
+		_, errAssistant := db.ExecContext(ctx.Ctx, "INSERT INTO ai_history (chat_jid, role, content) VALUES (?, 'assistant', ?)", chatKey, reply)
+		if errUser != nil || errAssistant != nil {
+			slog.Error("failed to insert history to db", "errUser", errUser, "errAssistant", errAssistant)
+		}
+	} else {
+		// Append assistant response to history
+		history = append(history, AIMessage{Role: "assistant", Content: reply})
+		aiHistoryMu.Lock()
+		aiHistory[chatKey] = history
+		aiHistoryMu.Unlock()
+	}
 
 	return sendText(ctx, reply)
 }
