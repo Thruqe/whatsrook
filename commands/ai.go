@@ -78,12 +78,79 @@ func handleAI(ctx *Context) error {
 		history = history[len(history)-10:]
 	}
 
+	// Construct a rich system prompt with sender and group metadata
+	pushName := ctx.Evt.Info.PushName
+	if pushName == "" {
+		pushName = "Unknown"
+	}
+	senderPhone := ctx.Sender.User
+	senderJID := ctx.Sender.String()
+	currentTime := time.Now().Format("2006-01-02 15:04:05 MST")
+
+	privilege := "Regular User"
+	if ctx.IsSudo() {
+		privilege = "Owner/Sudoer"
+	}
+
+	var groupName, groupTopic, groupJID string
+	var participantCount int
+	isGroup := ctx.Chat.Server == "g.us"
+
+	if isGroup {
+		groupInfo, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
+		if err == nil && groupInfo != nil {
+			groupName = groupInfo.GroupName.Name
+			groupTopic = groupInfo.GroupTopic.Topic
+			participantCount = groupInfo.ParticipantCount
+			groupJID = groupInfo.JID.String()
+
+			for _, p := range groupInfo.Participants {
+				if p.JID.ToNonAD() == ctx.Sender.ToNonAD() {
+					if p.IsAdmin || p.IsSuperAdmin {
+						if privilege != "Owner/Sudoer" {
+							privilege = "Group Admin"
+						}
+					}
+					break
+				}
+			}
+		}
+	}
+
+	systemPrompt := fmt.Sprintf(
+		"You are a helpful WhatsApp AI assistant. Here is the metadata context of the user sending the message and the chat room:\n"+
+			"- Sender Name: %s\n"+
+			"- Sender Phone/ID: %s\n"+
+			"- Sender JID: %s\n"+
+			"- Sender Privilege/Role: %s\n"+
+			"- Current Local Time: %s\n",
+		pushName, senderPhone, senderJID, privilege, currentTime,
+	)
+
+	if isGroup {
+		systemPrompt += fmt.Sprintf(
+			"- Chat Type: Group Chat\n"+
+				"- Group Name: %s\n"+
+				"- Group Description: %s\n"+
+				"- Group Participant Count: %d\n"+
+				"- Group JID: %s\n",
+			groupName, groupTopic, participantCount, groupJID,
+		)
+	} else {
+		systemPrompt += "- Chat Type: Direct Message (Private Chat)\n"
+	}
+
+	// Prepare actual request messages prepending the dynamic system prompt
+	reqMessages := make([]AIMessage, 0, len(history)+1)
+	reqMessages = append(reqMessages, AIMessage{Role: "system", Content: systemPrompt})
+	reqMessages = append(reqMessages, history...)
+
 	slog.Info("handleAI: calling AI API", "chat", chatKey, "history_len", len(history))
 
 	// Send typing presence indicator
 	_ = ctx.Client.SendChatPresence(ctx.Ctx, ctx.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaText)
 
-	reply, err := queryAI(ctx.Ctx, history)
+	reply, err := queryAI(ctx.Ctx, reqMessages)
 	if err != nil {
 		slog.Error("handleAI: AI API query failed", "err", err)
 		return sendText(ctx, "Failed to get response from AI: "+err.Error())
