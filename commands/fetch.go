@@ -94,6 +94,9 @@ func handleFetch(ctx *Context) error {
 	}
 
 	urlStr = ctx.Args[argIdx]
+	if !strings.HasPrefix(urlStr, "http://") && !strings.HasPrefix(urlStr, "https://") {
+		urlStr = "https://" + urlStr
+	}
 	argIdx++
 
 	// Parse remaining arguments for body and headers
