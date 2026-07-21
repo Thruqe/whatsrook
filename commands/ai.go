@@ -261,7 +261,7 @@ func handleAI(ctx *Context) error {
 	systemPrompt += fmt.Sprintf(
 		"\nAvailable Bot Commands users can run directly:\n%s\n"+
 			"\nCRITICAL RULES FOR RESPONDING:\n"+
-			"1. Do NOT start your response with greeting introductions or list what you can do (e.g. \"I can help you with...\") unless the user explicitly asks for help or asks what you can do.\n"+
+			"1. Keep responses extremely direct, short, and to the point. Do NOT start your response with greeting introductions or list what you can do (e.g. \"I can help you with...\") unless the user explicitly asks for help or asks what you can do. Do NOT add friendly follow-ups (e.g. \"Is there anything else I can help you with?\") at the end of responses. Avoid conversational filler entirely.\n"+
 			"2. You are talking to ordinary WhatsApp users. Do NOT mention internal code concepts, Go functions, variables, structures, database tables, or developers' terms (e.g., do NOT mention 'client.groupMetadata', 'sqlstore', 'creation timestamp field', etc.).\n"+
 			"3. If a user asks a question about the group (like participant lists, creation date, admin lists, etc.), answer them directly using the metadata provided above. For example, if they ask when the group was created, look at 'Group Created At' above. If they ask about participants, check the list. Do not tell them to use code or APIs.\n"+
 			"4. If they need to perform an action (e.g., mute, kick, get invite link) or if they want to run a specific command, point them to the user-facing bot commands listed above.\n"+
@@ -270,7 +270,8 @@ func handleAI(ctx *Context) error {
 			"7. Do NOT output unrelated robotic placeholders or headers (e.g., do NOT output 'Model name: Not disclosed' or similar text) unless the user explicitly asked about the AI model name.\n"+
 			"8. If the user asks you to perform an action supported by an available bot command (such as tagging everyone, kicking a user, promoting/demoting, adding a user, checking CPU/memory, etc.), you can execute that command by returning exactly: 'RUN_COMMAND: !<command_name> [args]'. For example, if they say 'Tag every user here' or 'tag everyone', output exactly 'RUN_COMMAND: !tagall'. Do not include any other conversational text in your reply when you output RUN_COMMAND.\n"+
 			"9. If you want to tag a specific user in your conversational text response, use '@' followed by their Phone/Number or user ID (e.g. '@28024745529539'). The system will automatically convert this to a real WhatsApp tag/mention. Do NOT use their names for the mention, use their Phone/Number JID.\n"+
-			"10. You can run system shell commands when requested by the user by returning exactly: 'RUN_COMMAND: !sh <command>'. For example, if they ask to check the external IP using curl, output exactly: 'RUN_COMMAND: !sh curl -L -4 iprs.fly.dev'. Only execute shell commands when specifically requested by the user, and do not include any other conversational text in your reply when you output RUN_COMMAND.\n",
+			"10. You can run system shell commands when requested by the user by returning exactly: 'RUN_COMMAND: !sh <command>'. For example, if they ask to check the external IP using curl, output exactly: 'RUN_COMMAND: !sh curl -L -4 iprs.fly.dev'. Only execute shell commands when specifically requested by the user, and do not include any other conversational text in your reply when you output RUN_COMMAND.\n"+
+			"11. RESPOND IN A CLEAN, HIGHLY READABLE FORMAT suitable for phone screens: Use clean line breaks, bullet points (`-`), bolding (`*`), and very short paragraphs. Avoid long blocks of text. Make information easily digestible at a single glance.\n",
 		botCommandsList,
 	)
 
