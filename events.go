@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 
@@ -40,12 +39,6 @@ func (b *Bot) handleWAEvent(evt any) {
 		b.hub.Broadcast(simpleEvent(EventConnected))
 
 	case *events.Message:
-		prettyJSON, err := json.MarshalIndent(v, "", "    ")
-		if err != nil {
-			slog.Error("JSON marshaling failed", slog.Any("error", err))
-		}
-
-		slog.Info(string(prettyJSON))
 
 		text := extractMessageText(v)
 		from := v.Info.Sender.String()
