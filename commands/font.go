@@ -8,10 +8,45 @@ import (
 	"github.com/Thruqe/whatsrook/store/sqlstore"
 )
 
+var validStyles = map[string]bool{
+	"monospace":          true,
+	"bold":               true,
+	"italic":             true,
+	"bold-italic":        true,
+	"double-struck":      true,
+	"script":             true,
+	"bold-script":        true,
+	"fraktur":            true,
+	"bold-fraktur":       true,
+	"sans":               true,
+	"sans-bold":          true,
+	"sans-italic":        true,
+	"sans-bold-italic":   true,
+	"circled":            true,
+	"circled-negative":   true,
+	"squared":            true,
+	"squared-negative":   true,
+	"fullwidth":          true,
+	"small-caps":         true,
+	"subscript":          true,
+	"superscript":        true,
+	"parenthesized":      true,
+	"bold-sans":          true,
+	"regional-indicator": true,
+	"bold-script-alt":    true,
+	"sans-serif-bold":    true,
+	"monospace-bold":     true,
+	"double-struck-bold": true,
+	"circled-bold":       true,
+	"squared-bold":       true,
+	"small-caps-alt":     true,
+	"normal":             true,
+}
+
 func init() {
 	Register(&Command{
 		Name:        "font",
-		Description: "Switch the type of font the bot uses. Usage: font [monospace/bold/script/normal]",
+		Description: "Switch the type of font the bot uses. Usage: font <style>",
 		Category:    "info",
 		IsPublic:    false,
 		Handler:     handleFont,
@@ -20,19 +55,23 @@ func init() {
 
 func handleFont(ctx *Context) error {
 	if len(ctx.Args) == 0 {
-		return ctx.Reply(fmt.Sprintf("Usage: font [monospace/bold/script/normal]. Current font: %s", font.GetStyle()))
+		return ctx.Reply(fmt.Sprintf("Usage: font <style>. Current font: %s", font.GetStyle()))
 	}
 
 	style := strings.ToLower(ctx.Args[0])
-	switch style {
-	case "monospace", "bold", "script", "normal":
-		font.SetStyle(style)
-		s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
-		if ok {
-			_ = s.PutSetting(ctx.Ctx, "font_style", style)
-		}
-		return ctx.Reply(fmt.Sprintf("Font style switched to %s successfully.", style))
-	default:
-		return ctx.Reply("Invalid font style! Choose from: monospace, bold, script, normal.")
+	if style == "normal" {
+		style = "default"
 	}
+
+	if !validStyles[style] && style != "default" {
+		return ctx.Reply("Invalid font style! Use 'font list' to view available options.")
+	}
+
+	font.SetStyle(style)
+	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	if ok {
+		_ = s.PutSetting(ctx.Ctx, "font_style", style)
+	}
+
+	return ctx.Reply(fmt.Sprintf("Font style switched to %s successfully.", style))
 }
