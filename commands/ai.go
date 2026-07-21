@@ -556,6 +556,7 @@ func saveChatSession(ctx context.Context, client *http.Client, sessionUUID strin
 func parseRunCommand(query string) (args string, ok bool) {
 	q := strings.TrimSpace(query)
 	lower := strings.ToLower(q)
+
 	patterns := []string{
 		"run ",
 		"execute ",
@@ -575,7 +576,38 @@ func parseRunCommand(query string) (args string, ok bool) {
 			return rest, true
 		}
 	}
+
+	fields := strings.Fields(q)
+	if len(fields) >= 2 {
+		lastTwo := strings.ToLower(strings.Join(fields[len(fields)-2:], " "))
+		if lastTwo == "use curl" || lastTwo == "use wget" || lastTwo == "use fetch" {
+			before := strings.TrimSpace(q[:len(q)-len(fields[len(fields)-1])-len(fields[len(fields)-2])-1])
+			if before != "" {
+				url := extractURL(before)
+				if url != "" {
+					return fmt.Sprintf("curl %s", url), true
+				}
+				words := strings.Fields(before)
+				return fmt.Sprintf("curl %s", words[len(words)-1]), true
+			}
+		}
+	}
+
 	return "", false
+}
+
+func extractURL(s string) string {
+	words := strings.Fields(s)
+	for _, w := range words {
+		w = strings.Trim(w, ".,!?;:'\"()[]{}")
+		if strings.Contains(w, ".") && !strings.Contains(w, " ") && !strings.HasPrefix(w, "-") {
+			if !strings.HasPrefix(w, "http") {
+				w = "https://" + w
+			}
+			return w
+		}
+	}
+	return ""
 }
 
 func queryAI(ctx context.Context, messages []AIMessage) (string, error) {
