@@ -203,7 +203,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	if okStore {
 		autoAIVal, _ := s.GetSetting(ctx, "autoai:"+chatStr)
-		if autoAIVal == "on" && isBotTaggedOrReplied(client, evt) {
+		if autoAIVal == "on" && isBotTaggedOrReplied(client, evt, text) {
 			slog.Info("AutoAI triggered by tag/reply", "chat", chatStr, "sender", senderStr)
 			cctx := &Context{
 				Ctx:     ctx,
@@ -753,11 +753,17 @@ func getQuotedMessageFromEvent(evt *events.Message) *waE2E.Message {
 	return nil
 }
 
-func isBotTaggedOrReplied(client *whatsmeow.Client, evt *events.Message) bool {
+func isBotTaggedOrReplied(client *whatsmeow.Client, evt *events.Message, text string) bool {
 	if client.Store.ID == nil {
 		return false
 	}
 	ourJID := client.Store.ID.ToNonAD()
+	ourLID := client.Store.LID.ToNonAD()
+
+	// 1. Check if the text itself contains a mention/tag of the bot
+	if strings.Contains(text, "@"+ourJID.User) || (!ourLID.IsEmpty() && strings.Contains(text, "@"+ourLID.User)) {
+		return true
+	}
 
 	var ctxInfo *waE2E.ContextInfo
 	if evt.Message.GetExtendedTextMessage() != nil {
@@ -776,17 +782,23 @@ func isBotTaggedOrReplied(client *whatsmeow.Client, evt *events.Message) bool {
 		return false
 	}
 
-	// 1. Check if the bot is mentioned/tagged
+	// 2. Check if the bot is mentioned/tagged in MentionedJID metadata
 	for _, m := range ctxInfo.MentionedJID {
-		if parseJID, err := types.ParseJID(m); err == nil && parseJID.ToNonAD() == ourJID {
-			return true
+		if parseJID, err := types.ParseJID(m); err == nil {
+			nonAD := parseJID.ToNonAD()
+			if nonAD == ourJID || (!ourLID.IsEmpty() && nonAD == ourLID) {
+				return true
+			}
 		}
 	}
 
-	// 2. Check if the message is a reply/quote to a message sent by the bot
+	// 3. Check if the message is a reply/quote to a message sent by the bot
 	if ctxInfo.Participant != nil {
-		if parseJID, err := types.ParseJID(*ctxInfo.Participant); err == nil && parseJID.ToNonAD() == ourJID {
-			return true
+		if parseJID, err := types.ParseJID(*ctxInfo.Participant); err == nil {
+			nonAD := parseJID.ToNonAD()
+			if nonAD == ourJID || (!ourLID.IsEmpty() && nonAD == ourLID) {
+				return true
+			}
 		}
 	}
 
