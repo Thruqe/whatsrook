@@ -165,6 +165,9 @@ func handleAI(ctx *Context) error {
 	var groupName, groupTopic, groupJID string
 	var participantCount int
 	var groupAdminsList string
+	var groupCreatedStr string
+	var groupOwnerStr string
+	var groupParticipantsStr string
 	isGroup := ctx.Chat.Server == "g.us"
 
 	if isGroup {
@@ -175,11 +178,41 @@ func handleAI(ctx *Context) error {
 			participantCount = groupInfo.ParticipantCount
 			groupJID = groupInfo.JID.String()
 
+			if !groupInfo.GroupCreated.IsZero() {
+				groupCreatedStr = groupInfo.GroupCreated.Format("2006-01-02 15:04:05 MST")
+			}
+
+			if !groupInfo.OwnerJID.IsEmpty() {
+				resolvedOwner, _ := ctx.ResolveMention(groupInfo.OwnerJID)
+				ownerName := resolveContactName(ctx, groupInfo.OwnerJID, "")
+				groupOwnerStr = fmt.Sprintf("%s (%s)", ownerName, resolvedOwner.User)
+			} else if !groupInfo.OwnerPN.IsEmpty() {
+				ownerName := resolveContactName(ctx, groupInfo.OwnerPN, "")
+				groupOwnerStr = fmt.Sprintf("%s (%s)", ownerName, groupInfo.OwnerPN.User)
+			}
+
 			adminNames := make([]string, 0)
+			participantsList := make([]string, 0, len(groupInfo.Participants))
 			for _, p := range groupInfo.Participants {
+				var resolvedJID types.JID
+				if !p.PhoneNumber.IsEmpty() {
+					resolvedJID = p.PhoneNumber.ToNonAD()
+				} else {
+					resolvedJID, _ = ctx.ResolveMention(p.JID)
+				}
+				name := resolveContactName(ctx, p.JID, "")
+
+				role := "Member"
+				if p.IsSuperAdmin {
+					role = "Super Admin"
+				} else if p.IsAdmin {
+					role = "Admin"
+				}
+
+				participantsList = append(participantsList, fmt.Sprintf("- %s (Phone/Number: %s, Role: %s)", name, resolvedJID.User, role))
+
 				if p.IsAdmin || p.IsSuperAdmin {
-					name := resolveContactName(ctx, p.JID, "")
-					adminNames = append(adminNames, fmt.Sprintf("%s (%s)", name, p.JID.User))
+					adminNames = append(adminNames, fmt.Sprintf("%s (%s)", name, resolvedJID.User))
 					if p.JID.ToNonAD() == ctx.Sender.ToNonAD() {
 						if privilege != "Owner/Sudoer" {
 							privilege = "Group Admin"
@@ -188,11 +221,18 @@ func handleAI(ctx *Context) error {
 				}
 			}
 			groupAdminsList = strings.Join(adminNames, ", ")
+			groupParticipantsStr = strings.Join(participantsList, "\n")
 		}
 	}
 
+	var botCommands []string
+	for _, c := range Visible() {
+		botCommands = append(botCommands, fmt.Sprintf("- !%s: %s (Aliases: %s)", c.Name, c.Description, strings.Join(c.Aliases, ", ")))
+	}
+	botCommandsList := strings.Join(botCommands, "\n")
+
 	systemPrompt := fmt.Sprintf(
-		"You are a helpful WhatsApp AI assistant. Here is the metadata context of the user sending the message and the chat room:\n"+
+		"You are a smart, helpful WhatsApp bot assistant. Here is the metadata context of the user sending the message and the chat room:\n"+
 			"- Sender Name: %s\n"+
 			"- Sender Phone/ID: %s\n"+
 			"- Sender JID: %s\n"+
@@ -208,12 +248,28 @@ func handleAI(ctx *Context) error {
 				"- Group Description: %s\n"+
 				"- Group Participant Count: %d\n"+
 				"- Group Admins: %s\n"+
-				"- Group JID: %s\n",
-			groupName, groupTopic, participantCount, groupAdminsList, groupJID,
+				"- Group Owner/Founder: %s\n"+
+				"- Group Created At: %s\n"+
+				"- Group JID: %s\n"+
+				"- Group Participants:\n%s\n",
+			groupName, groupTopic, participantCount, groupAdminsList, groupOwnerStr, groupCreatedStr, groupJID, groupParticipantsStr,
 		)
 	} else {
 		systemPrompt += "- Chat Type: Direct Message (Private Chat)\n"
 	}
+
+	systemPrompt += fmt.Sprintf(
+		"\nAvailable Bot Commands users can run directly:\n%s\n"+
+			"\nCRITICAL RULES FOR RESPONDING:\n"+
+			"1. Do NOT start your response with greeting introductions or list what you can do (e.g. \"I can help you with...\") unless the user explicitly asks for help or asks what you can do.\n"+
+			"2. You are talking to ordinary WhatsApp users. Do NOT mention internal code concepts, Go functions, variables, structures, database tables, or developers' terms (e.g., do NOT mention 'client.groupMetadata', 'sqlstore', 'creation timestamp field', etc.).\n"+
+			"3. If a user asks a question about the group (like participant lists, creation date, admin lists, etc.), answer them directly using the metadata provided above. For example, if they ask when the group was created, look at 'Group Created At' above. If they ask about participants, check the list. Do not tell them to use code or APIs.\n"+
+			"4. If they need to perform an action (e.g., mute, kick, get invite link) or if they want to run a specific command, point them to the user-facing bot commands listed above.\n"+
+			"5. If a piece of information is not available in the metadata, suggest they check standard WhatsApp group info or options in their WhatsApp application, or use the appropriate bot commands.\n"+
+			"6. Write in a completely natural, human-like, conversational tone. Do NOT output raw metadata lists, and do NOT copy the labels/keys from the system prompt context (e.g., do NOT format responses as: 'Sender Name: ... — Phone/ID: ... — Role: ...'). Translate them into a natural sentence (e.g. 'You are Romania Dude (28024745529539), and you are a regular member in the WASocket Support group.').\n"+
+			"7. Do NOT output unrelated robotic placeholders or headers (e.g., do NOT output 'Model name: Not disclosed' or similar text) unless the user explicitly asked about the AI model name.\n",
+		botCommandsList,
+	)
 
 	// Prepare actual request messages prepending the dynamic system prompt
 	reqMessages := make([]AIMessage, 0, len(history)+1)
@@ -228,7 +284,34 @@ func handleAI(ctx *Context) error {
 	reply, err := queryAI(ctx.Ctx, reqMessages)
 	if err != nil {
 		slog.Error("handleAI: AI API query failed", "err", err)
-		return sendText(ctx, "Failed to get response from AI: "+err.Error())
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "deadline exceeded") || strings.Contains(errMsg, "timeout") || strings.Contains(errMsg, "Timeout") {
+			slog.Warn("handleAI: timeout/deadline exceeded, clearing history and retrying without history", "chat", chatKey)
+			if db != nil {
+				_, _ = db.ExecContext(ctx.Ctx, "DELETE FROM ai_history WHERE chat_jid = ?", chatKey)
+			} else {
+				aiHistoryMu.Lock()
+				delete(aiHistory, chatKey)
+				aiHistoryMu.Unlock()
+			}
+
+			// Retry with just the system prompt and the user's formatted query
+			retryMessages := []AIMessage{
+				{Role: "system", Content: systemPrompt},
+				{Role: "user", Content: formattedQuery},
+			}
+
+			_ = ctx.Client.SendChatPresence(ctx.Ctx, ctx.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaText)
+			reply, err = queryAI(ctx.Ctx, retryMessages)
+			if err != nil {
+				slog.Error("handleAI: AI API retry query failed", "err", err)
+				return sendText(ctx, "Failed to get response from AI even after clearing history: "+err.Error())
+			}
+
+			reply = "⚠️ *Notice:* Chat history was cleared to resolve a timeout limit.\n\n" + reply
+		} else {
+			return sendText(ctx, "Failed to get response from AI: "+errMsg)
+		}
 	}
 
 	slog.Info("handleAI: AI response received", "reply_len", len(reply))
