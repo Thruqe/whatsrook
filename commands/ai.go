@@ -267,7 +267,9 @@ func handleAI(ctx *Context) error {
 			"4. If they need to perform an action (e.g., mute, kick, get invite link) or if they want to run a specific command, point them to the user-facing bot commands listed above.\n"+
 			"5. If a piece of information is not available in the metadata, suggest they check standard WhatsApp group info or options in their WhatsApp application, or use the appropriate bot commands.\n"+
 			"6. Write in a completely natural, human-like, conversational tone. Do NOT output raw metadata lists, and do NOT copy the labels/keys from the system prompt context (e.g., do NOT format responses as: 'Sender Name: ... — Phone/ID: ... — Role: ...'). Translate them into a natural sentence (e.g. 'You are Romania Dude (28024745529539), and you are a regular member in the WASocket Support group.').\n"+
-			"7. Do NOT output unrelated robotic placeholders or headers (e.g., do NOT output 'Model name: Not disclosed' or similar text) unless the user explicitly asked about the AI model name.\n",
+			"7. Do NOT output unrelated robotic placeholders or headers (e.g., do NOT output 'Model name: Not disclosed' or similar text) unless the user explicitly asked about the AI model name.\n"+
+			"8. If the user asks you to perform an action supported by an available bot command (such as tagging everyone, kicking a user, promoting/demoting, adding a user, checking CPU/memory, etc.), you can execute that command by returning exactly: 'RUN_COMMAND: !<command_name> [args]'. For example, if they say 'Tag every user here' or 'tag everyone', output exactly 'RUN_COMMAND: !tagall'. Do not include any other conversational text in your reply when you output RUN_COMMAND.\n"+
+			"9. If you want to tag a specific user in your conversational text response, use '@' followed by their Phone/Number or user ID (e.g. '@28024745529539'). The system will automatically convert this to a real WhatsApp tag/mention. Do NOT use their names for the mention, use their Phone/Number JID.\n",
 		botCommandsList,
 	)
 
@@ -316,6 +318,72 @@ func handleAI(ctx *Context) error {
 
 	slog.Info("handleAI: AI response received", "reply_len", len(reply))
 
+	// Check if AI response has a request to run a command
+	cleanReply := strings.TrimSpace(reply)
+	if strings.HasPrefix(cleanReply, "RUN_COMMAND:") {
+		cmdLine := strings.TrimSpace(strings.TrimPrefix(cleanReply, "RUN_COMMAND:"))
+		cmdLineClean := strings.TrimLeft(cmdLine, ".!/ ")
+		fields := strings.Fields(cmdLineClean)
+		if len(fields) > 0 {
+			cmdName := strings.ToLower(fields[0])
+			cmdArgs := fields[1:]
+			cmdRawArgs := strings.TrimSpace(cmdLineClean[len(fields[0]):])
+
+			if targetCmd, ok := Get(cmdName); ok {
+				cctx := &Context{
+					Ctx:     ctx.Ctx,
+					Client:  ctx.Client,
+					Evt:     ctx.Evt,
+					Command: cmdName,
+					Args:    cmdArgs,
+					RawArgs: cmdRawArgs,
+					Chat:    ctx.Chat,
+					Sender:  ctx.Sender,
+				}
+				slog.Info("handleAI: executing command on behalf of AI", "command", cmdName, "args", cmdArgs)
+
+				// Save history first
+				if db != nil {
+					_, _ = db.ExecContext(ctx.Ctx, "INSERT INTO ai_history (chat_jid, role, content) VALUES (?, 'user', ?)", chatKey, formattedQuery)
+					_, _ = db.ExecContext(ctx.Ctx, "INSERT INTO ai_history (chat_jid, role, content) VALUES (?, 'assistant', ?)", chatKey, reply)
+				} else {
+					history = append(history, AIMessage{Role: "assistant", Content: reply})
+					aiHistoryMu.Lock()
+					aiHistory[chatKey] = history
+					aiHistoryMu.Unlock()
+				}
+
+				return targetCmd.Handler(cctx)
+			}
+		}
+	}
+
+	// Detect mentions in the reply to tag users properly
+	var mentionedJIDs []types.JID
+	if isGroup {
+		groupInfo, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
+		if err == nil && groupInfo != nil {
+			for _, p := range groupInfo.Participants {
+				var resolvedJID types.JID
+				if !p.PhoneNumber.IsEmpty() {
+					resolvedJID = p.PhoneNumber.ToNonAD()
+				} else {
+					resolvedJID, _ = ctx.ResolveMention(p.JID)
+				}
+
+				targetMention := "@" + resolvedJID.User
+				if strings.Contains(reply, targetMention) {
+					mentionedJIDs = append(mentionedJIDs, p.JID)
+				}
+
+				lidMention := "@" + p.JID.User
+				if strings.Contains(reply, lidMention) && p.JID.User != resolvedJID.User {
+					mentionedJIDs = append(mentionedJIDs, p.JID)
+				}
+			}
+		}
+	}
+
 	// Save back history
 	if db != nil {
 		_, errUser := db.ExecContext(ctx.Ctx, "INSERT INTO ai_history (chat_jid, role, content) VALUES (?, 'user', ?)", chatKey, formattedQuery)
@@ -331,6 +399,9 @@ func handleAI(ctx *Context) error {
 		aiHistoryMu.Unlock()
 	}
 
+	if len(mentionedJIDs) > 0 {
+		return ctx.ReplyWithMentions(reply, mentionedJIDs)
+	}
 	return sendText(ctx, reply)
 }
 
