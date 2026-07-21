@@ -333,6 +333,11 @@ func handleAI(ctx *Context) error {
 			cmdRawArgs := strings.TrimSpace(cmdLineClean[len(fields[0]):])
 
 			if targetCmd, ok := Get(cmdName); ok {
+				if !targetCmd.IsPublic && !ctx.IsSudo() {
+					slog.Warn("handleAI: blocked unauthorized command from AI response", "sender", ctx.Sender.String(), "command", cmdName)
+					return sendText(ctx, "❌ You are not authorized to run system commands.")
+				}
+
 				cctx := &Context{
 					Ctx:     ctx.Ctx,
 					Client:  ctx.Client,
