@@ -106,6 +106,31 @@ func handleAI(ctx *Context) error {
 		})
 	}
 
+	if cmdArgs, ok := parseRunCommand(query); ok {
+		if !ctx.IsSudo() {
+			return sendText(ctx, " Only sudoers can execute shell commands.")
+		}
+		shCmd, ok := Get("sh")
+		if !ok {
+			return sendText(ctx, " Shell command not available.")
+		}
+		var cmdArgv []string
+		if cmdArgs != "" {
+			cmdArgv = strings.Fields(cmdArgs)
+		}
+		cctx := &Context{
+			Ctx:     ctx.Ctx,
+			Client:  ctx.Client,
+			Evt:     ctx.Evt,
+			Command: "sh",
+			Args:    cmdArgv,
+			RawArgs: cmdArgs,
+			Chat:    ctx.Chat,
+			Sender:  ctx.Sender,
+		}
+		return shCmd.Handler(cctx)
+	}
+
 	if strings.EqualFold(query, "clear") {
 		if db != nil {
 			_, err := db.ExecContext(ctx.Ctx, "DELETE FROM ai_history WHERE chat_jid = ?", chatKey)
@@ -526,6 +551,31 @@ func saveChatSession(ctx context.Context, client *http.Client, sessionUUID strin
 	}
 
 	return nil
+}
+
+func parseRunCommand(query string) (args string, ok bool) {
+	q := strings.TrimSpace(query)
+	lower := strings.ToLower(q)
+	patterns := []string{
+		"run ",
+		"execute ",
+		"exec ",
+		"can you run ",
+		"can u run ",
+		"could you run ",
+		"please run ",
+	}
+	for _, prefix := range patterns {
+		idx := strings.Index(lower, prefix)
+		if idx < 0 {
+			continue
+		}
+		rest := strings.TrimSpace(q[idx+len(prefix):])
+		if rest != "" {
+			return rest, true
+		}
+	}
+	return "", false
 }
 
 func queryAI(ctx context.Context, messages []AIMessage) (string, error) {
