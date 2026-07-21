@@ -2,8 +2,10 @@ package commands
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/Thruqe/whatsrook/store/sqlstore"
 	"go.mau.fi/whatsmeow/appstate"
 	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/proto/waCommon"
@@ -316,6 +318,31 @@ func handleDelete(ctx *Context) error {
 	return nil
 }
 
+func isJIDSudo(ctx *Context, jid types.JID) bool {
+	if ctx.Client.Store.ID != nil {
+		if ctx.IsSameUser(jid, *ctx.Client.Store.ID) {
+			return true
+		}
+	}
+	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return false
+	}
+	raw, err := s.GetSetting(ctx.Ctx, "sudoers")
+	if err != nil || raw == "" {
+		return false
+	}
+	for _, sudoerStr := range strings.Fields(raw) {
+		sudoerJID, err := types.ParseJID(sudoerStr)
+		if err == nil {
+			if ctx.IsSameUser(jid, sudoerJID) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func handleReport(ctx *Context) error {
 	if !ctx.IsSudo() {
 		return ctx.Reply("❌ Restricted to sudoers only.")
@@ -349,6 +376,35 @@ func handleReport(ctx *Context) error {
 		}
 	}
 
+	// SENSITIVE DATA/AUTHORIZATION SECURITY CHECK:
+	// Do not allow reporting the bot or its sudo users.
+	if isJIDSudo(ctx, targetJID) {
+		return ctx.Reply("❌ Cannot report the bot or any of its sudo users.")
+	}
+
+	// Parse iteration count (e.g. "report 2x" or "report 5")
+	count := 1
+	for _, arg := range ctx.Args {
+		trimmed := strings.ToLower(strings.TrimSpace(arg))
+		if strings.HasSuffix(trimmed, "x") {
+			numPart := strings.TrimSuffix(trimmed, "x")
+			var val int
+			if _, err := fmt.Sscan(numPart, &val); err == nil && val > 0 {
+				count = val
+				break
+			}
+		} else {
+			var val int
+			if _, err := fmt.Sscan(trimmed, &val); err == nil && val > 0 {
+				count = val
+				break
+			}
+		}
+	}
+	if count > 20 {
+		count = 20
+	}
+
 	spamListAttrs := waBinary.Attrs{
 		"spam_flow": spamFlow,
 	}
@@ -362,31 +418,55 @@ func handleReport(ctx *Context) error {
 		spamListAttrs["jid"] = targetJID.String()
 	}
 
-	//nolint:staticcheck
-	reqID := ctx.Client.DangerousInternals().GenerateRequestID()
+	// Send the report stanzas in a loop
+	for i := 0; i < count; i++ {
+		//nolint:staticcheck
+		reqID := ctx.Client.DangerousInternals().GenerateRequestID()
 
-	iqNode := waBinary.Node{
-		Tag: "iq",
-		Attrs: waBinary.Attrs{
-			"id":    reqID,
-			"to":    types.ServerJID.String(),
-			"type":  "set",
-			"xmlns": "spam",
-		},
-		Content: []waBinary.Node{
-			{
-				Tag:     "spam_list",
-				Attrs:   spamListAttrs,
-				Content: messageChild,
+		iqNode := waBinary.Node{
+			Tag: "iq",
+			Attrs: waBinary.Attrs{
+				"id":    reqID,
+				"to":    types.ServerJID.String(),
+				"type":  "set",
+				"xmlns": "spam",
 			},
-		},
+			Content: []waBinary.Node{
+				{
+					Tag:     "spam_list",
+					Attrs:   spamListAttrs,
+					Content: messageChild,
+				},
+			},
+		}
+
+		//nolint:staticcheck
+		_, err := ctx.Client.DangerousInternals().SendNodeAndGetData(ctx.Ctx, iqNode)
+		if err != nil {
+			return ctx.Reply(fmt.Sprintf("❌ Failed to submit spam report on iteration %d: %s", i+1, err.Error()))
+		}
+
+		if count > 1 && i < count-1 {
+			time.Sleep(200 * time.Millisecond)
+		}
 	}
 
-	//nolint:staticcheck
-	_, err := ctx.Client.DangerousInternals().SendNodeAndGetData(ctx.Ctx, iqNode)
-	if err != nil {
-		return ctx.Reply("❌ Failed to submit spam report: " + err.Error())
+	// Format success output
+	if targetJID.Server == "g.us" {
+		groupName := targetJID.String()
+		info, err := ctx.Client.GetGroupInfo(ctx.Ctx, targetJID)
+		if err == nil && info != nil {
+			groupName = info.GroupName.Name
+		}
+		if count > 1 {
+			return ctx.Reply(fmt.Sprintf("✅ Reported %s for spam to whatsapp %dx.", groupName, count))
+		}
+		return ctx.Reply(fmt.Sprintf("✅ Reported %s for spam to whatsapp.", groupName))
 	}
 
-	return ctx.Reply(fmt.Sprintf("✅ Spam report submitted successfully for @%s.", targetJID.User))
+	resolvedJID, username := ctx.ResolveMention(targetJID)
+	if count > 1 {
+		return ctx.ReplyWithMentions(fmt.Sprintf("✅ Reported @%s for spam to whatsapp %dx.", username, count), []types.JID{resolvedJID})
+	}
+	return ctx.ReplyWithMentions(fmt.Sprintf("✅ Reported @%s for spam to whatsapp.", username), []types.JID{resolvedJID})
 }
