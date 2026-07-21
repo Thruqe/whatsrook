@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 
 	"github.com/Thruqe/whatsrook/store/sqlstore"
@@ -9,6 +10,13 @@ import (
 )
 
 func init() {
+	Register(&Command{
+		Name:        "sh",
+		Aliases:     []string{"exec", "run"},
+		Description: "Execute a shell command (Sudo only)",
+		Category:    "settings",
+		Handler:     handleSh,
+	})
 	Register(&Command{
 		Name:        "setsudo",
 		Description: "Add a user to the sudo list (replied user or numbers)",
@@ -530,4 +538,27 @@ func handleMode(ctx *Context) error {
 	}
 
 	return ctx.Reply(fmt.Sprintf("✅ Bot mode set to %s.", mode))
+}
+
+func handleSh(ctx *Context) error {
+	if !ctx.IsSudo() {
+		return ctx.Reply("❌ You are not authorized to use this command.")
+	}
+
+	if ctx.RawArgs == "" {
+		return ctx.Reply("❌ Usage: !sh <command>")
+	}
+
+	cmd := exec.CommandContext(ctx.Ctx, "bash", "-c", ctx.RawArgs)
+	output, err := cmd.CombinedOutput()
+	outStr := string(output)
+	if outStr == "" {
+		outStr = "(No output)"
+	}
+
+	if err != nil {
+		return ctx.Reply(fmt.Sprintf("❌ Error: %v\n\n```\n%s\n```", err, outStr))
+	}
+
+	return ctx.Reply(fmt.Sprintf("💻 Output:\n```\n%s\n```", outStr))
 }
