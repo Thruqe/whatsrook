@@ -401,6 +401,11 @@ func (ctx *Context) getContextInfo() *waE2E.ContextInfo {
 	return nil
 }
 
+// GetContextInfo returns the context info of the message if available.
+func (ctx *Context) GetContextInfo() *waE2E.ContextInfo {
+	return ctx.getContextInfo()
+}
+
 // GetQuotedMessage returns the quoted message if this event has one.
 func (ctx *Context) GetQuotedMessage() *waE2E.Message {
 	ci := ctx.getContextInfo()
