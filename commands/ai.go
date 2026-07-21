@@ -488,3 +488,58 @@ func queryAI(ctx context.Context, messages []AIMessage) (string, error) {
 
 	return reply, nil
 }
+
+func init() {
+	Register(&Command{
+		Name:        "autoai",
+		Description: "Toggle automatic AI responses when the bot is tagged or replied to in this chat (on/off)",
+		Category:    "AI",
+		IsPublic:    true,
+		Handler:     handleAutoAI,
+	})
+}
+
+func handleAutoAI(ctx *Context) error {
+	slog.Info("handleAutoAI started", "args", ctx.Args)
+
+	isAuthorized := ctx.IsSudo()
+	if !isAuthorized && ctx.Chat.Server == "g.us" {
+		info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
+		if err == nil && info != nil {
+			if ctx.IsSenderAdmin(info) {
+				isAuthorized = true
+			}
+		}
+	}
+
+	if !isAuthorized {
+		return ctx.Reply("❌ Only sudoers or group admins can change the AutoAI setting.")
+	}
+
+	s, okStore := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	if !okStore {
+		return ctx.Reply("❌ Database store is not available.")
+	}
+
+	settingKey := "autoai:" + ctx.Chat.String()
+
+	if len(ctx.Args) == 0 {
+		current, _ := s.GetSetting(ctx.Ctx, settingKey)
+		if current == "" {
+			current = "off"
+		}
+		return ctx.Reply(fmt.Sprintf("🤖 *AutoAI* is currently *%s* in this chat.", current))
+	}
+
+	val := strings.ToLower(ctx.Args[0])
+	if val != "on" && val != "off" {
+		return ctx.Reply("❌ Usage: !autoai [on/off]")
+	}
+
+	if err := s.PutSetting(ctx.Ctx, settingKey, val); err != nil {
+		slog.Error("failed to update autoai setting", "err", err)
+		return ctx.Reply("❌ Failed to update setting: " + err.Error())
+	}
+
+	return ctx.Reply(fmt.Sprintf("🤖 *AutoAI* has been set to *%s* for this chat.", val))
+}

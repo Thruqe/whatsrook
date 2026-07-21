@@ -201,6 +201,31 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	slog.Debug("No command prefix matched", "text", text)
 
+	if okStore {
+		autoAIVal, _ := s.GetSetting(ctx, "autoai:"+chatStr)
+		if autoAIVal == "on" && isBotTaggedOrReplied(client, evt) {
+			slog.Info("AutoAI triggered by tag/reply", "chat", chatStr, "sender", senderStr)
+			cctx := &Context{
+				Ctx:     ctx,
+				Client:  client,
+				Evt:     evt,
+				Command: "ai",
+				Args:    strings.Fields(text),
+				RawArgs: text,
+				Chat:    evt.Info.Chat,
+				Sender:  evt.Info.Sender,
+			}
+			go func() {
+				if cmd, ok := Get("ai"); ok {
+					if err := cmd.Handler(cctx); err != nil {
+						slog.Error("AutoAI command handler failed", "err", err)
+					}
+				}
+			}()
+			return true
+		}
+	}
+
 	return false
 }
 
@@ -726,4 +751,44 @@ func getQuotedMessageFromEvent(evt *events.Message) *waE2E.Message {
 		return ci.QuotedMessage
 	}
 	return nil
+}
+
+func isBotTaggedOrReplied(client *whatsmeow.Client, evt *events.Message) bool {
+	if client.Store.ID == nil {
+		return false
+	}
+	ourJID := client.Store.ID.ToNonAD()
+
+	var ctxInfo *waE2E.ContextInfo
+	if evt.Message.GetExtendedTextMessage() != nil {
+		ctxInfo = evt.Message.GetExtendedTextMessage().ContextInfo
+	} else if evt.Message.GetImageMessage() != nil {
+		ctxInfo = evt.Message.GetImageMessage().ContextInfo
+	} else if evt.Message.GetVideoMessage() != nil {
+		ctxInfo = evt.Message.GetVideoMessage().ContextInfo
+	} else if evt.Message.GetAudioMessage() != nil {
+		ctxInfo = evt.Message.GetAudioMessage().ContextInfo
+	} else if evt.Message.GetDocumentMessage() != nil {
+		ctxInfo = evt.Message.GetDocumentMessage().ContextInfo
+	}
+
+	if ctxInfo == nil {
+		return false
+	}
+
+	// 1. Check if the bot is mentioned/tagged
+	for _, m := range ctxInfo.MentionedJID {
+		if parseJID, err := types.ParseJID(m); err == nil && parseJID.ToNonAD() == ourJID {
+			return true
+		}
+	}
+
+	// 2. Check if the message is a reply/quote to a message sent by the bot
+	if ctxInfo.Participant != nil {
+		if parseJID, err := types.ParseJID(*ctxInfo.Participant); err == nil && parseJID.ToNonAD() == ourJID {
+			return true
+		}
+	}
+
+	return false
 }
