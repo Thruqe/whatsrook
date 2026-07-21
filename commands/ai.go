@@ -545,15 +545,11 @@ func queryAI(ctx context.Context, messages []AIMessage) (string, error) {
 	}
 
 	if systemContent != "" {
-		if len(chatHistory) > 0 {
-			lastIdx := len(chatHistory) - 1
-			chatHistory[lastIdx].Content = fmt.Sprintf("SYSTEM CONTEXT:\n%s\n\nCURRENT USER PROMPT:\n%s", systemContent, chatHistory[lastIdx].Content)
-		} else {
-			chatHistory = append(chatHistory, chatMessage{
-				Role:    "user",
-				Content: fmt.Sprintf("SYSTEM CONTEXT:\n%s", systemContent),
-			})
+		systemMsg := chatMessage{
+			Role:    "user",
+			Content: fmt.Sprintf("[SYSTEM INSTRUCTION — you must follow these rules and use this context for all responses]:\n%s\n[/SYSTEM INSTRUCTION]\n\n---BEGIN CONVERSATION---", systemContent),
 		}
+		chatHistory = append([]chatMessage{systemMsg}, chatHistory...)
 	}
 
 	historyJSON, err := json.Marshal(chatHistory)
