@@ -79,7 +79,6 @@ func handleAI(ctx *Context) error {
 	query := ctx.RawArgs
 	chatKey := ctx.Chat.String()
 
-	// Get database connection if available
 	var db *sql.DB
 	if sqs, ok := ctx.Client.Store.Contacts.(*sqlstore.SQLStore); ok {
 		db = sqs.GetDB().RawDB
@@ -99,7 +98,6 @@ func handleAI(ctx *Context) error {
 		})
 	}
 
-	// Check if they want to clear history
 	if strings.EqualFold(query, "clear") {
 		if db != nil {
 			_, err := db.ExecContext(ctx.Ctx, "DELETE FROM ai_history WHERE chat_jid = ?", chatKey)
@@ -115,10 +113,8 @@ func handleAI(ctx *Context) error {
 		return sendText(ctx, "AI conversation history cleared.")
 	}
 
-	// Retrieve existing history
 	var history []AIMessage
 	if db != nil {
-		// Clean up records older than 48 hours
 		_, _ = db.ExecContext(ctx.Ctx, "DELETE FROM ai_history WHERE timestamp < datetime('now', '-48 hours')")
 
 		rows, err := db.QueryContext(ctx.Ctx, "SELECT role, content FROM ai_history WHERE chat_jid = ? ORDER BY timestamp DESC LIMIT 10", chatKey)
@@ -134,7 +130,6 @@ func handleAI(ctx *Context) error {
 			if err := rows.Err(); err != nil {
 				slog.Error("error iterating ai_history rows", "err", err)
 			}
-			// Reverse temp to restore chronological order
 			for _, m := range slices.Backward(temp) {
 				history = append(history, m)
 			}
@@ -147,19 +142,15 @@ func handleAI(ctx *Context) error {
 		aiHistoryMu.Unlock()
 	}
 
-	// Format user query with sender metadata so AI can distinguish participants
 	senderName := resolveContactName(ctx, ctx.Sender, ctx.Evt.Info.PushName)
 	formattedQuery := fmt.Sprintf("[%s (%s)]: %s", senderName, ctx.Sender.User, query)
 
-	// Append user question
 	history = append(history, AIMessage{Role: "user", Content: formattedQuery})
 
-	// Limit history size to last 10 messages (only needed for fallback memory)
 	if db == nil && len(history) > 10 {
 		history = history[len(history)-10:]
 	}
 
-	// Construct a rich system prompt with sender and group metadata
 	currentTime := time.Now().Format("2006-01-02 15:04:05 MST")
 
 	privilege := "Regular User"
@@ -281,14 +272,12 @@ func handleAI(ctx *Context) error {
 		botCommandsList,
 	)
 
-	// Prepare actual request messages prepending the dynamic system prompt
 	reqMessages := make([]AIMessage, 0, len(history)+1)
 	reqMessages = append(reqMessages, AIMessage{Role: "system", Content: systemPrompt})
 	reqMessages = append(reqMessages, history...)
 
 	slog.Info("handleAI: calling AI API", "chat", chatKey, "history_len", len(history))
 
-	// Send typing presence indicator
 	_ = ctx.Client.SendChatPresence(ctx.Ctx, ctx.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaText)
 
 	reply, err := queryAI(ctx.Ctx, reqMessages)
@@ -305,7 +294,6 @@ func handleAI(ctx *Context) error {
 				aiHistoryMu.Unlock()
 			}
 
-			// Retry with just the system prompt and the user's formatted query
 			retryMessages := []AIMessage{
 				{Role: "system", Content: systemPrompt},
 				{Role: "user", Content: formattedQuery},
@@ -326,7 +314,6 @@ func handleAI(ctx *Context) error {
 
 	slog.Info("handleAI: AI response received", "reply_len", len(reply))
 
-	// Check if AI response has a request to run a command
 	cleanReply := strings.TrimSpace(reply)
 	if cmdContent, ok := strings.CutPrefix(cleanReply, "RUN_COMMAND:"); ok {
 		cmdLine := strings.TrimSpace(cmdContent)
@@ -355,7 +342,6 @@ func handleAI(ctx *Context) error {
 				}
 				slog.Info("handleAI: executing command on behalf of AI", "command", cmdName, "args", cmdArgs)
 
-				// Save history first
 				if db != nil {
 					_, _ = db.ExecContext(ctx.Ctx, "INSERT INTO ai_history (chat_jid, role, content) VALUES (?, 'user', ?)", chatKey, formattedQuery)
 					_, _ = db.ExecContext(ctx.Ctx, "INSERT INTO ai_history (chat_jid, role, content) VALUES (?, 'assistant', ?)", chatKey, reply)
@@ -371,7 +357,6 @@ func handleAI(ctx *Context) error {
 		}
 	}
 
-	// Detect mentions in the reply to tag users properly
 	var mentionedJIDs []types.JID
 	if isGroup {
 		groupInfo, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
@@ -397,7 +382,6 @@ func handleAI(ctx *Context) error {
 		}
 	}
 
-	// Save back history
 	if db != nil {
 		_, errUser := db.ExecContext(ctx.Ctx, "INSERT INTO ai_history (chat_jid, role, content) VALUES (?, 'user', ?)", chatKey, formattedQuery)
 		_, errAssistant := db.ExecContext(ctx.Ctx, "INSERT INTO ai_history (chat_jid, role, content) VALUES (?, 'assistant', ?)", chatKey, reply)
@@ -405,7 +389,6 @@ func handleAI(ctx *Context) error {
 			slog.Error("failed to insert history to db", "errUser", errUser, "errAssistant", errAssistant)
 		}
 	} else {
-		// Append assistant response to history
 		history = append(history, AIMessage{Role: "assistant", Content: reply})
 		aiHistoryMu.Lock()
 		aiHistory[chatKey] = history
@@ -421,8 +404,8 @@ func handleAI(ctx *Context) error {
 func generateUUID() string {
 	var b [16]byte
 	_, _ = rand.Read(b[:])
-	b[6] = (b[6] & 0x0f) | 0x40 // Version 4
-	b[8] = (b[8] & 0x3f) | 0x80 // Variant RFC4122
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 }
 
@@ -482,7 +465,8 @@ func queryAI(ctx context.Context, messages []AIMessage) (string, error) {
 
 	if systemContent != "" {
 		if len(chatHistory) > 0 {
-			chatHistory[0].Content = fmt.Sprintf("SYSTEM CONTEXT:\n%s\n\nUSER PROMPT:\n%s", systemContent, chatHistory[0].Content)
+			lastIdx := len(chatHistory) - 1
+			chatHistory[lastIdx].Content = fmt.Sprintf("SYSTEM CONTEXT:\n%s\n\nCURRENT USER PROMPT:\n%s", systemContent, chatHistory[lastIdx].Content)
 		} else {
 			chatHistory = append(chatHistory, chatMessage{
 				Role:    "user",
