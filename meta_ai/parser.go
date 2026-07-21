@@ -26,4 +26,3 @@ func AnswerParserString(ai_response_string *string) {
 
 	*ai_response_string = plain
 }
-
