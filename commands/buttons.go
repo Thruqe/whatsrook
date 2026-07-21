@@ -4,7 +4,6 @@ import (
 	"go.mau.fi/whatsmeow"
 	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/proto/waE2E"
-	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -25,29 +24,29 @@ func handleButtons(ctx *Context) error {
 			Message: &waE2E.Message{
 				InteractiveMessage: &waE2E.InteractiveMessage{
 					Body: &waE2E.InteractiveMessage_Body{
-						Text: proto.String("🤖 *Interactive Buttons*\n\nChoose an action below to proceed."),
+						Text: new("Interactive Buttons\n\nChoose an action below to proceed."),
 					},
 					Footer: &waE2E.InteractiveMessage_Footer{
-						Text: proto.String("Powered by Thruqe"),
+						Text: new("Powered by Thruqe"),
 					},
 					InteractiveMessage: &waE2E.InteractiveMessage_NativeFlowMessage_{
 						NativeFlowMessage: &waE2E.InteractiveMessage_NativeFlowMessage{
 							Buttons: []*waE2E.InteractiveMessage_NativeFlowMessage_NativeFlowButton{
 								{
-									Name:             proto.String("quick_reply"),
-									ButtonParamsJSON: proto.String(`{"display_text":"👋 Say Hello","id":"hello_reply"}`),
+									Name:             new("quick_reply"),
+									ButtonParamsJSON: new(`{"display_text":"Say Hello","id":"hello_reply"}`),
 								},
 								{
-									Name:             proto.String("cta_url"),
-									ButtonParamsJSON: proto.String(`{"display_text":"🌐 Visit Website","url":"https://github.com/Thruqe/whatsrook","merchant_url":"https://github.com/Thruqe/whatsrook"}`),
+									Name:             new("cta_url"),
+									ButtonParamsJSON: new(`{"display_text":"Visit Website","url":"https://github.com/Thruqe/whatsrook","merchant_url":"https://github.com/Thruqe/whatsrook"}`),
 								},
 								{
-									Name:             proto.String("cta_call"),
-									ButtonParamsJSON: proto.String(`{"display_text":"📞 Call Support","phone_number":"+1234567890"}`),
+									Name:             new("cta_call"),
+									ButtonParamsJSON: new(`{"display_text":"Call Support","phone_number":"+1234567890"}`),
 								},
 								{
-									Name:             proto.String("cta_copy"),
-									ButtonParamsJSON: proto.String(`{"display_text":"📋 Copy Command","id":"copy_cmd","copy_code":".ping"}`),
+									Name:             new("cta_copy"),
+									ButtonParamsJSON: new(`{"display_text":"Copy Command","id":"copy_cmd","copy_code":".ping"}`),
 								},
 							},
 							MessageVersion: &msgVersion,

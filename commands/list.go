@@ -4,7 +4,6 @@ import (
 	"go.mau.fi/whatsmeow"
 	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/proto/waE2E"
-	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -25,17 +24,17 @@ func handleSelectList(ctx *Context) error {
 			Message: &waE2E.Message{
 				InteractiveMessage: &waE2E.InteractiveMessage{
 					Body: &waE2E.InteractiveMessage_Body{
-						Text: proto.String("📋 *Select an Option*\n\nClick the button below to view the available items."),
+						Text: new("Select an Option\n\nClick the button below to view the available items."),
 					},
 					Footer: &waE2E.InteractiveMessage_Footer{
-						Text: proto.String("Powered by Thruqe"),
+						Text: new("Powered by Thruqe"),
 					},
 					InteractiveMessage: &waE2E.InteractiveMessage_NativeFlowMessage_{
 						NativeFlowMessage: &waE2E.InteractiveMessage_NativeFlowMessage{
 							Buttons: []*waE2E.InteractiveMessage_NativeFlowMessage_NativeFlowButton{
 								{
-									Name: proto.String("single_select"),
-									ButtonParamsJSON: proto.String(`{
+									Name: new("single_select"),
+									ButtonParamsJSON: new(`{
 										"title": "View List Menu",
 										"sections": [
 											{

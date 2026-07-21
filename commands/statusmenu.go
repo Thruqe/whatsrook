@@ -29,9 +29,9 @@ func handleStatusMenu(ctx *Context) error {
 
 ┌─ム ʙᴏᴛ sᴛᴀᴛᴜs
 │
-├─ム ✅ ʙᴏᴛ: ᴏɴʟɪɴᴇ
-├─ム 🚀 sᴛᴀᴛᴜs: ʀᴇᴀᴅʏ
-├─ム 📋 sᴇʟᴇᴄᴛ ᴀ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ
+├─ム  ʙᴏᴛ: ᴏɴʟɪɴᴇ
+├─ム  sᴛᴀᴛᴜs: ʀᴇᴀᴅʏ
+├─ム  sᴇʟᴇᴄᴛ ᴀ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ
 │
 ╰─────────◆────────╯
 
@@ -45,25 +45,25 @@ func handleStatusMenu(ctx *Context) error {
 						LocationMessage: &waE2E.LocationMessage{
 							DegreesLatitude:  proto.Float64(0),
 							DegreesLongitude: proto.Float64(0),
-							Name:             proto.String("🚀 Thruqe"),
-							Address:          proto.String("Thruqe Multidevice"),
+							Name:             new("Thruqe"),
+							Address:          new("Thruqe Multidevice"),
 						},
 					},
-					ContentText: proto.String(bodyText),
-					FooterText:  proto.String("「 Powered by Thruqe 」"),
+					ContentText: new(bodyText),
+					FooterText:  new("「 Powered by Thruqe 」"),
 					HeaderType:  waE2E.ButtonsMessage_LOCATION.Enum(),
 					Buttons: []*waE2E.ButtonsMessage_Button{
 						{
-							ButtonID: proto.String("menu-btn"),
+							ButtonID: new("menu-btn"),
 							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
-								DisplayText: proto.String("📋 MENU"),
+								DisplayText: new("MENU"),
 							},
 							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
 						},
 						{
-							ButtonID: proto.String("menu all"),
+							ButtonID: new("menu all"),
 							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
-								DisplayText: proto.String("⚡ COMMANDS"),
+								DisplayText: new("COMMANDS"),
 							},
 							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
 						},
@@ -107,7 +107,7 @@ func handleStatusMenu(ctx *Context) error {
 	}
 
 	// 2. React to the trigger message
-	reactionMsg := ctx.Client.BuildReaction(ctx.Chat, ctx.Sender, ctx.Evt.Info.ID, "✅")
+	reactionMsg := ctx.Client.BuildReaction(ctx.Chat, ctx.Sender, ctx.Evt.Info.ID, "")
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, reactionMsg)
 	return err
 }

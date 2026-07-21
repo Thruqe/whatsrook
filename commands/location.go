@@ -25,32 +25,32 @@ func handleLocButtons(ctx *Context) error {
 			Message: &waE2E.Message{
 				InteractiveMessage: &waE2E.InteractiveMessage{
 					Header: &waE2E.InteractiveMessage_Header{
-						HasMediaAttachment: proto.Bool(true),
+						HasMediaAttachment: new(true),
 						Media: &waE2E.InteractiveMessage_Header_LocationMessage{
 							LocationMessage: &waE2E.LocationMessage{
 								DegreesLatitude:  proto.Float64(37.4849),
 								DegreesLongitude: proto.Float64(-122.1484),
-								Name:             proto.String("Meta Headquarters"),
-								Address:          proto.String("1 Hacker Way, Menlo Park, CA 94025"),
+								Name:             new("Meta Headquarters"),
+								Address:          new("1 Hacker Way, Menlo Park, CA 94025"),
 							},
 						},
 					},
 					Body: &waE2E.InteractiveMessage_Body{
-						Text: proto.String("📍 *Location Details*\n\nHere is our primary office location. Use the actions below for navigation."),
+						Text: new("Location Details\n\nHere is our primary office location. Use the actions below for navigation."),
 					},
 					Footer: &waE2E.InteractiveMessage_Footer{
-						Text: proto.String("Powered by Thruqe"),
+						Text: new("Powered by Thruqe"),
 					},
 					InteractiveMessage: &waE2E.InteractiveMessage_NativeFlowMessage_{
 						NativeFlowMessage: &waE2E.InteractiveMessage_NativeFlowMessage{
 							Buttons: []*waE2E.InteractiveMessage_NativeFlowMessage_NativeFlowButton{
 								{
-									Name:             proto.String("cta_url"),
-									ButtonParamsJSON: proto.String(`{"display_text":"🗺️ Open in Google Maps","url":"https://maps.google.com/?q=37.4849,-122.1484","merchant_url":"https://maps.google.com/?q=37.4849,-122.1484"}`),
+									Name:             new("cta_url"),
+									ButtonParamsJSON: new(`{"display_text":"Open in Google Maps","url":"https://maps.google.com/?q=37.4849,-122.1484","merchant_url":"https://maps.google.com/?q=37.4849,-122.1484"}`),
 								},
 								{
-									Name:             proto.String("quick_reply"),
-									ButtonParamsJSON: proto.String(`{"display_text":"🏠 Return Main","id":"return_main"}`),
+									Name:             new("quick_reply"),
+									ButtonParamsJSON: new(`{"display_text":"Return Main","id":"return_main"}`),
 								},
 							},
 							MessageVersion: &msgVersion,

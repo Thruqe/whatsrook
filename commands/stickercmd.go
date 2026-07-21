@@ -31,37 +31,37 @@ func init() {
 
 func handleSetCmd(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ You are not authorized to use this command.")
+		return ctx.Reply(" You are not authorized to use this command.")
 	}
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("❌ Usage: setcmd [command_name] (reply to a sticker)")
+		return ctx.Reply(" Usage: setcmd [command_name] (reply to a sticker)")
 	}
 	cmdName := strings.ToLower(ctx.Args[0])
 
 	// Ensure the command exists
 	_, exists := Get(cmdName)
 	if !exists {
-		return ctx.Reply(fmt.Sprintf("❌ Command %q does not exist.", cmdName))
+		return ctx.Reply(fmt.Sprintf(" Command %q does not exist.", cmdName))
 	}
 
 	quoted := ctx.GetQuotedMessage()
 	if quoted == nil || quoted.StickerMessage == nil {
-		return ctx.Reply("❌ Please reply to a sticker message.")
+		return ctx.Reply(" Please reply to a sticker message.")
 	}
 
 	stk := quoted.StickerMessage
 	if len(stk.FileSHA256) == 0 {
-		return ctx.Reply("❌ Invalid sticker (no FileSHA256 found).")
+		return ctx.Reply(" Invalid sticker (no FileSHA256 found).")
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply("❌ Settings store unavailable.")
+		return ctx.Reply(" Settings store unavailable.")
 	}
 	db := s.GetDB()
 	if db == nil {
-		return ctx.Reply("❌ Database unavailable.")
+		return ctx.Reply(" Database unavailable.")
 	}
 
 	ourJID := ctx.Client.Store.ID.ToNonAD().String()
@@ -76,21 +76,21 @@ func handleSetCmd(ctx *Context) error {
 		return err
 	}
 
-	return ctx.Reply(fmt.Sprintf("✅ Sticker linked to command %q.", cmdName))
+	return ctx.Reply(fmt.Sprintf(" Sticker linked to command %q.", cmdName))
 }
 
 func handleDelCmd(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ You are not authorized to use this command.")
+		return ctx.Reply(" You are not authorized to use this command.")
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply("❌ Settings store unavailable.")
+		return ctx.Reply(" Settings store unavailable.")
 	}
 	db := s.GetDB()
 	if db == nil {
-		return ctx.Reply("❌ Database unavailable.")
+		return ctx.Reply(" Database unavailable.")
 	}
 
 	ourJID := ctx.Client.Store.ID.ToNonAD().String()
@@ -99,7 +99,7 @@ func handleDelCmd(ctx *Context) error {
 	if quoted != nil && quoted.StickerMessage != nil {
 		stk := quoted.StickerMessage
 		if len(stk.FileSHA256) == 0 {
-			return ctx.Reply("❌ Invalid sticker (no FileSHA256 found).")
+			return ctx.Reply(" Invalid sticker (no FileSHA256 found).")
 		}
 		shaHex := hex.EncodeToString(stk.FileSHA256)
 
@@ -109,13 +109,13 @@ func handleDelCmd(ctx *Context) error {
 		}
 		rows, _ := res.RowsAffected()
 		if rows == 0 {
-			return ctx.Reply("ℹ️ Mapped sticker not found.")
+			return ctx.Reply("ℹ Mapped sticker not found.")
 		}
-		return ctx.Reply("✅ Sticker link removed.")
+		return ctx.Reply(" Sticker link removed.")
 	}
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("❌ Usage:\n- delcmd [command_name]\n- delcmd (replying to a mapped sticker)")
+		return ctx.Reply(" Usage:\n- delcmd [command_name]\n- delcmd (replying to a mapped sticker)")
 	}
 
 	cmdName := strings.ToLower(ctx.Args[0])
@@ -125,20 +125,20 @@ func handleDelCmd(ctx *Context) error {
 	}
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		return ctx.Reply(fmt.Sprintf("ℹ️ No sticker linked to command %q.", cmdName))
+		return ctx.Reply(fmt.Sprintf("ℹ No sticker linked to command %q.", cmdName))
 	}
 
-	return ctx.Reply(fmt.Sprintf("✅ Mapped sticker(s) for command %q removed.", cmdName))
+	return ctx.Reply(fmt.Sprintf(" Mapped sticker(s) for command %q removed.", cmdName))
 }
 
 func handleGetCmd(ctx *Context) error {
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply("❌ Settings store unavailable.")
+		return ctx.Reply(" Settings store unavailable.")
 	}
 	db := s.GetDB()
 	if db == nil {
-		return ctx.Reply("❌ Database unavailable.")
+		return ctx.Reply(" Database unavailable.")
 	}
 
 	ourJID := ctx.Client.Store.ID.ToNonAD().String()
@@ -150,7 +150,7 @@ func handleGetCmd(ctx *Context) error {
 	defer rows.Close()
 
 	var sb strings.Builder
-	sb.WriteString("🎨 *Sticker Command Mappings:*\n\n")
+	sb.WriteString(" *Sticker Command Mappings:*\n\n")
 
 	count := 0
 	for rows.Next() {
@@ -162,7 +162,7 @@ func handleGetCmd(ctx *Context) error {
 	}
 
 	if count == 0 {
-		return ctx.Reply("ℹ️ No sticker commands configured.")
+		return ctx.Reply("ℹ No sticker commands configured.")
 	}
 
 	return ctx.Reply(sb.String())

@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Thruqe/whatsrook/font"
 	waSender "github.com/Thruqe/whatsrook/sender"
 	"github.com/Thruqe/whatsrook/store/sqlstore"
 	"go.mau.fi/whatsmeow"
@@ -78,6 +79,9 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	s, okStore := client.Store.Identities.(*sqlstore.SQLStore)
 	if okStore {
 		initTables(ctx, s)
+		if fontStyle, err := s.GetSetting(ctx, "font_style"); err == nil && fontStyle != "" {
+			font.SetStyle(fontStyle)
+		}
 	}
 
 	// 0. Sticker message command trigger
@@ -311,7 +315,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		// 1. Group-only check
 		if cmd.GroupOnly && cctx.Chat.Server != "g.us" {
 			slog.Warn("Group-only command executed in non-group chat JID", "command", name, "chat", cctx.Chat.String())
-			_ = cctx.Reply("❌ This command can only be used in a group chat.")
+			_ = cctx.Reply(" This command can only be used in a group chat.")
 			return
 		}
 
@@ -320,14 +324,14 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 			botMode, _ := s.GetSetting(ctx, "mode")
 			if botMode == "private" && !cctx.IsSudo() {
 				slog.Warn("Private mode check failed", "command", name, "sender", cctx.Sender.String())
-				_ = cctx.Reply("❌ The bot is currently in private mode. Only sudoers/owners can use it.")
+				_ = cctx.Reply(" The bot is currently in private mode. Only sudoers/owners can use it.")
 				return
 			}
 		}
 
 		if !cmd.IsPublic && !cctx.IsSudo() {
 			slog.Warn("Sudoer command check failed", "command", name, "sender", cctx.Sender.String())
-			_ = cctx.Reply("❌ This command is restricted to sudoers/owners only.")
+			_ = cctx.Reply(" This command is restricted to sudoers/owners only.")
 			return
 		}
 
@@ -344,7 +348,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 				}
 				if isDisabled {
 					slog.Warn("Disabled command check failed", "command", name)
-					_ = cctx.Reply(fmt.Sprintf("❌ Command %q is currently disabled.", name))
+					_ = cctx.Reply(fmt.Sprintf(" Command %q is currently disabled.", name))
 					return
 				}
 			}
@@ -572,7 +576,7 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 		if botIsAdmin {
 			_, _ = client.SendMessage(ctx, evt.Info.Chat, client.BuildRevoke(evt.Info.Chat, evt.Info.Sender, evt.Info.ID))
 			resolvedJID, username := waSender.ResolveMentionRaw(ctx, client, evt.Info.Sender)
-			textMsg := fmt.Sprintf("⚠️ Message from @%s deleted: contains %s.", username, reason)
+			textMsg := fmt.Sprintf(" Message from @%s deleted: contains %s.", username, reason)
 			_, _ = client.SendMessage(ctx, evt.Info.Chat, &waE2E.Message{
 				ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 					Text: &textMsg,
@@ -686,7 +690,7 @@ func handleStickerCommand(ctx context.Context, client *whatsmeow.Client, evt *ev
 	go func() {
 		botMode, _ := s.GetSetting(ctx, "mode")
 		if botMode == "private" && !cctx.IsSudo() {
-			_ = cctx.Reply("❌ The bot is currently in private mode. Only sudoers/owners can use it.")
+			_ = cctx.Reply(" The bot is currently in private mode. Only sudoers/owners can use it.")
 			return
 		}
 
@@ -694,7 +698,7 @@ func handleStickerCommand(ctx context.Context, client *whatsmeow.Client, evt *ev
 		if raw != "" {
 			for _, disabled := range strings.Fields(raw) {
 				if strings.EqualFold(disabled, cmdName) {
-					_ = cctx.Reply(fmt.Sprintf("❌ Command %q is currently disabled.", cmdName))
+					_ = cctx.Reply(fmt.Sprintf(" Command %q is currently disabled.", cmdName))
 					return
 				}
 			}

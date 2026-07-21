@@ -86,33 +86,33 @@ func handleGallery(ctx *Context) error {
 
 		card := &waE2E.InteractiveMessage{
 			Header: &waE2E.InteractiveMessage_Header{
-				HasMediaAttachment: proto.Bool(true),
+				HasMediaAttachment: new(true),
 				Media: &waE2E.InteractiveMessage_Header_ImageMessage{
 					ImageMessage: &waE2E.ImageMessage{
-						URL:           proto.String(uploaded.URL),
-						DirectPath:    proto.String(uploaded.DirectPath),
+						URL:           new(uploaded.URL),
+						DirectPath:    new(uploaded.DirectPath),
 						MediaKey:      uploaded.MediaKey,
-						Mimetype:      proto.String("image/jpeg"),
+						Mimetype:      new("image/jpeg"),
 						FileEncSHA256: uploaded.FileEncSHA256,
 						FileSHA256:    uploaded.FileSHA256,
 						FileLength:    proto.Uint64(uint64(len(res.data))),
 					},
 				},
-				Title:    proto.String(fmt.Sprintf("Image %d", res.index+1)),
-				Subtitle: proto.String("ABZTECH Gallery"),
+				Title:    new(fmt.Sprintf("Image %d", res.index+1)),
+				Subtitle: new("ABZTECH Gallery"),
 			},
 			Body: &waE2E.InteractiveMessage_Body{
-				Text: proto.String("Tap the button below to view the full image."),
+				Text: new("Tap the button below to view the full image."),
 			},
 			Footer: &waE2E.InteractiveMessage_Footer{
-				Text: proto.String(fmt.Sprintf("%d/%d", res.index+1, len(urls))),
+				Text: new(fmt.Sprintf("%d/%d", res.index+1, len(urls))),
 			},
 			InteractiveMessage: &waE2E.InteractiveMessage_NativeFlowMessage_{
 				NativeFlowMessage: &waE2E.InteractiveMessage_NativeFlowMessage{
 					Buttons: []*waE2E.InteractiveMessage_NativeFlowMessage_NativeFlowButton{
 						{
-							Name:             proto.String("cta_url"),
-							ButtonParamsJSON: proto.String(fmt.Sprintf(`{"display_text":"🖼️ View Image","url":"%s","merchant_url":"%s"}`, res.url, res.url)),
+							Name:             new("cta_url"),
+							ButtonParamsJSON: new(fmt.Sprintf(`{"display_text":"View Image","url":"%s","merchant_url":"%s"}`, res.url, res.url)),
 						},
 					},
 				},
@@ -122,7 +122,7 @@ func handleGallery(ctx *Context) error {
 	}
 
 	if len(cards) == 0 {
-		return ctx.Reply(fmt.Sprintf("❌ Failed to load gallery images. Errors: %v", uploadErrors))
+		return ctx.Reply(fmt.Sprintf(" Failed to load gallery images. Errors: %v", uploadErrors))
 	}
 
 	msg := &waE2E.Message{
@@ -130,10 +130,10 @@ func handleGallery(ctx *Context) error {
 			Message: &waE2E.Message{
 				InteractiveMessage: &waE2E.InteractiveMessage{
 					Body: &waE2E.InteractiveMessage_Body{
-						Text: proto.String("*Gallery*\n\nSwipe left or right to browse the images."),
+						Text: new("Gallery\n\nSwipe left or right to browse the images."),
 					},
 					Footer: &waE2E.InteractiveMessage_Footer{
-						Text: proto.String("Powered by Thruqe"),
+						Text: new("Powered by Thruqe"),
 					},
 					InteractiveMessage: &waE2E.InteractiveMessage_CarouselMessage_{
 						CarouselMessage: &waE2E.InteractiveMessage_CarouselMessage{

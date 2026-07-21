@@ -30,7 +30,7 @@ func handleMemory(ctx *Context) error {
 	sysMem, err := getSystemMemory()
 	var sysInfo string
 	if err != nil {
-		sysInfo = fmt.Sprintf("• *System Memory:* Error reading (%v)\n", err)
+		sysInfo = fmt.Sprintf("• System Memory: Error reading (%v)\n", err)
 	} else {
 		totalGB := float64(sysMem.total) / 1024 / 1024
 		availableGB := float64(sysMem.available) / 1024 / 1024
@@ -38,16 +38,16 @@ func handleMemory(ctx *Context) error {
 		percent := (usedGB / totalGB) * 100
 
 		sysInfo = fmt.Sprintf(
-			"• *Total System Memory:* %.2f GB\n"+
-				"• *Used System Memory:* %.2f GB (%.1f%%)\n"+
-				"• *Available System Memory:* %.2f GB\n",
+			"• Total System Memory: %.2f GB\n"+
+				"• Used System Memory: %.2f GB (%.1f%%)\n"+
+				"• Available System Memory: %.2f GB\n",
 			totalGB, usedGB, percent, availableGB)
 	}
 
-	res := fmt.Sprintf("💾 *Memory Information*\n\n"+
+	res := fmt.Sprintf("Memory Information\n\n"+
 		"%s"+
-		"• *Process Allocated:* %.2f MB\n"+
-		"• *Process System Reserved:* %.2f MB",
+		"• Process Allocated: %.2f MB\n"+
+		"• Process System Reserved: %.2f MB",
 		sysInfo, procAlloc, procSys)
 
 	return ctx.Reply(res)
@@ -87,6 +87,10 @@ func getSystemMemory() (systemMemory, error) {
 		case "MemAvailable":
 			mem.available = val
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return systemMemory{}, err
 	}
 
 	if mem.total == 0 {
