@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/Thruqe/whatsrook/font"
@@ -51,6 +52,13 @@ func init() {
 		IsPublic:    false,
 		Handler:     handleFont,
 	})
+	Register(&Command{
+			Name:        "fontlist",
+			Description: "List all available font styles and preview them.",
+			Category:    "info",
+			IsPublic:    false,
+			Handler:     handleFontList,
+		})
 }
 
 func handleFont(ctx *Context) error {
@@ -64,7 +72,7 @@ func handleFont(ctx *Context) error {
 	}
 
 	if !validStyles[style] && style != "default" {
-		return ctx.Reply("Invalid font style! Use 'font list' to view available options.")
+		return ctx.Reply("Invalid font style! Use 'fontlist' command to view available options.")
 	}
 
 	font.SetStyle(style)
@@ -74,4 +82,26 @@ func handleFont(ctx *Context) error {
 	}
 
 	return ctx.Reply(fmt.Sprintf("Font style switched to %s successfully.", style))
+}
+
+func handleFontList(ctx *Context) error {
+	styles := make([]string, 0, len(validStyles))
+	for style := range validStyles {
+		styles = append(styles, style)
+	}
+	sort.Strings(styles)
+
+	current := font.GetStyle()
+	var sb strings.Builder
+	sb.WriteString("Available Font Styles\n\n")
+
+	for _, style := range styles {
+			if style == current {
+				fmt.Fprintf(&sb, "• %s (active)\n", style)
+			} else {
+				fmt.Fprintf(&sb, "• %s\n", style)
+			}
+		}
+
+	return ctx.Reply(sb.String())
 }
