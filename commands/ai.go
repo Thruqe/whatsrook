@@ -95,6 +95,14 @@ func handleAI(ctx *Context) error {
 			if err != nil {
 				slog.Error("failed to create ai_history table", "err", err)
 			}
+			_, err = db.Exec(`CREATE TABLE IF NOT EXISTS ai_memory (
+				chat_jid TEXT,
+				content TEXT,
+				timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+			)`)
+			if err != nil {
+				slog.Error("failed to create ai_memory table", "err", err)
+			}
 		})
 	}
 
@@ -221,6 +229,24 @@ func handleAI(ctx *Context) error {
 		}
 	}
 
+	var storedMemory string
+	if db != nil {
+		memRows, err := db.QueryContext(ctx.Ctx, "SELECT content FROM ai_memory WHERE chat_jid = ? ORDER BY timestamp DESC LIMIT 5", chatKey)
+		if err == nil {
+			var memParts []string
+			for memRows.Next() {
+				var m string
+				if err := memRows.Scan(&m); err == nil {
+					memParts = append(memParts, m)
+				}
+			}
+			memRows.Close()
+			for i := len(memParts) - 1; i >= 0; i-- {
+				storedMemory += memParts[i] + "\n"
+			}
+		}
+	}
+
 	var botCommands []string
 	for _, c := range Visible() {
 		botCommands = append(botCommands, fmt.Sprintf("- !%s: %s (Aliases: %s)", c.Name, c.Description, strings.Join(c.Aliases, ", ")))
@@ -254,6 +280,12 @@ func handleAI(ctx *Context) error {
 		systemPrompt += "- Chat Type: Direct Message (Private Chat)\n"
 	}
 
+	if storedMemory != "" {
+		systemPrompt += fmt.Sprintf(
+			"\nStored Memory from Previous Interactions (facts, preferences, context you saved):\n%s\n", storedMemory,
+		)
+	}
+
 	systemPrompt += fmt.Sprintf(
 		"\nAvailable Bot Commands users can run directly:\n%s\n"+
 			"\nCRITICAL RULES FOR RESPONDING:\n"+
@@ -268,7 +300,13 @@ func handleAI(ctx *Context) error {
 			"9. If you want to tag a specific user in your conversational text response, use '@' followed by their Phone/Number or user ID (e.g. '@28024745529539'). The system will automatically convert this to a real WhatsApp tag/mention. Do NOT use their names for the mention, use their Phone/Number JID.\n"+
 			"10. You can run system shell commands when requested by the user by returning exactly: 'RUN_COMMAND: !sh <exact_command_requested>'. You MUST run the exact shell command that the user asked you to run. Do NOT copy examples from this rule list. Only execute shell commands when specifically requested or necessary to answer the user's question, and do not include any other conversational text when outputting RUN_COMMAND.\n"+
 			"11. SENSITIVE DATA SECURITY: You MUST check the user's privilege/role before executing shell commands or disclosing host system/environment details. If 'Sender Privilege/Role' is NOT 'Owner/Sudoer', you MUST refuse to execute shell commands, retrieve system information, or disclose any host/server details. Respond that you cannot perform this action because it is restricted to sudoers.\n"+
-			"12. PLAIN TEXT FORMATTING & NO EMOJIS: Always format your responses as plain text. Do NOT use emojis, markdown formatting, bolding, italicizing, or code block formatting unless the user explicitly requested rich formatting, markdown, or emojis in their query. Avoid long blocks of text.\n",
+			"12. PLAIN TEXT FORMATTING & NO EMOJIS: Always format your responses as plain text. Do NOT use emojis, markdown formatting, bolding, italicizing, or code block formatting unless the user explicitly requested rich formatting, markdown, or emojis in their query. Avoid long blocks of text.\n"+
+			"13. MEMORY SYSTEM: You have a persistent memory that persists across conversations. Use it to remember important facts, user preferences, group details, and context. Structure your response using these delimiters:\n"+
+			"   -----memory-----\n"+
+			"   (facts, preferences, or context you want to remember for the future — one per line)\n"+
+			"   -----response------\n"+
+			"   (your actual reply to the user)\n"+
+			"   The memory section is OPTIONAL — only include it when you learn something worth remembering (e.g., user's name, preferences, group info). If you include memory, the response section is REQUIRED. Everything in the memory section will be stored and fed back to you in future conversations. Do NOT include conversational text in the memory section. Do NOT include the memory section in the response shown to the user.\n",
 		botCommandsList,
 	)
 
@@ -314,7 +352,26 @@ func handleAI(ctx *Context) error {
 
 	slog.Info("handleAI: AI response received", "reply_len", len(reply))
 
-	cleanReply := strings.TrimSpace(reply)
+	memoryContent := ""
+	displayReply := reply
+
+	if memStart := strings.Index(reply, "-----memory-----"); memStart != -1 {
+		memStart += len("-----memory-----")
+		if respStart := strings.Index(reply[memStart:], "-----response------"); respStart != -1 {
+			memoryContent = strings.TrimSpace(reply[memStart : memStart+respStart])
+			displayReply = strings.TrimSpace(reply[memStart+respStart+len("-----response------"):])
+
+			if memoryContent != "" && db != nil {
+				_, err := db.ExecContext(ctx.Ctx, "INSERT INTO ai_memory (chat_jid, content) VALUES (?, ?)", chatKey, memoryContent)
+				if err != nil {
+					slog.Error("failed to save ai memory", "err", err)
+				}
+				_, _ = db.ExecContext(ctx.Ctx, "DELETE FROM ai_memory WHERE chat_jid = ? AND timestamp < datetime('now', '-7 days')", chatKey)
+			}
+		}
+	}
+
+	cleanReply := strings.TrimSpace(displayReply)
 	if cmdContent, ok := strings.CutPrefix(cleanReply, "RUN_COMMAND:"); ok {
 		cmdLine := strings.TrimSpace(cmdContent)
 		cmdLineClean := strings.TrimLeft(cmdLine, ".!/ ")
@@ -370,12 +427,12 @@ func handleAI(ctx *Context) error {
 				}
 
 				targetMention := "@" + resolvedJID.User
-				if strings.Contains(reply, targetMention) {
+				if strings.Contains(displayReply, targetMention) {
 					mentionedJIDs = append(mentionedJIDs, p.JID)
 				}
 
 				lidMention := "@" + p.JID.User
-				if strings.Contains(reply, lidMention) && p.JID.User != resolvedJID.User {
+				if strings.Contains(displayReply, lidMention) && p.JID.User != resolvedJID.User {
 					mentionedJIDs = append(mentionedJIDs, p.JID)
 				}
 			}
@@ -396,9 +453,9 @@ func handleAI(ctx *Context) error {
 	}
 
 	if len(mentionedJIDs) > 0 {
-		return ctx.ReplyWithMentions(reply, mentionedJIDs)
+		return ctx.ReplyWithMentions(displayReply, mentionedJIDs)
 	}
-	return sendText(ctx, reply)
+	return sendText(ctx, displayReply)
 }
 
 func generateUUID() string {
