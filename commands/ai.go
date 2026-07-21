@@ -42,6 +42,31 @@ func unlockMetaAi(chatKey string) {
 	delete(metaAiInFlight, chatKey)
 }
 
+// extractMetaAiText pulls the human-readable text out of a Meta AI
+// message, regardless of which underlying message shape it used — Meta AI
+// has been observed sending plain extendedTextMessage/conversation for
+// short replies, and a richer AIRichResponseMessage (with submessages)
+// for others.
+func extractMetaAiText(msg *waE2E.Message) string {
+	if msg == nil {
+		return ""
+	}
+	if conv := msg.GetConversation(); conv != "" {
+		return conv
+	}
+	if ext := msg.GetExtendedTextMessage(); ext != nil {
+		return ext.GetText()
+	}
+	if rich := msg.GetRichResponseMessage(); rich != nil {
+		var text string
+		for _, sub := range rich.GetSubmessages() {
+			text += sub.GetMessageText()
+		}
+		return text
+	}
+	return ""
+}
+
 // queryMetaAi sends request to Meta AI's bot JID and streams Meta AI's
 // response back to the caller as it arrives.
 //
@@ -50,13 +75,13 @@ func unlockMetaAi(chatKey string) {
 // key.ID pointing back to its own first message) until a final edit whose
 // MsgBotInfo.EditType == "last" arrives. queryMetaAi:
 //  1. Sends request as a plain text message to metaAiBotJID.
-//  2. Waits for an incoming message from metaAiBotJID whose
-//     MsgMetaInfo.TargetID matches the ID of the message just sent — this
-//     is how Meta AI correlates its reply to our outgoing message.
-//  3. Tracks further edits to that reply message (matched by the edit's
+//  2. Waits for the first incoming message from metaAiBotJID (identified
+//     by having no protocolMessage) and captures its own message ID.
+//  3. Tracks further edits to that message (matched by the edit's
 //     protocolMessage.Key.ID) and calls onUpdate with the latest text on
 //     every edit.
-//  4. Returns the text from the edit whose EditType == "last".
+//  4. Signals completion once an edit with EditType == "last" arrives,
+//     and returns that final text.
 //
 // Only one in-flight request per chat is allowed at a time; if a request
 // for chat is already running, queryMetaAi returns ErrMetaAiBusy
@@ -65,112 +90,95 @@ func unlockMetaAi(chatKey string) {
 //
 // onUpdate is called synchronously for every partial and the final
 // update; pass nil to skip streaming and just get the final text back.
-// If onUpdate returns an error, queryMetaAi stops and returns that error.
 func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, request string, onUpdate func(text string) error) (string, error) {
 	chatKey := chat.String()
 
 	if !tryLockMetaAi(chatKey) {
+		slog.Warn("queryMetaAi: rejected, already in progress for chat", "chat", chatKey)
 		return "", ErrMetaAiBusy
 	}
 	defer unlockMetaAi(chatKey)
 
-	sentResp, err := client.SendMessage(ctx, metaAiBotJID, &waE2E.Message{
+	slog.Debug("queryMetaAi: sending request", "chat", chatKey, "request", request)
+
+	if _, err := client.SendMessage(ctx, metaAiBotJID, &waE2E.Message{
 		Conversation: proto.String(request),
-	})
-	if err != nil {
+	}); err != nil {
+		slog.Error("queryMetaAi: failed to send request", "chat", chatKey, "err", err)
 		return "", fmt.Errorf("failed to send request to meta ai: %w", err)
 	}
-	sentID := sentResp.ID
-
-	type update struct {
-		text     string
-		editType string
-	}
-	updates := make(chan update, 16)
 
 	var (
-		mu            sync.Mutex
-		metaMsgID     string
-		metaMsgIDSeen bool
+		mu        sync.Mutex
+		metaMsgID string
+		seen      bool
+		final     string
+		done      = make(chan struct{})
+		closeOnce sync.Once
 	)
 
 	handlerID := client.AddEventHandler(func(evt any) {
 		msgEvt, ok := evt.(*events.Message)
-		if !ok {
+		if !ok || msgEvt.Info.Sender.String() != metaAiBotJID.String() {
 			return
 		}
-		if msgEvt.Info.Sender.String() != metaAiBotJID.String() {
-			return
-		}
-
-		mu.Lock()
-		if !metaMsgIDSeen {
-			if msgEvt.Info.MsgMetaInfo.TargetID == sentID {
-				metaMsgID = msgEvt.Info.ID
-				metaMsgIDSeen = true
-			} else {
-				mu.Unlock()
-				return
-			}
-		}
-		expectedID := metaMsgID
-		mu.Unlock()
 
 		pm := msgEvt.Message.GetProtocolMessage()
 
-		var text string
-		var editType string
-
-		if msgEvt.Info.ID == expectedID && pm == nil {
-			// The very first message (not yet an edit) — usually the
-			// "Thinking" placeholder. Surface it as an initial update.
-			rich := msgEvt.Message.GetRichResponseMessage()
-			if rich == nil {
+		mu.Lock()
+		if !seen {
+			if pm != nil {
+				mu.Unlock()
 				return
 			}
-			for _, sub := range rich.GetSubmessages() {
-				text += sub.GetMessageText()
-			}
-			editType = string(msgEvt.Info.MsgBotInfo.EditType)
+			metaMsgID = msgEvt.Info.ID
+			seen = true
+			mu.Unlock()
+			slog.Debug("queryMetaAi: captured meta ai reply message id", "chat", chatKey, "meta_msg_id", metaMsgID)
+		} else if pm == nil || pm.GetKey().GetID() != metaMsgID {
+			mu.Unlock()
+			return
 		} else {
-			if pm == nil || pm.GetKey().GetID() != expectedID {
-				return
-			}
-			edited := pm.GetEditedMessage()
-			if edited == nil {
-				return
-			}
-			rich := edited.GetRichResponseMessage()
-			if rich == nil {
-				return
-			}
-			for _, sub := range rich.GetSubmessages() {
-				text += sub.GetMessageText()
-			}
-			editType = string(msgEvt.Info.MsgBotInfo.EditType)
+			mu.Unlock()
 		}
 
-		select {
-		case updates <- update{text: text, editType: editType}:
-		default:
+		var text string
+		if pm == nil {
+			text = extractMetaAiText(msgEvt.Message)
+		} else {
+			text = extractMetaAiText(pm.GetEditedMessage())
+		}
+		if text == "" {
+			slog.Debug("queryMetaAi: empty text extracted, skipping update", "chat", chatKey, "info_id", msgEvt.Info.ID)
+			return
+		}
+
+		editType := string(msgEvt.Info.MsgBotInfo.EditType)
+		slog.Debug("queryMetaAi: update", "chat", chatKey, "edit_type", editType, "text", text)
+
+		if onUpdate != nil {
+			if err := onUpdate(text); err != nil {
+				slog.Error("queryMetaAi: onUpdate callback failed", "chat", chatKey, "err", err)
+			}
+		}
+		if editType == "last" {
+			mu.Lock()
+			final = text
+			mu.Unlock()
+			closeOnce.Do(func() { close(done) })
 		}
 	})
 	defer client.RemoveEventHandler(handlerID)
 
-	for {
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		case u := <-updates:
-			if onUpdate != nil {
-				if err := onUpdate(u.text); err != nil {
-					return "", err
-				}
-			}
-			if u.editType == "last" {
-				return u.text, nil
-			}
-		}
+	select {
+	case <-ctx.Done():
+		slog.Warn("queryMetaAi: context cancelled/timed out before completion", "chat", chatKey, "err", ctx.Err())
+		return "", ctx.Err()
+	case <-done:
+		mu.Lock()
+		defer mu.Unlock()
+		slog.Info("queryMetaAi: completed", "chat", chatKey, "final_text_len", len(final))
+		return final, nil
 	}
 }
 
@@ -197,6 +205,7 @@ func handleAI(ctx *Context) error {
 		Conversation: proto.String("Thinking..."),
 	})
 	if err != nil {
+		slog.Error("handleAI: failed to send placeholder message", "chat", ctx.Chat.String(), "err", err)
 		return fmt.Errorf("failed to send placeholder message: %w", err)
 	}
 
@@ -208,15 +217,19 @@ func handleAI(ctx *Context) error {
 			Conversation: proto.String(text),
 		})
 		_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
+		if err != nil {
+			slog.Error("handleAI: failed to send edit", "chat", ctx.Chat.String(), "err", err)
+		}
 		return err
 	}
 
 	_, err = queryMetaAi(ctx.Ctx, ctx.Client, ctx.Chat, query, onUpdate)
 	if err != nil {
 		if err == ErrMetaAiBusy {
+			slog.Warn("handleAI: meta ai busy for chat", "chat", ctx.Chat.String())
 			return sendText(ctx, "Please wait while I process another request.")
 		}
-		slog.Error("handleAI: queryMetaAi failed", "err", err)
+		slog.Error("handleAI: queryMetaAi failed", "chat", ctx.Chat.String(), "err", err)
 		editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
 			Conversation: proto.String("Failed to get a response: " + err.Error()),
 		})
@@ -224,5 +237,6 @@ func handleAI(ctx *Context) error {
 		return err
 	}
 
+	slog.Info("handleAI: completed successfully", "chat", ctx.Chat.String())
 	return nil
 }
