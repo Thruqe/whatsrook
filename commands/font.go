@@ -53,12 +53,12 @@ func init() {
 		Handler:     handleFont,
 	})
 	Register(&Command{
-			Name:        "fontlist",
-			Description: "List all available font styles and preview them.",
-			Category:    "info",
-			IsPublic:    false,
-			Handler:     handleFontList,
-		})
+		Name:        "fontlist",
+		Description: "List all available font styles and preview them.",
+		Category:    "info",
+		IsPublic:    false,
+		Handler:     handleFontList,
+	})
 }
 
 func handleFont(ctx *Context) error {
@@ -96,12 +96,12 @@ func handleFontList(ctx *Context) error {
 	sb.WriteString("Available Font Styles\n\n")
 
 	for _, style := range styles {
-			if style == current {
-				fmt.Fprintf(&sb, "• %s (active)\n", style)
-			} else {
-				fmt.Fprintf(&sb, "• %s\n", style)
-			}
+		if style == current {
+			fmt.Fprintf(&sb, "• %s (active)\n", style)
+		} else {
+			fmt.Fprintf(&sb, "• %s\n", style)
 		}
+	}
 
 	return ctx.Reply(sb.String())
 }
