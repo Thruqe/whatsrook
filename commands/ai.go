@@ -1,753 +1,228 @@
 package commands
 
 import (
-	"bytes"
 	"context"
-	"crypto/rand"
-	"database/sql"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
-	"mime/multipart"
-	"net/http"
-	"slices"
 	"strings"
 	"sync"
-	"time"
 
-	"github.com/Thruqe/whatsrook/store/sqlstore"
+	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events"
+	"google.golang.org/protobuf/proto"
 )
 
-type AIMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
+// metaAiBotJID is the fixed JID Meta AI's bot account is reached at.
+var metaAiBotJID = types.NewJID("867051314767696", "bot")
 
-type AIChatRequest struct {
-	Messages  []AIMessage `json:"messages"`
-	Model     string      `json:"model"`
-	Cost      int         `json:"cost"`
-	Stream    bool        `json:"stream"`
-	WebSearch bool        `json:"web_search"`
-}
+// ErrMetaAiBusy is returned by queryMetaAi when a request for the same
+// chat is already in progress.
+var ErrMetaAiBusy = fmt.Errorf("a Meta AI request is already in progress for this chat; please wait")
 
 var (
-	aiHistory   = make(map[string][]AIMessage)
-	aiHistoryMu sync.Mutex
-	dbInitOnce  sync.Once
+	metaAiInFlight   = make(map[string]bool)
+	metaAiInFlightMu sync.Mutex
 )
+
+func tryLockMetaAi(chatKey string) bool {
+	metaAiInFlightMu.Lock()
+	defer metaAiInFlightMu.Unlock()
+	if metaAiInFlight[chatKey] {
+		return false
+	}
+	metaAiInFlight[chatKey] = true
+	return true
+}
+
+func unlockMetaAi(chatKey string) {
+	metaAiInFlightMu.Lock()
+	defer metaAiInFlightMu.Unlock()
+	delete(metaAiInFlight, chatKey)
+}
+
+// queryMetaAi sends request to Meta AI's bot JID and streams Meta AI's
+// response back to the caller as it arrives.
+//
+// Meta AI streams its answer by sending an initial placeholder message and
+// then repeatedly editing that same message (protocolMessage, type=14,
+// key.ID pointing back to its own first message) until a final edit whose
+// MsgBotInfo.EditType == "last" arrives. queryMetaAi:
+//  1. Sends request as a plain text message to metaAiBotJID.
+//  2. Waits for an incoming message from metaAiBotJID whose
+//     MsgMetaInfo.TargetID matches the ID of the message just sent — this
+//     is how Meta AI correlates its reply to our outgoing message.
+//  3. Tracks further edits to that reply message (matched by the edit's
+//     protocolMessage.Key.ID) and calls onUpdate with the latest text on
+//     every edit.
+//  4. Returns the text from the edit whose EditType == "last".
+//
+// Only one in-flight request per chat is allowed at a time; if a request
+// for chat is already running, queryMetaAi returns ErrMetaAiBusy
+// immediately without sending anything. If ctx is done before a final
+// response arrives, queryMetaAi returns ctx.Err().
+//
+// onUpdate is called synchronously for every partial and the final
+// update; pass nil to skip streaming and just get the final text back.
+// If onUpdate returns an error, queryMetaAi stops and returns that error.
+func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, request string, onUpdate func(text string) error) (string, error) {
+	chatKey := chat.String()
+
+	if !tryLockMetaAi(chatKey) {
+		return "", ErrMetaAiBusy
+	}
+	defer unlockMetaAi(chatKey)
+
+	sentResp, err := client.SendMessage(ctx, metaAiBotJID, &waE2E.Message{
+		Conversation: proto.String(request),
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to send request to meta ai: %w", err)
+	}
+	sentID := sentResp.ID
+
+	type update struct {
+		text     string
+		editType string
+	}
+	updates := make(chan update, 16)
+
+	var (
+		mu            sync.Mutex
+		metaMsgID     string
+		metaMsgIDSeen bool
+	)
+
+	handlerID := client.AddEventHandler(func(evt any) {
+		msgEvt, ok := evt.(*events.Message)
+		if !ok {
+			return
+		}
+		if msgEvt.Info.Sender.String() != metaAiBotJID.String() {
+			return
+		}
+
+		mu.Lock()
+		if !metaMsgIDSeen {
+			if msgEvt.Info.MsgMetaInfo.TargetID == sentID {
+				metaMsgID = msgEvt.Info.ID
+				metaMsgIDSeen = true
+			} else {
+				mu.Unlock()
+				return
+			}
+		}
+		expectedID := metaMsgID
+		mu.Unlock()
+
+		pm := msgEvt.Message.GetProtocolMessage()
+
+		var text string
+		var editType string
+
+		if msgEvt.Info.ID == expectedID && pm == nil {
+			// The very first message (not yet an edit) — usually the
+			// "Thinking" placeholder. Surface it as an initial update.
+			rich := msgEvt.Message.GetRichResponseMessage()
+			if rich == nil {
+				return
+			}
+			for _, sub := range rich.GetSubmessages() {
+				text += sub.GetMessageText()
+			}
+			editType = string(msgEvt.Info.MsgBotInfo.EditType)
+		} else {
+			if pm == nil || pm.GetKey().GetID() != expectedID {
+				return
+			}
+			edited := pm.GetEditedMessage()
+			if edited == nil {
+				return
+			}
+			rich := edited.GetRichResponseMessage()
+			if rich == nil {
+				return
+			}
+			for _, sub := range rich.GetSubmessages() {
+				text += sub.GetMessageText()
+			}
+			editType = string(msgEvt.Info.MsgBotInfo.EditType)
+		}
+
+		select {
+		case updates <- update{text: text, editType: editType}:
+		default:
+		}
+	})
+	defer client.RemoveEventHandler(handlerID)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case u := <-updates:
+			if onUpdate != nil {
+				if err := onUpdate(u.text); err != nil {
+					return "", err
+				}
+			}
+			if u.editType == "last" {
+				return u.text, nil
+			}
+		}
+	}
+}
 
 func init() {
 	Register(&Command{
 		Name:        "ai",
 		Aliases:     []string{"gpt", "ask"},
-		Description: "Ask the AI assistant a question. Use '!ai clear' to reset conversation history.",
+		Description: "Ask Meta AI a question.",
 		Category:    "AI",
 		IsPublic:    true,
 		Handler:     handleAI,
 	})
 }
 
-func resolveContactName(ctx *Context, jid types.JID, pushName string) string {
-	if contact, err := ctx.Client.Store.Contacts.GetContact(ctx.Ctx, jid); err == nil && contact.Found {
-		if contact.FullName != "" {
-			return contact.FullName
-		}
-		if contact.FirstName != "" {
-			return contact.FirstName
-		}
-		if contact.PushName != "" {
-			return contact.PushName
-		}
-	}
-	if pushName != "" {
-		return pushName
-	}
-	return jid.User
-}
-
 func handleAI(ctx *Context) error {
-	slog.Info("handleAI started", "args", ctx.Args)
-
 	if len(ctx.Args) == 0 {
-		slog.Warn("handleAI: no query provided")
-		return sendText(ctx, "Usage: !ai <question> (or reply to a message with !ai)")
+		return sendText(ctx, "Usage: !ai <question>")
 	}
-
 	query := ctx.RawArgs
-	chatKey := ctx.Chat.String()
 
-	var db *sql.DB
-	if sqs, ok := ctx.Client.Store.Contacts.(*sqlstore.SQLStore); ok {
-		db = sqs.GetDB().RawDB
+	slog.Info("handleAI: sending request to Meta AI", "chat", ctx.Chat.String())
+
+	placeholderResp, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
+		Conversation: proto.String("Thinking..."),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to send placeholder message: %w", err)
 	}
 
-	if db != nil {
-		dbInitOnce.Do(func() {
-			_, err := db.Exec(`CREATE TABLE IF NOT EXISTS ai_history (
-				chat_jid TEXT,
-				role TEXT,
-				content TEXT,
-				timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-			)`)
-			if err != nil {
-				slog.Error("failed to create ai_history table", "err", err)
-			}
-			_, err = db.Exec(`CREATE TABLE IF NOT EXISTS ai_memory (
-				chat_jid TEXT,
-				content TEXT,
-				timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-			)`)
-			if err != nil {
-				slog.Error("failed to create ai_memory table", "err", err)
-			}
+	onUpdate := func(text string) error {
+		if strings.TrimSpace(text) == "" {
+			return nil
+		}
+		editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
+			Conversation: proto.String(text),
 		})
-	}
-
-	if cmdArgs, ok := parseRunCommand(query); ok {
-		if !ctx.IsSudo() {
-			return sendText(ctx, " Only sudoers can execute shell commands.")
-		}
-		shCmd, ok := Get("sh")
-		if !ok {
-			return sendText(ctx, " Shell command not available.")
-		}
-		var cmdArgv []string
-		if cmdArgs != "" {
-			cmdArgv = strings.Fields(cmdArgs)
-		}
-		cctx := &Context{
-			Ctx:     ctx.Ctx,
-			Client:  ctx.Client,
-			Evt:     ctx.Evt,
-			Command: "sh",
-			Args:    cmdArgv,
-			RawArgs: cmdArgs,
-			Chat:    ctx.Chat,
-			Sender:  ctx.Sender,
-		}
-		return shCmd.Handler(cctx)
-	}
-
-	if strings.EqualFold(query, "clear") {
-		if db != nil {
-			_, err := db.ExecContext(ctx.Ctx, "DELETE FROM ai_history WHERE chat_jid = ?", chatKey)
-			if err != nil {
-				slog.Error("failed to clear history from db", "err", err)
-			}
-		} else {
-			aiHistoryMu.Lock()
-			delete(aiHistory, chatKey)
-			aiHistoryMu.Unlock()
-		}
-		slog.Info("handleAI: cleared conversation history", "chat", chatKey)
-		return sendText(ctx, "AI conversation history cleared.")
-	}
-
-	var history []AIMessage
-	if db != nil {
-		_, _ = db.ExecContext(ctx.Ctx, "DELETE FROM ai_history WHERE timestamp < datetime('now', '-48 hours')")
-
-		rows, err := db.QueryContext(ctx.Ctx, "SELECT role, content FROM ai_history WHERE chat_jid = ? ORDER BY timestamp DESC LIMIT 10", chatKey)
-		if err == nil {
-			defer rows.Close()
-			var temp []AIMessage
-			for rows.Next() {
-				var m AIMessage
-				if err := rows.Scan(&m.Role, &m.Content); err == nil {
-					temp = append(temp, m)
-				}
-			}
-			if err := rows.Err(); err != nil {
-				slog.Error("error iterating ai_history rows", "err", err)
-			}
-			for _, m := range slices.Backward(temp) {
-				history = append(history, m)
-			}
-		} else {
-			slog.Error("failed to query ai_history from db", "err", err)
-		}
-	} else {
-		aiHistoryMu.Lock()
-		history = aiHistory[chatKey]
-		aiHistoryMu.Unlock()
-	}
-
-	senderName := resolveContactName(ctx, ctx.Sender, ctx.Evt.Info.PushName)
-	formattedQuery := fmt.Sprintf("[%s (%s)]: %s", senderName, ctx.Sender.User, query)
-
-	history = append(history, AIMessage{Role: "user", Content: formattedQuery})
-
-	if db == nil && len(history) > 10 {
-		history = history[len(history)-10:]
-	}
-
-	currentTime := time.Now().Format("2006-01-02 15:04:05 MST")
-
-	privilege := "Regular User"
-	if ctx.IsSudo() {
-		privilege = "Owner/Sudoer"
-	}
-
-	var groupName, groupTopic, groupJID string
-	var participantCount int
-	var groupAdminsList string
-	var groupCreatedStr string
-	var groupOwnerStr string
-	var groupParticipantsStr string
-	isGroup := ctx.Chat.Server == "g.us"
-
-	if isGroup {
-		groupInfo, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
-		if err == nil && groupInfo != nil {
-			groupName = groupInfo.GroupName.Name
-			groupTopic = groupInfo.GroupTopic.Topic
-			participantCount = groupInfo.ParticipantCount
-			groupJID = groupInfo.JID.String()
-
-			if !groupInfo.GroupCreated.IsZero() {
-				groupCreatedStr = groupInfo.GroupCreated.Format("2006-01-02 15:04:05 MST")
-			}
-
-			if !groupInfo.OwnerJID.IsEmpty() {
-				resolvedOwner, _ := ctx.ResolveMention(groupInfo.OwnerJID)
-				ownerName := resolveContactName(ctx, groupInfo.OwnerJID, "")
-				groupOwnerStr = fmt.Sprintf("%s (%s)", ownerName, resolvedOwner.User)
-			} else if !groupInfo.OwnerPN.IsEmpty() {
-				ownerName := resolveContactName(ctx, groupInfo.OwnerPN, "")
-				groupOwnerStr = fmt.Sprintf("%s (%s)", ownerName, groupInfo.OwnerPN.User)
-			}
-
-			adminNames := make([]string, 0)
-			participantsList := make([]string, 0, len(groupInfo.Participants))
-			for _, p := range groupInfo.Participants {
-				var resolvedJID types.JID
-				if !p.PhoneNumber.IsEmpty() {
-					resolvedJID = p.PhoneNumber.ToNonAD()
-				} else {
-					resolvedJID, _ = ctx.ResolveMention(p.JID)
-				}
-				name := resolveContactName(ctx, p.JID, "")
-
-				role := "Member"
-				if p.IsSuperAdmin {
-					role = "Super Admin"
-				} else if p.IsAdmin {
-					role = "Admin"
-				}
-
-				participantsList = append(participantsList, fmt.Sprintf("- %s (Phone/Number: %s, Role: %s)", name, resolvedJID.User, role))
-
-				if p.IsAdmin || p.IsSuperAdmin {
-					adminNames = append(adminNames, fmt.Sprintf("%s (%s)", name, resolvedJID.User))
-					if p.JID.ToNonAD() == ctx.Sender.ToNonAD() {
-						if privilege != "Owner/Sudoer" {
-							privilege = "Group Admin"
-						}
-					}
-				}
-			}
-			groupAdminsList = strings.Join(adminNames, ", ")
-			groupParticipantsStr = strings.Join(participantsList, "\n")
-		}
-	}
-
-	var storedMemory string
-	if db != nil {
-		memRows, err := db.QueryContext(ctx.Ctx, "SELECT content FROM ai_memory WHERE chat_jid = ? ORDER BY timestamp DESC LIMIT 5", chatKey)
-		if err == nil {
-			var memParts []string
-			for memRows.Next() {
-				var m string
-				if err := memRows.Scan(&m); err == nil {
-					memParts = append(memParts, m)
-				}
-			}
-			memRows.Close()
-			for i := len(memParts) - 1; i >= 0; i-- {
-				storedMemory += memParts[i] + "\n"
-			}
-		}
-	}
-
-	cmdByCategory := map[string][]string{}
-	catOrder := []string{}
-	catSeen := map[string]bool{}
-	for _, c := range Visible() {
-		cat := c.Category
-		if cat == "" {
-			cat = "other"
-		}
-		if !catSeen[cat] {
-			catSeen[cat] = true
-			catOrder = append(catOrder, cat)
-		}
-		entry := fmt.Sprintf("  !%s", c.Name)
-		if len(c.Aliases) > 0 {
-			entry += fmt.Sprintf(" (aliases: %s)", strings.Join(c.Aliases, ", "))
-		}
-		if !c.IsPublic {
-			entry += " [sudo]"
-		}
-		entry += ": " + c.Description
-		cmdByCategory[cat] = append(cmdByCategory[cat], entry)
-	}
-
-	var botCommands []string
-	for _, cat := range catOrder {
-		botCommands = append(botCommands, "["+cat+"]")
-		botCommands = append(botCommands, cmdByCategory[cat]...)
-	}
-	botCommandsList := strings.Join(botCommands, "\n")
-
-	systemPrompt := fmt.Sprintf(
-		"You are a smart, helpful WhatsApp bot assistant. Here is the metadata context of the user sending the message and the chat room:\n"+
-			"- Sender Name: %s\n"+
-			"- Sender Phone/ID: %s\n"+
-			"- Sender JID: %s\n"+
-			"- Sender Privilege/Role: %s\n"+
-			"- Current Local Time: %s\n",
-		senderName, ctx.Sender.User, ctx.Sender.String(), privilege, currentTime,
-	)
-
-	if isGroup {
-		systemPrompt += fmt.Sprintf(
-			"- Chat Type: Group Chat\n"+
-				"- Group Name: %s\n"+
-				"- Group Description: %s\n"+
-				"- Group Participant Count: %d\n"+
-				"- Group Admins: %s\n"+
-				"- Group Owner/Founder: %s\n"+
-				"- Group Created At: %s\n"+
-				"- Group JID: %s\n"+
-				"- Group Participants:\n%s\n",
-			groupName, groupTopic, participantCount, groupAdminsList, groupOwnerStr, groupCreatedStr, groupJID, groupParticipantsStr,
-		)
-	} else {
-		systemPrompt += "- Chat Type: Direct Message (Private Chat)\n"
-	}
-
-	if storedMemory != "" {
-		systemPrompt += fmt.Sprintf(
-			"\nStored Memory from Previous Interactions (facts, preferences, context you saved):\n%s\n", storedMemory,
-		)
-	}
-
-	systemPrompt += fmt.Sprintf(
-		"\n--- AVAILABLE BOT COMMANDS (grouped by category) ---\n%s\n"+
-			"\n--- SYSTEM ENVIRONMENT ---\n"+
-			"The bot runs on a Linux server. Common tools available: curl, wget, ffmpeg, python3, node, git, docker, grep, sed, awk, jq.\n"+
-			"You can run ANY shell command by using RUN_COMMAND: !sh <command> (see rules below).\n"+
-			"\n--- CRITICAL RULES ---\n"+
-			"1. BE DIRECT: No greetings (\"Hello!\", \"I can help you with...\"), no friendly closings (\"Is there anything else?\"). Answer the question immediately.\n"+
-			"2. EXECUTE COMMANDS WHEN ASKED: When a user asks you to run a shell command (e.g. \"run curl\", \"run ls\", \"check disk\"), output EXACTLY:\n"+
-			"   RUN_COMMAND: !sh <the exact command>\n"+
-			"   For example, if user says \"run curl ifconfig.me\", you output: RUN_COMMAND: !sh curl ifconfig.me\n"+
-			"   Do NOT explain how to run it. Do NOT ask for clarification. Just output RUN_COMMAND: !sh <command>.\n"+
-			"   If the command requires special characters, quote them properly for shell execution.\n"+
-			"3. RUN_COMMAND for bot commands: If a user asks to do something a bot command can do (tagall, kick, invite, download, etc.), output:\n"+
-			"   RUN_COMMAND: !<command_name> [args]\n"+
-			"   For example, \"tag everyone\" -> RUN_COMMAND: !tagall\n"+
-			"4. SENSITIVE DATA: If user's privilege is NOT \"Owner/Sudoer\", refuse to run shell commands or disclose server info.\n"+
-			"5. PLAIN TEXT ONLY: No emojis, no markdown, no bold/italic. Plain text only.\n"+
-			"6. NATURAL TONE: Write like a normal person. Do not output raw metadata lists.\n"+
-			"7. TAGGING: Use @<phone_number> to tag users (e.g. @28024745529539).\n"+
-			"8. MEMORY SYSTEM: Use these delimiters to store facts you want to remember:\n"+
-			"   -----memory-----\n"+
-			"   (one fact per line)\n"+
-			"   -----response------\n"+
-			"   (your reply to the user)\n"+
-			"   Memory section is optional. Only use it when you learn something worth saving.\n",
-		botCommandsList,
-	)
-
-	reqMessages := make([]AIMessage, 0, len(history)+1)
-	reqMessages = append(reqMessages, AIMessage{Role: "system", Content: systemPrompt})
-	reqMessages = append(reqMessages, history...)
-
-	slog.Info("handleAI: calling AI API", "chat", chatKey, "history_len", len(history))
-
-	_ = ctx.Client.SendChatPresence(ctx.Ctx, ctx.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaText)
-
-	reply, err := queryAI(ctx.Ctx, reqMessages)
-	if err != nil {
-		slog.Error("handleAI: AI API query failed", "err", err)
-		errMsg := err.Error()
-		if strings.Contains(errMsg, "deadline exceeded") || strings.Contains(errMsg, "timeout") || strings.Contains(errMsg, "Timeout") {
-			slog.Warn("handleAI: timeout/deadline exceeded, clearing history and retrying without history", "chat", chatKey)
-			if db != nil {
-				_, _ = db.ExecContext(ctx.Ctx, "DELETE FROM ai_history WHERE chat_jid = ?", chatKey)
-			} else {
-				aiHistoryMu.Lock()
-				delete(aiHistory, chatKey)
-				aiHistoryMu.Unlock()
-			}
-
-			retryMessages := []AIMessage{
-				{Role: "system", Content: systemPrompt},
-				{Role: "user", Content: formattedQuery},
-			}
-
-			_ = ctx.Client.SendChatPresence(ctx.Ctx, ctx.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaText)
-			reply, err = queryAI(ctx.Ctx, retryMessages)
-			if err != nil {
-				slog.Error("handleAI: AI API retry query failed", "err", err)
-				return sendText(ctx, "Failed to get response from AI even after clearing history: "+err.Error())
-			}
-
-			reply = " Notice: Chat history was cleared to resolve a timeout limit.\n\n" + reply
-		} else {
-			return sendText(ctx, "Failed to get response from AI: "+errMsg)
-		}
-	}
-
-	slog.Info("handleAI: AI response received", "reply_len", len(reply))
-
-	memoryContent := ""
-	displayReply := reply
-
-	if memStart := strings.Index(reply, "-----memory-----"); memStart != -1 {
-		memStart += len("-----memory-----")
-		if respStart := strings.Index(reply[memStart:], "-----response------"); respStart != -1 {
-			memoryContent = strings.TrimSpace(reply[memStart : memStart+respStart])
-			displayReply = strings.TrimSpace(reply[memStart+respStart+len("-----response------"):])
-
-			if memoryContent != "" && db != nil {
-				_, err := db.ExecContext(ctx.Ctx, "INSERT INTO ai_memory (chat_jid, content) VALUES (?, ?)", chatKey, memoryContent)
-				if err != nil {
-					slog.Error("failed to save ai memory", "err", err)
-				}
-				_, _ = db.ExecContext(ctx.Ctx, "DELETE FROM ai_memory WHERE chat_jid = ? AND timestamp < datetime('now', '-7 days')", chatKey)
-			}
-		}
-	}
-
-	cleanReply := strings.TrimSpace(displayReply)
-	if cmdContent, ok := strings.CutPrefix(cleanReply, "RUN_COMMAND:"); ok {
-		cmdLine := strings.TrimSpace(cmdContent)
-		cmdLineClean := strings.TrimLeft(cmdLine, ".!/ ")
-		fields := strings.Fields(cmdLineClean)
-		if len(fields) > 0 {
-			cmdName := strings.ToLower(fields[0])
-			cmdArgs := fields[1:]
-			cmdRawArgs := strings.TrimSpace(cmdLineClean[len(fields[0]):])
-
-			if targetCmd, ok := Get(cmdName); ok {
-				if !targetCmd.IsPublic && !ctx.IsSudo() {
-					slog.Warn("handleAI: blocked unauthorized command from AI response", "sender", ctx.Sender.String(), "command", cmdName)
-					return sendText(ctx, " You are not authorized to run system commands.")
-				}
-
-				cctx := &Context{
-					Ctx:     ctx.Ctx,
-					Client:  ctx.Client,
-					Evt:     ctx.Evt,
-					Command: cmdName,
-					Args:    cmdArgs,
-					RawArgs: cmdRawArgs,
-					Chat:    ctx.Chat,
-					Sender:  ctx.Sender,
-				}
-				slog.Info("handleAI: executing command on behalf of AI", "command", cmdName, "args", cmdArgs)
-
-				if db != nil {
-					_, _ = db.ExecContext(ctx.Ctx, "INSERT INTO ai_history (chat_jid, role, content) VALUES (?, 'user', ?)", chatKey, formattedQuery)
-					_, _ = db.ExecContext(ctx.Ctx, "INSERT INTO ai_history (chat_jid, role, content) VALUES (?, 'assistant', ?)", chatKey, reply)
-				} else {
-					history = append(history, AIMessage{Role: "assistant", Content: reply})
-					aiHistoryMu.Lock()
-					aiHistory[chatKey] = history
-					aiHistoryMu.Unlock()
-				}
-
-				return targetCmd.Handler(cctx)
-			}
-		}
-	}
-
-	var mentionedJIDs []types.JID
-	if isGroup {
-		groupInfo, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
-		if err == nil && groupInfo != nil {
-			for _, p := range groupInfo.Participants {
-				var resolvedJID types.JID
-				if !p.PhoneNumber.IsEmpty() {
-					resolvedJID = p.PhoneNumber.ToNonAD()
-				} else {
-					resolvedJID, _ = ctx.ResolveMention(p.JID)
-				}
-
-				targetMention := "@" + resolvedJID.User
-				if strings.Contains(displayReply, targetMention) {
-					mentionedJIDs = append(mentionedJIDs, p.JID)
-				}
-
-				lidMention := "@" + p.JID.User
-				if strings.Contains(displayReply, lidMention) && p.JID.User != resolvedJID.User {
-					mentionedJIDs = append(mentionedJIDs, p.JID)
-				}
-			}
-		}
-	}
-
-	if db != nil {
-		_, errUser := db.ExecContext(ctx.Ctx, "INSERT INTO ai_history (chat_jid, role, content) VALUES (?, 'user', ?)", chatKey, formattedQuery)
-		_, errAssistant := db.ExecContext(ctx.Ctx, "INSERT INTO ai_history (chat_jid, role, content) VALUES (?, 'assistant', ?)", chatKey, reply)
-		if errUser != nil || errAssistant != nil {
-			slog.Error("failed to insert history to db", "errUser", errUser, "errAssistant", errAssistant)
-		}
-	} else {
-		history = append(history, AIMessage{Role: "assistant", Content: reply})
-		aiHistoryMu.Lock()
-		aiHistory[chatKey] = history
-		aiHistoryMu.Unlock()
-	}
-
-	if len(mentionedJIDs) > 0 {
-		return ctx.ReplyWithMentions(displayReply, mentionedJIDs)
-	}
-	return sendText(ctx, displayReply)
-}
-
-func generateUUID() string {
-	var b [16]byte
-	_, _ = rand.Read(b[:])
-	b[6] = (b[6] & 0x0f) | 0x40
-	b[8] = (b[8] & 0x3f) | 0x80
-	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
-}
-
-func saveChatSession(ctx context.Context, client *http.Client, sessionUUID string) error {
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-
-	_ = writer.WriteField("uuid", sessionUUID)
-	_ = writer.WriteField("title", "")
-	_ = writer.WriteField("chat_style", "gpt-chat")
-	_ = writer.WriteField("messages", "[]")
-	writer.Close()
-
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.deepai.org/save_chat_session", &body)
-	if err != nil {
+		_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
 		return err
 	}
 
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("origin", "https://deepai.org")
-	req.Header.Set("referer", "https://deepai.org/chat/gpt-chat")
-	req.Header.Set("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36")
-
-	resp, err := client.Do(req)
+	_, err = queryMetaAi(ctx.Ctx, ctx.Client, ctx.Chat, query, onUpdate)
 	if err != nil {
+		if err == ErrMetaAiBusy {
+			return sendText(ctx, "Please wait while I process another request.")
+		}
+		slog.Error("handleAI: queryMetaAi failed", "err", err)
+		editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
+			Conversation: proto.String("Failed to get a response: " + err.Error()),
+		})
+		_, _ = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
 		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		b, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to save chat session: status %d: %s", resp.StatusCode, string(b))
 	}
 
 	return nil
-}
-
-func parseRunCommand(query string) (args string, ok bool) {
-	q := strings.TrimSpace(query)
-	lower := strings.ToLower(q)
-
-	patterns := []string{
-		"run ",
-		"execute ",
-		"exec ",
-		"can you run ",
-		"can u run ",
-		"could you run ",
-		"please run ",
-	}
-	for _, prefix := range patterns {
-		idx := strings.Index(lower, prefix)
-		if idx < 0 {
-			continue
-		}
-		rest := strings.TrimSpace(q[idx+len(prefix):])
-		if rest != "" {
-			return rest, true
-		}
-	}
-
-	fields := strings.Fields(q)
-	if len(fields) >= 2 {
-		lastTwo := strings.ToLower(strings.Join(fields[len(fields)-2:], " "))
-		if lastTwo == "use curl" || lastTwo == "use wget" || lastTwo == "use fetch" {
-			before := strings.TrimSpace(q[:len(q)-len(fields[len(fields)-1])-len(fields[len(fields)-2])-1])
-			if before != "" {
-				url := extractURL(before)
-				if url != "" {
-					return fmt.Sprintf("curl %s", url), true
-				}
-				words := strings.Fields(before)
-				return fmt.Sprintf("curl %s", words[len(words)-1]), true
-			}
-		}
-	}
-
-	return "", false
-}
-
-func extractURL(s string) string {
-	words := strings.Fields(s)
-	for _, w := range words {
-		w = strings.Trim(w, ".,!?;:'\"()[]{}")
-		if strings.Contains(w, ".") && !strings.Contains(w, " ") && !strings.HasPrefix(w, "-") {
-			if !strings.HasPrefix(w, "http") {
-				w = "https://" + w
-			}
-			return w
-		}
-	}
-	return ""
-}
-
-func queryAI(ctx context.Context, messages []AIMessage) (string, error) {
-	type chatMessage struct {
-		Role    string `json:"role"`
-		Content string `json:"content"`
-	}
-
-	var systemContent string
-	var chatHistory []chatMessage
-
-	for _, msg := range messages {
-		if msg.Role == "system" {
-			systemContent = msg.Content
-			continue
-		}
-		chatHistory = append(chatHistory, chatMessage{
-			Role:    msg.Role,
-			Content: msg.Content,
-		})
-	}
-
-	if systemContent != "" {
-		systemMsg := chatMessage{
-			Role:    "user",
-			Content: fmt.Sprintf("[SYSTEM INSTRUCTION — you must follow these rules and use this context for all responses]:\n%s\n[/SYSTEM INSTRUCTION]\n\n---BEGIN CONVERSATION---", systemContent),
-		}
-		chatHistory = append([]chatMessage{systemMsg}, chatHistory...)
-	}
-
-	historyJSON, err := json.Marshal(chatHistory)
-	if err != nil {
-		return "", err
-	}
-
-	sessionUUID := generateUUID()
-	reqID := generateUUID()
-
-	client := &http.Client{Timeout: 60 * time.Second}
-
-	_ = saveChatSession(ctx, client, sessionUUID)
-
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-
-	_ = writer.WriteField("chat_style", "gpt-chat")
-	_ = writer.WriteField("chatHistory", string(historyJSON))
-	_ = writer.WriteField("model", "standard")
-	_ = writer.WriteField("session_uuid", sessionUUID)
-	_ = writer.WriteField("sensitivity_request_id", reqID)
-	_ = writer.WriteField("hacker_is_stinky", "very_stinky")
-	_ = writer.WriteField("enabled_tools", `["image_generator","image_editor"]`)
-	writer.Close()
-
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.deepai.org/hacking_is_a_serious_crime", &body)
-	if err != nil {
-		return "", err
-	}
-
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("api-key", "tryit-15577571150-bd0743084e2bc4d3ac4ef52f248f653b")
-	req.Header.Set("origin", "https://deepai.org")
-	req.Header.Set("referer", "https://deepai.org/chat/gpt-chat")
-	req.Header.Set("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(bodyBytes))
-	}
-
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	reply := strings.TrimSpace(string(respBytes))
-	if reply == "" {
-		return "", fmt.Errorf("empty response received from AI")
-	}
-
-	return reply, nil
-}
-
-func init() {
-	Register(&Command{
-		Name:        "autoai",
-		Description: "Toggle automatic AI responses when the bot is tagged or replied to in this chat (on/off)",
-		Category:    "AI",
-		IsPublic:    true,
-		Handler:     handleAutoAI,
-	})
-}
-
-func handleAutoAI(ctx *Context) error {
-	slog.Info("handleAutoAI started", "args", ctx.Args)
-
-	isAuthorized := ctx.IsSudo()
-	if !isAuthorized && ctx.Chat.Server == "g.us" {
-		info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
-		if err == nil && info != nil {
-			if ctx.IsSenderAdmin(info) {
-				isAuthorized = true
-			}
-		}
-	}
-
-	if !isAuthorized {
-		return ctx.Reply(" Only sudoers or group admins can change the AutoAI setting.")
-	}
-
-	s, okStore := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
-	if !okStore {
-		return ctx.Reply(" Database store is not available.")
-	}
-
-	settingKey := "autoai:" + ctx.Chat.String()
-
-	if len(ctx.Args) == 0 {
-		current, _ := s.GetSetting(ctx.Ctx, settingKey)
-		if current == "" {
-			current = "off"
-		}
-		return ctx.Reply(fmt.Sprintf("AutoAI is currently %s in this chat.", current))
-	}
-
-	val := strings.ToLower(ctx.Args[0])
-	if val != "on" && val != "off" {
-		return ctx.Reply(" Usage: !autoai [on/off]")
-	}
-
-	if err := s.PutSetting(ctx.Ctx, settingKey, val); err != nil {
-		slog.Error("failed to update autoai setting", "err", err)
-		return ctx.Reply(" Failed to update setting: " + err.Error())
-	}
-
-	return ctx.Reply(fmt.Sprintf("AutoAI has been set to %s for this chat.", val))
 }

@@ -90,3 +90,5 @@ type RevokeMessagePayload struct {
 	MessageID      string  `json:"message_id"`
 	OriginalSender *string `json:"original_sender,omitempty"`
 }
+
+// TO DO: Add more payloads
