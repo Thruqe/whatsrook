@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"slices"
 	"strings"
@@ -417,33 +419,114 @@ func handleAI(ctx *Context) error {
 	return sendText(ctx, reply)
 }
 
+func generateUUID() string {
+	var b [16]byte
+	_, _ = rand.Read(b[:])
+	b[6] = (b[6] & 0x0f) | 0x40 // Version 4
+	b[8] = (b[8] & 0x3f) | 0x80 // Variant RFC4122
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
+
+func saveChatSession(ctx context.Context, client *http.Client, sessionUUID string) error {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+
+	_ = writer.WriteField("uuid", sessionUUID)
+	_ = writer.WriteField("title", "")
+	_ = writer.WriteField("chat_style", "gpt-chat")
+	_ = writer.WriteField("messages", "[]")
+	writer.Close()
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.deepai.org/save_chat_session", &body)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("origin", "https://deepai.org")
+	req.Header.Set("referer", "https://deepai.org/chat/gpt-chat")
+	req.Header.Set("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to save chat session: status %d: %s", resp.StatusCode, string(b))
+	}
+
+	return nil
+}
+
 func queryAI(ctx context.Context, messages []AIMessage) (string, error) {
-	reqPayload := AIChatRequest{
-		Messages:  messages,
-		Model:     "v3",
-		Cost:      1,
-		Stream:    true,
-		WebSearch: false,
+	type chatMessage struct {
+		Role    string `json:"role"`
+		Content string `json:"content"`
 	}
 
-	jsonBytes, err := json.Marshal(reqPayload)
+	var systemContent string
+	var chatHistory []chatMessage
+
+	for _, msg := range messages {
+		if msg.Role == "system" {
+			systemContent = msg.Content
+			continue
+		}
+		chatHistory = append(chatHistory, chatMessage{
+			Role:    msg.Role,
+			Content: msg.Content,
+		})
+	}
+
+	if systemContent != "" {
+		if len(chatHistory) > 0 {
+			chatHistory[0].Content = fmt.Sprintf("SYSTEM CONTEXT:\n%s\n\nUSER PROMPT:\n%s", systemContent, chatHistory[0].Content)
+		} else {
+			chatHistory = append(chatHistory, chatMessage{
+				Role:    "user",
+				Content: fmt.Sprintf("SYSTEM CONTEXT:\n%s", systemContent),
+			})
+		}
+	}
+
+	historyJSON, err := json.Marshal(chatHistory)
 	if err != nil {
 		return "", err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://llmproxy.org/api/chat.php", bytes.NewBuffer(jsonBytes))
-	if err != nil {
-		return "", err
-	}
-
-	// Set headers exactly matching freegpt.ai requests
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Origin", "https://freegpt.ai")
-	req.Header.Set("Referer", "https://freegpt.ai/")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36")
-	req.Header.Set("Accept", "*/*")
+	sessionUUID := generateUUID()
+	reqID := generateUUID()
 
 	client := &http.Client{Timeout: 60 * time.Second}
+
+	_ = saveChatSession(ctx, client, sessionUUID)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+
+	_ = writer.WriteField("chat_style", "gpt-chat")
+	_ = writer.WriteField("chatHistory", string(historyJSON))
+	_ = writer.WriteField("model", "standard")
+	_ = writer.WriteField("session_uuid", sessionUUID)
+	_ = writer.WriteField("sensitivity_request_id", reqID)
+	_ = writer.WriteField("hacker_is_stinky", "very_stinky")
+	_ = writer.WriteField("enabled_tools", `["image_generator","image_editor"]`)
+	writer.Close()
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.deepai.org/hacking_is_a_serious_crime", &body)
+	if err != nil {
+		return "", err
+	}
+
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("api-key", "tryit-15577571150-bd0743084e2bc4d3ac4ef52f248f653b")
+	req.Header.Set("origin", "https://deepai.org")
+	req.Header.Set("referer", "https://deepai.org/chat/gpt-chat")
+	req.Header.Set("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36")
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
@@ -455,47 +538,12 @@ func queryAI(ctx context.Context, messages []AIMessage) (string, error) {
 		return "", fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	reader := bufio.NewReader(resp.Body)
-	var assistantReply strings.Builder
-
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return "", err
-		}
-
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		if strings.HasPrefix(line, "data: ") {
-			dataContent := strings.TrimPrefix(line, "data: ")
-			if dataContent == "[DONE]" {
-				break
-			}
-
-			var chunk struct {
-				Choices []struct {
-					Delta struct {
-						Content string `json:"content"`
-					} `json:"delta"`
-				} `json:"choices"`
-			}
-			if err := json.Unmarshal([]byte(dataContent), &chunk); err == nil {
-				if len(chunk.Choices) > 0 {
-					assistantReply.WriteString(chunk.Choices[0].Delta.Content)
-				}
-			} else {
-				slog.Warn("handleAI: failed to unmarshal SSE chunk", "err", err, "raw", dataContent)
-			}
-		}
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
 	}
 
-	reply := assistantReply.String()
+	reply := strings.TrimSpace(string(respBytes))
 	if reply == "" {
 		return "", fmt.Errorf("empty response received from AI")
 	}
