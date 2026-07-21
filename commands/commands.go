@@ -22,6 +22,17 @@ type Command struct {
 	Handler      Handler
 }
 
+// CommandInfo is a plain-data description of a registered bot command,
+// suitable for exposing to an AI response or external caller.
+type CommandInfo struct {
+	Name        string   `json:"name"`
+	Aliases     []string `json:"aliases,omitempty"`
+	Description string   `json:"description"`
+	Category    string   `json:"category"`
+	GroupOnly   bool     `json:"group_only"`
+	IsPublic    bool     `json:"is_public"`
+}
+
 var registry = map[string]*Command{}
 var order []string // preserves registration order for help text
 
@@ -61,6 +72,25 @@ func Visible() []*Command {
 		}
 		seen[c] = true
 		out = append(out, c)
+	}
+	return out
+}
+
+// ListCommands returns metadata for all visible (non-hidden) registered
+// commands, for use by callers that need to know what commands exist
+// without invoking commands.Command's unexported Handler directly.
+func ListCommands() []CommandInfo {
+	visible := Visible()
+	out := make([]CommandInfo, 0, len(visible))
+	for _, c := range visible {
+		out = append(out, CommandInfo{
+			Name:        c.Name,
+			Aliases:     c.Aliases,
+			Description: c.Description,
+			Category:    c.Category,
+			GroupOnly:   c.GroupOnly,
+			IsPublic:    c.IsPublic,
+		})
 	}
 	return out
 }

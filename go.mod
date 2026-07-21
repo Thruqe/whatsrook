@@ -8,6 +8,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.48
 	github.com/purpshell/meowcaller v0.0.0-20260626012300-0f1265d7ebee
 	github.com/rs/zerolog v1.35.1
+	github.com/writeas/go-strip-markdown/v2 v2.1.1
 	go.mau.fi/libsignal v0.2.2
 	go.mau.fi/util v0.9.10
 	go.mau.fi/whatsmeow v0.0.0-20260713112832-d8960d9575d2
@@ -35,5 +36,6 @@ require (
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/term v0.45.0
 	golang.org/x/text v0.40.0 // indirect
 )
