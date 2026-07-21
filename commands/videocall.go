@@ -12,6 +12,6 @@ func init() {
 }
 
 func handleVideoCall(ctx *Context) error {
-	return sendText(ctx, "🎬 Video calling isn't fully supported yet — outbound video is unvalidated in the underlying call library.\n"+
+	return sendText(ctx, " Video calling isn't fully supported yet — outbound video is unvalidated in the underlying call library.\n"+
 		"Tracking upstream: https://github.com/purpshell/meowcaller")
 }

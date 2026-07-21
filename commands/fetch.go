@@ -63,7 +63,7 @@ func handleDl(ctx *Context) error {
 
 func handleFetch(ctx *Context) error {
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("❌ Usage: fetch [METHOD] <url> [body...] [Header: Value...]")
+		return ctx.Reply(" Usage: fetch [METHOD] <url> [body...] [Header: Value...]")
 	}
 
 	method := "GET"
@@ -90,7 +90,7 @@ func handleFetch(ctx *Context) error {
 	}
 
 	if argIdx >= len(ctx.Args) {
-		return ctx.Reply("❌ URL is required.")
+		return ctx.Reply(" URL is required.")
 	}
 
 	urlStr = ctx.Args[argIdx]
@@ -124,7 +124,7 @@ func handleFetch(ctx *Context) error {
 
 	req, err := http.NewRequestWithContext(ctx.Ctx, method, urlStr, reqBody)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("❌ Failed to create request: %v", err))
+		return ctx.Reply(fmt.Sprintf(" Failed to create request: %v", err))
 	}
 
 	for k, v := range headers {
@@ -141,13 +141,13 @@ func handleFetch(ctx *Context) error {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("❌ HTTP request failed: %v", err))
+		return ctx.Reply(fmt.Sprintf(" HTTP request failed: %v", err))
 	}
 	defer resp.Body.Close()
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("❌ Failed to read response: %v", err))
+		return ctx.Reply(fmt.Sprintf(" Failed to read response: %v", err))
 	}
 
 	var sb strings.Builder

@@ -64,17 +64,17 @@ func init() {
 func handleFilter(ctx *Context) error {
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply("❌ Settings store unavailable.")
+		return ctx.Reply(" Settings store unavailable.")
 	}
 	db := s.GetDB()
 	if db == nil {
-		return ctx.Reply("❌ Database unavailable.")
+		return ctx.Reply(" Database unavailable.")
 	}
 
 	ourJID := ctx.Client.Store.ID.ToNonAD().String()
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("❌ Usage:\n- filter [word] [response text]\n- filter [word] (replying to response message)\n- filter del [word]\n- filter list")
+		return ctx.Reply(" Usage:\n- filter [word] [response text]\n- filter [word] (replying to response message)\n- filter del [word]\n- filter list")
 	}
 
 	var trigger string
@@ -85,7 +85,7 @@ func handleFilter(ctx *Context) error {
 	switch action {
 	case "add":
 		if len(ctx.Args) < 2 {
-			return ctx.Reply("❌ Please specify the trigger word.")
+			return ctx.Reply(" Please specify the trigger word.")
 		}
 		trigger = strings.ToLower(ctx.Args[1])
 
@@ -93,7 +93,7 @@ func handleFilter(ctx *Context) error {
 			responseProtoMsg = quoted
 		} else {
 			if len(ctx.Args) < 3 {
-				return ctx.Reply("❌ Please reply to a message or provide response text.")
+				return ctx.Reply(" Please reply to a message or provide response text.")
 			}
 			textVal := strings.Join(ctx.Args[2:], " ")
 			responseProtoMsg = &waE2E.Message{
@@ -103,7 +103,7 @@ func handleFilter(ctx *Context) error {
 
 	case "del", "remove":
 		if len(ctx.Args) < 2 {
-			return ctx.Reply("❌ Please specify the trigger word to remove.")
+			return ctx.Reply(" Please specify the trigger word to remove.")
 		}
 		trigger = strings.ToLower(ctx.Args[1])
 
@@ -113,9 +113,9 @@ func handleFilter(ctx *Context) error {
 		}
 		rows, _ := res.RowsAffected()
 		if rows == 0 {
-			return ctx.Reply(fmt.Sprintf("ℹ️ Filter for word %q not found.", trigger))
+			return ctx.Reply(fmt.Sprintf("ℹ Filter for word %q not found.", trigger))
 		}
-		return ctx.Reply(fmt.Sprintf("✅ Filter for word %q removed.", trigger))
+		return ctx.Reply(fmt.Sprintf(" Filter for word %q removed.", trigger))
 
 	case "list":
 		rows, err := db.Query(ctx.Ctx, `SELECT trigger_word FROM bot_filters WHERE our_jid=$1`, ourJID)
@@ -133,9 +133,9 @@ func handleFilter(ctx *Context) error {
 		}
 
 		if len(triggers) == 0 {
-			return ctx.Reply("ℹ️ No filters configured.")
+			return ctx.Reply("ℹ No filters configured.")
 		}
-		return ctx.Reply(fmt.Sprintf("🔍 *Active Filters:*\n- %s", strings.Join(triggers, "\n- ")))
+		return ctx.Reply(fmt.Sprintf(" Active Filters:\n- %s", strings.Join(triggers, "\n- ")))
 
 	default:
 		// Shorthand: filter [trigger] [response_text...] or filter [trigger] (replying to a message)
@@ -145,7 +145,7 @@ func handleFilter(ctx *Context) error {
 			responseProtoMsg = quoted
 		} else {
 			if len(ctx.Args) < 2 {
-				return ctx.Reply("❌ Please specify response text or reply to a message.")
+				return ctx.Reply(" Please specify response text or reply to a message.")
 			}
 			textVal := strings.Join(ctx.Args[1:], " ")
 			responseProtoMsg = &waE2E.Message{
@@ -157,7 +157,7 @@ func handleFilter(ctx *Context) error {
 	if responseProtoMsg != nil {
 		encoded, err := sender.EncodeProtoMessage(responseProtoMsg)
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf("❌ Failed to encode filter message: %v", err))
+			return ctx.Reply(fmt.Sprintf(" Failed to encode filter message: %v", err))
 		}
 
 		_, err = db.Exec(ctx.Ctx, `
@@ -169,7 +169,7 @@ func handleFilter(ctx *Context) error {
 			return err
 		}
 
-		return ctx.Reply(fmt.Sprintf("✅ Filter added for word %q.", trigger))
+		return ctx.Reply(fmt.Sprintf(" Filter added for word %q.", trigger))
 	}
 
 	return nil
@@ -178,17 +178,17 @@ func handleFilter(ctx *Context) error {
 func handleBGM(ctx *Context) error {
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply("❌ Settings store unavailable.")
+		return ctx.Reply(" Settings store unavailable.")
 	}
 	db := s.GetDB()
 	if db == nil {
-		return ctx.Reply("❌ Database unavailable.")
+		return ctx.Reply(" Database unavailable.")
 	}
 
 	ourJID := ctx.Client.Store.ID.ToNonAD().String()
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("❌ Usage:\n- bgm [word] (replying to audio)\n- bgm del [word]\n- bgm list")
+		return ctx.Reply(" Usage:\n- bgm [word] (replying to audio)\n- bgm del [word]\n- bgm list")
 	}
 
 	var trigger string
@@ -199,21 +199,21 @@ func handleBGM(ctx *Context) error {
 	switch action {
 	case "add":
 		if len(ctx.Args) < 2 {
-			return ctx.Reply("❌ Please specify the trigger word.")
+			return ctx.Reply(" Please specify the trigger word.")
 		}
 		trigger = strings.ToLower(ctx.Args[1])
 
 		if quoted == nil {
-			return ctx.Reply("❌ Please reply to the audio message you want to set as the BGM.")
+			return ctx.Reply(" Please reply to the audio message you want to set as the BGM.")
 		}
 		if quoted.AudioMessage == nil {
-			return ctx.Reply("❌ The replied message must be an audio/voice note.")
+			return ctx.Reply(" The replied message must be an audio/voice note.")
 		}
 		responseProtoMsg = quoted
 
 	case "del", "remove":
 		if len(ctx.Args) < 2 {
-			return ctx.Reply("❌ Please specify the trigger word to remove.")
+			return ctx.Reply(" Please specify the trigger word to remove.")
 		}
 		trigger = strings.ToLower(ctx.Args[1])
 
@@ -223,9 +223,9 @@ func handleBGM(ctx *Context) error {
 		}
 		rows, _ := res.RowsAffected()
 		if rows == 0 {
-			return ctx.Reply(fmt.Sprintf("ℹ️ BGM for word %q not found.", trigger))
+			return ctx.Reply(fmt.Sprintf("ℹ BGM for word %q not found.", trigger))
 		}
-		return ctx.Reply(fmt.Sprintf("✅ BGM for word %q removed.", trigger))
+		return ctx.Reply(fmt.Sprintf(" BGM for word %q removed.", trigger))
 
 	case "list":
 		rows, err := db.Query(ctx.Ctx, `SELECT trigger_word FROM bot_bgm WHERE our_jid=$1`, ourJID)
@@ -243,19 +243,19 @@ func handleBGM(ctx *Context) error {
 		}
 
 		if len(triggers) == 0 {
-			return ctx.Reply("ℹ️ No BGMs configured.")
+			return ctx.Reply("ℹ No BGMs configured.")
 		}
-		return ctx.Reply(fmt.Sprintf("🎵 *Active BGMs:*\n- %s", strings.Join(triggers, "\n- ")))
+		return ctx.Reply(fmt.Sprintf(" Active BGMs:\n- %s", strings.Join(triggers, "\n- ")))
 
 	default:
 		// Shorthand: bgm [trigger] (replying to audio)
 		trigger = strings.ToLower(ctx.Args[0])
 
 		if quoted == nil {
-			return ctx.Reply("❌ Please reply to the audio message you want to set as the BGM.")
+			return ctx.Reply(" Please reply to the audio message you want to set as the BGM.")
 		}
 		if quoted.AudioMessage == nil {
-			return ctx.Reply("❌ The replied message must be an audio/voice note.")
+			return ctx.Reply(" The replied message must be an audio/voice note.")
 		}
 		responseProtoMsg = quoted
 	}
@@ -263,7 +263,7 @@ func handleBGM(ctx *Context) error {
 	if responseProtoMsg != nil {
 		encoded, err := sender.EncodeProtoMessage(responseProtoMsg)
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf("❌ Failed to encode BGM message: %v", err))
+			return ctx.Reply(fmt.Sprintf(" Failed to encode BGM message: %v", err))
 		}
 
 		_, err = db.Exec(ctx.Ctx, `
@@ -275,7 +275,7 @@ func handleBGM(ctx *Context) error {
 			return err
 		}
 
-		return ctx.Reply(fmt.Sprintf("✅ BGM added for word %q.", trigger))
+		return ctx.Reply(fmt.Sprintf(" BGM added for word %q.", trigger))
 	}
 
 	return nil
@@ -284,17 +284,17 @@ func handleBGM(ctx *Context) error {
 func handleMention(ctx *Context) error {
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply("❌ Settings store unavailable.")
+		return ctx.Reply(" Settings store unavailable.")
 	}
 	db := s.GetDB()
 	if db == nil {
-		return ctx.Reply("❌ Database unavailable.")
+		return ctx.Reply(" Database unavailable.")
 	}
 
 	ourJID := ctx.Client.Store.ID.ToNonAD().String()
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("❌ Usage:\n- mention [text...]\n- mention add (replying to a message)\n- mention del\n- mention list")
+		return ctx.Reply(" Usage:\n- mention [text...]\n- mention add (replying to a message)\n- mention del\n- mention list")
 	}
 
 	action := strings.ToLower(ctx.Args[0])
@@ -303,7 +303,7 @@ func handleMention(ctx *Context) error {
 		quoted := ctx.GetQuotedMessage()
 		if quoted == nil {
 			if len(ctx.Args) < 2 {
-				return ctx.Reply("❌ Please reply to a message or specify response text.")
+				return ctx.Reply(" Please reply to a message or specify response text.")
 			}
 			textVal := strings.Join(ctx.Args[1:], " ")
 			quoted = &waE2E.Message{
@@ -313,7 +313,7 @@ func handleMention(ctx *Context) error {
 
 		encoded, err := sender.EncodeProtoMessage(quoted)
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf("❌ Failed to encode mention message: %v", err))
+			return ctx.Reply(fmt.Sprintf(" Failed to encode mention message: %v", err))
 		}
 
 		_, err = db.Exec(ctx.Ctx, `
@@ -324,22 +324,22 @@ func handleMention(ctx *Context) error {
 			return err
 		}
 
-		return ctx.Reply("✅ Tag auto-response configured.")
+		return ctx.Reply(" Tag auto-response configured.")
 
 	case "del", "remove":
 		_, err := db.Exec(ctx.Ctx, `DELETE FROM bot_settings WHERE our_jid=$1 AND key='mention_proto'`, ourJID)
 		if err != nil {
 			return err
 		}
-		return ctx.Reply("✅ Tag auto-response removed.")
+		return ctx.Reply(" Tag auto-response removed.")
 
 	case "list", "show":
 		var mentionProto string
 		err := db.QueryRow(ctx.Ctx, `SELECT value FROM bot_settings WHERE our_jid=$1 AND key='mention_proto'`, ourJID).Scan(&mentionProto)
 		if err != nil || mentionProto == "" {
-			return ctx.Reply("ℹ️ No tag auto-response configured.")
+			return ctx.Reply("ℹ No tag auto-response configured.")
 		}
-		return ctx.Reply("✅ Tag auto-response is currently configured.")
+		return ctx.Reply(" Tag auto-response is currently configured.")
 
 	default:
 		// Shorthand: mention [text...]
@@ -350,7 +350,7 @@ func handleMention(ctx *Context) error {
 
 		encoded, err := sender.EncodeProtoMessage(quoted)
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf("❌ Failed to encode mention message: %v", err))
+			return ctx.Reply(fmt.Sprintf(" Failed to encode mention message: %v", err))
 		}
 
 		_, err = db.Exec(ctx.Ctx, `
@@ -361,24 +361,24 @@ func handleMention(ctx *Context) error {
 			return err
 		}
 
-		return ctx.Reply("✅ Tag auto-response configured.")
+		return ctx.Reply(" Tag auto-response configured.")
 	}
 }
 
 func handleAddFilter(ctx *Context) error {
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply("❌ Settings store unavailable.")
+		return ctx.Reply(" Settings store unavailable.")
 	}
 	db := s.GetDB()
 	if db == nil {
-		return ctx.Reply("❌ Database unavailable.")
+		return ctx.Reply(" Database unavailable.")
 	}
 
 	ourJID := ctx.Client.Store.ID.ToNonAD().String()
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("❌ Usage: addfilter [word] [response text] (or reply to a message)")
+		return ctx.Reply(" Usage: addfilter [word] [response text] (or reply to a message)")
 	}
 
 	trigger := strings.ToLower(ctx.Args[0])
@@ -389,7 +389,7 @@ func handleAddFilter(ctx *Context) error {
 		responseProtoMsg = quoted
 	} else {
 		if len(ctx.Args) < 2 {
-			return ctx.Reply("❌ Please specify the response text or reply to a message.")
+			return ctx.Reply(" Please specify the response text or reply to a message.")
 		}
 		textVal := strings.Join(ctx.Args[1:], " ")
 		responseProtoMsg = &waE2E.Message{
@@ -399,7 +399,7 @@ func handleAddFilter(ctx *Context) error {
 
 	encoded, err := sender.EncodeProtoMessage(responseProtoMsg)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("❌ Failed to encode filter message: %v", err))
+		return ctx.Reply(fmt.Sprintf(" Failed to encode filter message: %v", err))
 	}
 
 	_, err = db.Exec(ctx.Ctx, `
@@ -411,23 +411,23 @@ func handleAddFilter(ctx *Context) error {
 		return err
 	}
 
-	return ctx.Reply(fmt.Sprintf("✅ Filter added for word %q.", trigger))
+	return ctx.Reply(fmt.Sprintf(" Filter added for word %q.", trigger))
 }
 
 func handleGetFilter(ctx *Context) error {
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply("❌ Settings store unavailable.")
+		return ctx.Reply(" Settings store unavailable.")
 	}
 	db := s.GetDB()
 	if db == nil {
-		return ctx.Reply("❌ Database unavailable.")
+		return ctx.Reply(" Database unavailable.")
 	}
 
 	ourJID := ctx.Client.Store.ID.ToNonAD().String()
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("❌ Usage: getfilter [word]")
+		return ctx.Reply(" Usage: getfilter [word]")
 	}
 
 	trigger := strings.ToLower(ctx.Args[0])
@@ -435,12 +435,12 @@ func handleGetFilter(ctx *Context) error {
 	var filterProto string
 	err := db.QueryRow(ctx.Ctx, `SELECT message_proto FROM bot_filters WHERE our_jid=$1 AND trigger_word=$2`, ourJID, trigger).Scan(&filterProto)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("❌ Filter for word %q not found.", trigger))
+		return ctx.Reply(fmt.Sprintf(" Filter for word %q not found.", trigger))
 	}
 
 	msg, err := sender.DecodeProtoMessage(filterProto)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("❌ Failed to decode filter: %v", err))
+		return ctx.Reply(fmt.Sprintf(" Failed to decode filter: %v", err))
 	}
 
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
@@ -450,11 +450,11 @@ func handleGetFilter(ctx *Context) error {
 func handleListFilters(ctx *Context) error {
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply("❌ Settings store unavailable.")
+		return ctx.Reply(" Settings store unavailable.")
 	}
 	db := s.GetDB()
 	if db == nil {
-		return ctx.Reply("❌ Database unavailable.")
+		return ctx.Reply(" Database unavailable.")
 	}
 
 	ourJID := ctx.Client.Store.ID.ToNonAD().String()
@@ -474,25 +474,25 @@ func handleListFilters(ctx *Context) error {
 	}
 
 	if len(triggers) == 0 {
-		return ctx.Reply("ℹ️ No filters configured.")
+		return ctx.Reply("ℹ No filters configured.")
 	}
-	return ctx.Reply(fmt.Sprintf("🔍 *Active Filters:*\n- %s", strings.Join(triggers, "\n- ")))
+	return ctx.Reply(fmt.Sprintf(" Active Filters:\n- %s", strings.Join(triggers, "\n- ")))
 }
 
 func handleDelFilter(ctx *Context) error {
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply("❌ Settings store unavailable.")
+		return ctx.Reply(" Settings store unavailable.")
 	}
 	db := s.GetDB()
 	if db == nil {
-		return ctx.Reply("❌ Database unavailable.")
+		return ctx.Reply(" Database unavailable.")
 	}
 
 	ourJID := ctx.Client.Store.ID.ToNonAD().String()
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("❌ Usage: delfilter [word]")
+		return ctx.Reply(" Usage: delfilter [word]")
 	}
 
 	trigger := strings.ToLower(ctx.Args[0])
@@ -503,7 +503,7 @@ func handleDelFilter(ctx *Context) error {
 	}
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		return ctx.Reply(fmt.Sprintf("ℹ️ Filter for word %q not found.", trigger))
+		return ctx.Reply(fmt.Sprintf("ℹ Filter for word %q not found.", trigger))
 	}
-	return ctx.Reply(fmt.Sprintf("✅ Filter for word %q removed.", trigger))
+	return ctx.Reply(fmt.Sprintf(" Filter for word %q removed.", trigger))
 }

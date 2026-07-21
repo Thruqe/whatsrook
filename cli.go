@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -74,12 +75,7 @@ Options:
 	}
 
 	hasFlag := func(flag string) bool {
-		for _, a := range args {
-			if a == flag {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(args, flag)
 	}
 
 	session := getValue("--session")

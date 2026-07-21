@@ -36,11 +36,11 @@ func handleCPU(ctx *Context) error {
 		usageStr = fmt.Sprintf("%.2f%%", u)
 	}
 
-	res := fmt.Sprintf("💻 *CPU Information*\n\n"+
-		"• *Model:* %s\n"+
-		"• *Cores/Threads:* %d\n"+
-		"• *Load Average:* %s\n"+
-		"• *Current Usage:* %s",
+	res := fmt.Sprintf("CPU Information\n\n"+
+		"• Model: %s\n"+
+		"• Cores/Threads: %d\n"+
+		"• Load Average: %s\n"+
+		"• Current Usage: %s",
 		model, cores, loadAvg, usageStr)
 
 	return ctx.Reply(res)
@@ -62,6 +62,9 @@ func getCPUModel() string {
 				return strings.TrimSpace(parts[1])
 			}
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		return "Unknown"
 	}
 	return "Generic CPU"
 }
@@ -117,6 +120,9 @@ func getCPUStats() (cpuStats, error) {
 			}
 			return s, nil
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		return cpuStats{}, err
 	}
 	return cpuStats{}, fmt.Errorf("could not parse /proc/stat")
 }

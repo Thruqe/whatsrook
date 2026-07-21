@@ -12,7 +12,6 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
-	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -84,26 +83,26 @@ func init() {
 
 func handleArchive(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ Restricted to sudoers only.")
+		return ctx.Reply(" Restricted to sudoers only.")
 	}
 	patch := appstate.BuildArchive(ctx.Chat, true, time.Time{}, nil)
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
-		return ctx.Reply("❌ Failed to archive chat: " + err.Error())
+		return ctx.Reply(" Failed to archive chat: " + err.Error())
 	}
-	return ctx.Reply("✅ Chat archived.")
+	return ctx.Reply(" Chat archived.")
 }
 
 func handleUnarchive(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ Restricted to sudoers only.")
+		return ctx.Reply(" Restricted to sudoers only.")
 	}
 	patch := appstate.BuildArchive(ctx.Chat, false, time.Time{}, nil)
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
-		return ctx.Reply("❌ Failed to unarchive chat: " + err.Error())
+		return ctx.Reply(" Failed to unarchive chat: " + err.Error())
 	}
-	return ctx.Reply("✅ Chat unarchived.")
+	return ctx.Reply(" Chat unarchived.")
 }
 
 func handlePin(ctx *Context) error {
@@ -120,7 +119,7 @@ func handlePin(ctx *Context) error {
 			}
 		}
 		if !isAuthorized {
-			return ctx.Reply("❌ Only sudoers or group admins can pin messages.")
+			return ctx.Reply(" Only sudoers or group admins can pin messages.")
 		}
 
 		quotedSender, _ := ctx.GetQuotedSender()
@@ -131,39 +130,40 @@ func handlePin(ctx *Context) error {
 
 		var participantStr *string
 		if ctx.Chat.Server == "g.us" {
-			participantStr = proto.String(quotedSender.String())
+			participantStr = new(quotedSender.String())
 		}
+		_ = quotedFromMe
 
 		pinMsg := &waE2E.Message{
 			PinInChatMessage: &waE2E.PinInChatMessage{
 				Key: &waCommon.MessageKey{
-					FromMe:      proto.Bool(quotedFromMe),
+					FromMe:      new(quotedFromMe),
 					ID:          ci.StanzaID,
-					RemoteJID:   proto.String(ctx.Chat.String()),
+					RemoteJID:   new(ctx.Chat.String()),
 					Participant: participantStr,
 				},
 				Type:              waE2E.PinInChatMessage_PIN_FOR_ALL.Enum(),
-				SenderTimestampMS: proto.Int64(time.Now().UnixMilli()),
+				SenderTimestampMS: new(time.Now().UnixMilli()),
 			},
 		}
 
 		_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, pinMsg)
 		if err != nil {
-			return ctx.Reply("❌ Failed to pin message: " + err.Error())
+			return ctx.Reply(" Failed to pin message: " + err.Error())
 		}
-		return ctx.Reply("✅ Message pinned.")
+		return ctx.Reply(" Message pinned.")
 	}
 
 	// Pin chat JID (Sudo only)
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ Restricted to sudoers only.")
+		return ctx.Reply(" Restricted to sudoers only.")
 	}
 	patch := appstate.BuildPin(ctx.Chat, true)
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
-		return ctx.Reply("❌ Failed to pin chat: " + err.Error())
+		return ctx.Reply(" Failed to pin chat: " + err.Error())
 	}
-	return ctx.Reply("✅ Chat pinned.")
+	return ctx.Reply(" Chat pinned.")
 }
 
 func handleUnpin(ctx *Context) error {
@@ -180,7 +180,7 @@ func handleUnpin(ctx *Context) error {
 			}
 		}
 		if !isAuthorized {
-			return ctx.Reply("❌ Only sudoers or group admins can unpin messages.")
+			return ctx.Reply(" Only sudoers or group admins can unpin messages.")
 		}
 
 		quotedSender, _ := ctx.GetQuotedSender()
@@ -191,44 +191,45 @@ func handleUnpin(ctx *Context) error {
 
 		var participantStr *string
 		if ctx.Chat.Server == "g.us" {
-			participantStr = proto.String(quotedSender.String())
+			participantStr = new(quotedSender.String())
 		}
+		_ = quotedFromMe
 
 		unpinMsg := &waE2E.Message{
 			PinInChatMessage: &waE2E.PinInChatMessage{
 				Key: &waCommon.MessageKey{
-					FromMe:      proto.Bool(quotedFromMe),
+					FromMe:      new(quotedFromMe),
 					ID:          ci.StanzaID,
-					RemoteJID:   proto.String(ctx.Chat.String()),
+					RemoteJID:   new(ctx.Chat.String()),
 					Participant: participantStr,
 				},
 				Type:              waE2E.PinInChatMessage_UNPIN_FOR_ALL.Enum(),
-				SenderTimestampMS: proto.Int64(time.Now().UnixMilli()),
+				SenderTimestampMS: new(time.Now().UnixMilli()),
 			},
 		}
 
 		_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, unpinMsg)
 		if err != nil {
-			return ctx.Reply("❌ Failed to unpin message: " + err.Error())
+			return ctx.Reply(" Failed to unpin message: " + err.Error())
 		}
-		return ctx.Reply("✅ Message unpinned.")
+		return ctx.Reply(" Message unpinned.")
 	}
 
 	// Unpin chat JID (Sudo only)
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ Restricted to sudoers only.")
+		return ctx.Reply(" Restricted to sudoers only.")
 	}
 	patch := appstate.BuildPin(ctx.Chat, false)
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
-		return ctx.Reply("❌ Failed to unpin chat: " + err.Error())
+		return ctx.Reply(" Failed to unpin chat: " + err.Error())
 	}
-	return ctx.Reply("✅ Chat unpinned.")
+	return ctx.Reply(" Chat unpinned.")
 }
 
 func handleBlock(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ Restricted to sudoers only.")
+		return ctx.Reply(" Restricted to sudoers only.")
 	}
 	target := ctx.Chat
 	targets := ctx.GetTargets()
@@ -237,19 +238,19 @@ func handleBlock(ctx *Context) error {
 	}
 
 	if target.Server == "g.us" {
-		return ctx.Reply("❌ Cannot block a group JID. Block commands only apply to users.")
+		return ctx.Reply(" Cannot block a group JID. Block commands only apply to users.")
 	}
 
 	_, err := ctx.Client.UpdateBlocklist(ctx.Ctx, target, events.BlocklistChangeActionBlock)
 	if err != nil {
-		return ctx.Reply("❌ Failed to block user: " + err.Error())
+		return ctx.Reply(" Failed to block user: " + err.Error())
 	}
-	return ctx.Reply(fmt.Sprintf("✅ Blocked @%s.", target.User))
+	return ctx.Reply(fmt.Sprintf(" Blocked @%s.", target.User))
 }
 
 func handleUnblock(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ Restricted to sudoers only.")
+		return ctx.Reply(" Restricted to sudoers only.")
 	}
 	target := ctx.Chat
 	targets := ctx.GetTargets()
@@ -258,32 +259,32 @@ func handleUnblock(ctx *Context) error {
 	}
 
 	if target.Server == "g.us" {
-		return ctx.Reply("❌ Cannot unblock a group. Unblock commands only apply to users.")
+		return ctx.Reply(" Cannot unblock a group. Unblock commands only apply to users.")
 	}
 
 	_, err := ctx.Client.UpdateBlocklist(ctx.Ctx, target, events.BlocklistChangeActionUnblock)
 	if err != nil {
-		return ctx.Reply("❌ Failed to unblock user: " + err.Error())
+		return ctx.Reply(" Failed to unblock user: " + err.Error())
 	}
-	return ctx.Reply(fmt.Sprintf("✅ Unblocked @%s.", target.User))
+	return ctx.Reply(fmt.Sprintf(" Unblocked @%s.", target.User))
 }
 
 func handleClear(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ Restricted to sudoers only.")
+		return ctx.Reply(" Restricted to sudoers only.")
 	}
 	patch := appstate.BuildDeleteChat(ctx.Chat, time.Now(), nil, true)
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
-		return ctx.Reply("❌ Failed to clear chat: " + err.Error())
+		return ctx.Reply(" Failed to clear chat: " + err.Error())
 	}
-	return ctx.Reply("✅ Chat messages cleared.")
+	return ctx.Reply(" Chat messages cleared.")
 }
 
 func handleDelete(ctx *Context) error {
 	ci := ctx.GetContextInfo()
 	if ci == nil || ci.StanzaID == nil {
-		return ctx.Reply("❌ Reply to the message you want to delete.")
+		return ctx.Reply(" Reply to the message you want to delete.")
 	}
 
 	targetID := *ci.StanzaID
@@ -299,7 +300,7 @@ func handleDelete(ctx *Context) error {
 	}
 
 	if !isAuthorized {
-		return ctx.Reply("❌ Only sudoers or group admins can delete messages.")
+		return ctx.Reply(" Only sudoers or group admins can delete messages.")
 	}
 
 	quotedSender, ok := ctx.GetQuotedSender()
@@ -313,7 +314,7 @@ func handleDelete(ctx *Context) error {
 	revokeMsg := ctx.Client.BuildRevoke(ctx.Chat, revokeSender, targetID)
 	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, revokeMsg)
 	if err != nil {
-		return ctx.Reply("❌ Failed to delete message: " + err.Error())
+		return ctx.Reply(" Failed to delete message: " + err.Error())
 	}
 	return nil
 }
@@ -345,7 +346,7 @@ func isJIDSudo(ctx *Context, jid types.JID) bool {
 
 func handleReport(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ Restricted to sudoers only.")
+		return ctx.Reply(" Restricted to sudoers only.")
 	}
 
 	targetJID := ctx.Chat
@@ -379,7 +380,7 @@ func handleReport(ctx *Context) error {
 	// SENSITIVE DATA/AUTHORIZATION SECURITY CHECK:
 	// Do not allow reporting the bot or its sudo users.
 	if isJIDSudo(ctx, targetJID) {
-		return ctx.Reply("❌ Cannot report the bot or any of its sudo users.")
+		return ctx.Reply(" Cannot report the bot or any of its sudo users.")
 	}
 
 	// Parse iteration count (e.g. "report 2x" or "report 5")
@@ -443,7 +444,7 @@ func handleReport(ctx *Context) error {
 		//nolint:staticcheck
 		_, err := ctx.Client.DangerousInternals().SendNodeAndGetData(ctx.Ctx, iqNode)
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf("❌ Failed to submit spam report on iteration %d: %s", i+1, err.Error()))
+			return ctx.Reply(fmt.Sprintf(" Failed to submit spam report on iteration %d: %s", i+1, err.Error()))
 		}
 
 		if count > 1 && i < count-1 {
@@ -459,14 +460,14 @@ func handleReport(ctx *Context) error {
 			groupName = info.GroupName.Name
 		}
 		if count > 1 {
-			return ctx.Reply(fmt.Sprintf("✅ Reported %s for spam to whatsapp %dx.", groupName, count))
+			return ctx.Reply(fmt.Sprintf(" Reported %s for spam to whatsapp %dx.", groupName, count))
 		}
-		return ctx.Reply(fmt.Sprintf("✅ Reported %s for spam to whatsapp.", groupName))
+		return ctx.Reply(fmt.Sprintf(" Reported %s for spam to whatsapp.", groupName))
 	}
 
 	resolvedJID, username := ctx.ResolveMention(targetJID)
 	if count > 1 {
-		return ctx.ReplyWithMentions(fmt.Sprintf("✅ Reported @%s for spam to whatsapp %dx.", username, count), []types.JID{resolvedJID})
+		return ctx.ReplyWithMentions(fmt.Sprintf(" Reported @%s for spam to whatsapp %dx.", username, count), []types.JID{resolvedJID})
 	}
-	return ctx.ReplyWithMentions(fmt.Sprintf("✅ Reported @%s for spam to whatsapp.", username), []types.JID{resolvedJID})
+	return ctx.ReplyWithMentions(fmt.Sprintf(" Reported @%s for spam to whatsapp.", username), []types.JID{resolvedJID})
 }

@@ -19,8 +19,7 @@ func init() {
 func handlePing(ctx *Context) error {
 	start := time.Now()
 
-	pongText := new(string)
-	*pongText = "🏓 Pong..."
+	pongText := new("Pong...")
 
 	resp, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
 		Conversation: pongText,
@@ -30,9 +29,9 @@ func handlePing(ctx *Context) error {
 	}
 
 	elapsed := time.Since(start)
+	_ = elapsed
 
-	elapsedText := new(string)
-	*elapsedText = "🏓 Pong! " + elapsed.String()
+	elapsedText := new("Pong! " + elapsed.String())
 
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, ctx.Client.BuildEdit(ctx.Chat, resp.ID, &waE2E.Message{
 		Conversation: elapsedText,

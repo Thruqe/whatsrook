@@ -51,7 +51,7 @@ func placeCallWithAudio(ctx *Context, target, audioPath string) error {
 		}
 	})
 
-	return sendText(ctx, "📞 calling "+target+"...")
+	return sendText(ctx, " calling "+target+"...")
 }
 
 func openAudioSource(path string) (meowcaller.AudioSource, error) {

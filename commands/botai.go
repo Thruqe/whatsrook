@@ -57,7 +57,7 @@ func handleBotAI(ctx *Context) error {
 					Submessages: []*waAICommonDeprecated.AIRichResponseSubMessage{
 						{
 							MessageType: waAICommonDeprecated.AIRichResponseSubMessageType_AI_RICH_RESPONSE_TEXT.Enum(),
-							MessageText: proto.String("Hello World"),
+							MessageText: new("Hello World"),
 						},
 					},
 					UnifiedResponse: &waAICommon.AIRichResponseUnifiedResponse{
@@ -65,9 +65,9 @@ func handleBotAI(ctx *Context) error {
 					},
 					ContextInfo: &waE2E.ContextInfo{
 						ForwardingScore: proto.Uint32(1),
-						IsForwarded:     proto.Bool(true),
+						IsForwarded:     new(true),
 						ForwardedAiBotMessageInfo: &waAICommon.ForwardedAIBotMessageInfo{
-							BotJID: proto.String("0@bot"),
+							BotJID: new("0@bot"),
 						},
 						ForwardOrigin: waE2E.ContextInfo_META_AI.Enum(),
 					},

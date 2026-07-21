@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Thruqe/whatsrook/font"
 	"github.com/Thruqe/whatsrook/store/sqlstore"
 )
 
@@ -165,17 +166,5 @@ func parseProcMeminfo() (total, free uint64, err error) {
 }
 
 func toFancy(s string) string {
-	var sb strings.Builder
-	for _, r := range s {
-		if r >= 'a' && r <= 'z' {
-			sb.WriteRune(r - 'a' + 0x1D68A)
-		} else if r >= 'A' && r <= 'Z' {
-			sb.WriteRune(r - 'A' + 0x1D670)
-		} else if r >= '0' && r <= '9' {
-			sb.WriteRune(r - '0' + 0x1D7F6)
-		} else {
-			sb.WriteRune(r)
-		}
-	}
-	return sb.String()
+	return font.Convert(s)
 }

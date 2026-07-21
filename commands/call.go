@@ -51,33 +51,33 @@ func handleSetCallAudio(ctx *Context) error {
 	}
 
 	if audioMsg == nil {
-		return ctx.Reply("❌ Reply to the audio file you want to set as your default call audio.")
+		return ctx.Reply(" Reply to the audio file you want to set as your default call audio.")
 	}
 
 	data, err := ctx.Client.Download(ctx.Ctx, audioMsg)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("❌ Failed to download audio: %v", err))
+		return ctx.Reply(fmt.Sprintf(" Failed to download audio: %v", err))
 	}
 
 	if err := os.MkdirAll("media", 0755); err != nil {
-		return ctx.Reply(fmt.Sprintf("❌ Failed to create media directory: %v", err))
+		return ctx.Reply(fmt.Sprintf(" Failed to create media directory: %v", err))
 	}
 
 	ext := extensionFor(audioMsg.GetMimetype())
 	path := filepath.Join("media", sanitizeJID(ctx.Sender.String())+ext)
 	if err := os.WriteFile(path, data, 0644); err != nil {
-		return ctx.Reply(fmt.Sprintf("❌ Failed to save audio: %v", err))
+		return ctx.Reply(fmt.Sprintf(" Failed to save audio: %v", err))
 	}
 
 	// Transcode to MP3
 	path, err = transcodeToMP3(path)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("❌ Failed to transcode audio: %v", err))
+		return ctx.Reply(fmt.Sprintf(" Failed to transcode audio: %v", err))
 	}
 
 	if err := saveAudio(ctx, ctx.Sender, path); err != nil {
-		return ctx.Reply(fmt.Sprintf("❌ Failed to save call audio: %v", err))
+		return ctx.Reply(fmt.Sprintf(" Failed to save call audio: %v", err))
 	}
 
-	return ctx.Reply("✅ Default call audio set successfully.")
+	return ctx.Reply(" Default call audio set successfully.")
 }

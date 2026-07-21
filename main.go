@@ -84,7 +84,7 @@ func main() {
 		if errors.Is(err, ErrPairTimeout) {
 			fmt.Println()
 			fmt.Println("┌─────────────────────────────────────────────────────────┐")
-			fmt.Println("│  ⚠️  Pairing timed out — WhatsApp sent a bad response.   │")
+			fmt.Println("│    Pairing timed out — WhatsApp sent a bad response.   │")
 			fmt.Println("│  The session will be cleared and a new code generated.  │")
 			fmt.Println("└─────────────────────────────────────────────────────────┘")
 

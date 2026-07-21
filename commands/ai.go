@@ -10,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -129,9 +130,12 @@ func handleAI(ctx *Context) error {
 					temp = append(temp, m)
 				}
 			}
+			if err := rows.Err(); err != nil {
+				slog.Error("error iterating ai_history rows", "err", err)
+			}
 			// Reverse temp to restore chronological order
-			for i := len(temp) - 1; i >= 0; i-- {
-				history = append(history, temp[i])
+			for _, m := range slices.Backward(temp) {
+				history = append(history, m)
 			}
 		} else {
 			slog.Error("failed to query ai_history from db", "err", err)
@@ -313,7 +317,7 @@ func handleAI(ctx *Context) error {
 				return sendText(ctx, "Failed to get response from AI even after clearing history: "+err.Error())
 			}
 
-			reply = "⚠️ *Notice:* Chat history was cleared to resolve a timeout limit.\n\n" + reply
+			reply = " Notice: Chat history was cleared to resolve a timeout limit.\n\n" + reply
 		} else {
 			return sendText(ctx, "Failed to get response from AI: "+errMsg)
 		}
@@ -323,8 +327,8 @@ func handleAI(ctx *Context) error {
 
 	// Check if AI response has a request to run a command
 	cleanReply := strings.TrimSpace(reply)
-	if strings.HasPrefix(cleanReply, "RUN_COMMAND:") {
-		cmdLine := strings.TrimSpace(strings.TrimPrefix(cleanReply, "RUN_COMMAND:"))
+	if cmdContent, ok := strings.CutPrefix(cleanReply, "RUN_COMMAND:"); ok {
+		cmdLine := strings.TrimSpace(cmdContent)
 		cmdLineClean := strings.TrimLeft(cmdLine, ".!/ ")
 		fields := strings.Fields(cmdLineClean)
 		if len(fields) > 0 {
@@ -335,7 +339,7 @@ func handleAI(ctx *Context) error {
 			if targetCmd, ok := Get(cmdName); ok {
 				if !targetCmd.IsPublic && !ctx.IsSudo() {
 					slog.Warn("handleAI: blocked unauthorized command from AI response", "sender", ctx.Sender.String(), "command", cmdName)
-					return sendText(ctx, "❌ You are not authorized to run system commands.")
+					return sendText(ctx, " You are not authorized to run system commands.")
 				}
 
 				cctx := &Context{
@@ -485,6 +489,8 @@ func queryAI(ctx context.Context, messages []AIMessage) (string, error) {
 				if len(chunk.Choices) > 0 {
 					assistantReply.WriteString(chunk.Choices[0].Delta.Content)
 				}
+			} else {
+				slog.Warn("handleAI: failed to unmarshal SSE chunk", "err", err, "raw", dataContent)
 			}
 		}
 	}
@@ -521,12 +527,12 @@ func handleAutoAI(ctx *Context) error {
 	}
 
 	if !isAuthorized {
-		return ctx.Reply("❌ Only sudoers or group admins can change the AutoAI setting.")
+		return ctx.Reply(" Only sudoers or group admins can change the AutoAI setting.")
 	}
 
 	s, okStore := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !okStore {
-		return ctx.Reply("❌ Database store is not available.")
+		return ctx.Reply(" Database store is not available.")
 	}
 
 	settingKey := "autoai:" + ctx.Chat.String()
@@ -536,18 +542,18 @@ func handleAutoAI(ctx *Context) error {
 		if current == "" {
 			current = "off"
 		}
-		return ctx.Reply(fmt.Sprintf("🤖 *AutoAI* is currently *%s* in this chat.", current))
+		return ctx.Reply(fmt.Sprintf("AutoAI is currently %s in this chat.", current))
 	}
 
 	val := strings.ToLower(ctx.Args[0])
 	if val != "on" && val != "off" {
-		return ctx.Reply("❌ Usage: !autoai [on/off]")
+		return ctx.Reply(" Usage: !autoai [on/off]")
 	}
 
 	if err := s.PutSetting(ctx.Ctx, settingKey, val); err != nil {
 		slog.Error("failed to update autoai setting", "err", err)
-		return ctx.Reply("❌ Failed to update setting: " + err.Error())
+		return ctx.Reply(" Failed to update setting: " + err.Error())
 	}
 
-	return ctx.Reply(fmt.Sprintf("🤖 *AutoAI* has been set to *%s* for this chat.", val))
+	return ctx.Reply(fmt.Sprintf("AutoAI has been set to %s for this chat.", val))
 }

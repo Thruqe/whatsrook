@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Thruqe/whatsrook/font"
 	"github.com/Thruqe/whatsrook/store/sqlstore"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -19,10 +20,8 @@ import (
 func FormatTextResponseRaw(text string) string {
 	text = strings.ReplaceAll(text, "*", "")
 	text = removeEmojis(text)
-	if strings.HasPrefix(text, "```") && strings.HasSuffix(text, "```") {
-		return text
-	}
-	return "```\n" + text + "\n```"
+	text = strings.ReplaceAll(text, "```", "")
+	return font.Convert(text)
 }
 
 // formatTextResponse strips asterisks, emojis, and wraps response in 3 backticks for monospace formatting

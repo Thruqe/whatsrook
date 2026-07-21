@@ -81,17 +81,17 @@ func init() {
 
 func handleSetSudo(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ You are not authorized to use this command.")
+		return ctx.Reply(" You are not authorized to use this command.")
 	}
 
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
-		return ctx.Reply("❌ Please reply to a user, tag them, or type their phone number.")
+		return ctx.Reply(" Please reply to a user, tag them, or type their phone number.")
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply("❌ Settings store unavailable.")
+		return ctx.Reply(" Settings store unavailable.")
 	}
 
 	raw, err := s.GetSetting(ctx.Ctx, "sudoers")
@@ -121,29 +121,29 @@ func handleSetSudo(ctx *Context) error {
 	}
 
 	if len(addedJIDs) == 0 {
-		return ctx.Reply("ℹ️ Target(s) already in the sudo list.")
+		return ctx.Reply("ℹ Target(s) already in the sudo list.")
 	}
 
 	if err := s.PutSetting(ctx.Ctx, "sudoers", strings.Join(sudoers, " ")); err != nil {
 		return err
 	}
 
-	return ctx.ReplyWithMentions(fmt.Sprintf("✅ Added to sudo: %s", strings.Join(displayNames, ", ")), addedJIDs)
+	return ctx.ReplyWithMentions(fmt.Sprintf(" Added to sudo: %s", strings.Join(displayNames, ", ")), addedJIDs)
 }
 
 func handleDelSudo(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ You are not authorized to use this command.")
+		return ctx.Reply(" You are not authorized to use this command.")
 	}
 
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
-		return ctx.Reply("❌ Please reply to a user, tag them, or type their phone number.")
+		return ctx.Reply(" Please reply to a user, tag them, or type their phone number.")
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply("❌ Settings store unavailable.")
+		return ctx.Reply(" Settings store unavailable.")
 	}
 
 	raw, err := s.GetSetting(ctx.Ctx, "sudoers")
@@ -173,24 +173,24 @@ func handleDelSudo(ctx *Context) error {
 	}
 
 	if len(removedJIDs) == 0 {
-		return ctx.Reply("ℹ️ Target(s) not found in the sudo list.")
+		return ctx.Reply("ℹ Target(s) not found in the sudo list.")
 	}
 
 	if err := s.PutSetting(ctx.Ctx, "sudoers", strings.Join(newSudoers, " ")); err != nil {
 		return err
 	}
 
-	return ctx.ReplyWithMentions(fmt.Sprintf("✅ Removed from sudo: %s", strings.Join(displayNames, ", ")), removedJIDs)
+	return ctx.ReplyWithMentions(fmt.Sprintf(" Removed from sudo: %s", strings.Join(displayNames, ", ")), removedJIDs)
 }
 
 func handleListSudo(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ You are not authorized to use this command.")
+		return ctx.Reply(" You are not authorized to use this command.")
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply("❌ Settings store unavailable.")
+		return ctx.Reply(" Settings store unavailable.")
 	}
 
 	raw, err := s.GetSetting(ctx.Ctx, "sudoers")
@@ -228,26 +228,26 @@ func handleListSudo(ctx *Context) error {
 
 func handleDisableCmd(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ You are not authorized to use this command.")
+		return ctx.Reply(" You are not authorized to use this command.")
 	}
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("❌ Usage: disablecmd <command_name>")
+		return ctx.Reply(" Usage: disablecmd <command_name>")
 	}
 
 	cmdName := strings.ToLower(ctx.Args[0])
 	if cmdName == "enablecmd" || cmdName == "disablecmd" {
-		return ctx.Reply("❌ Cannot disable core system commands.")
+		return ctx.Reply(" Cannot disable core system commands.")
 	}
 
 	_, exists := Get(cmdName)
 	if !exists {
-		return ctx.Reply(fmt.Sprintf("❌ Command %q does not exist.", cmdName))
+		return ctx.Reply(fmt.Sprintf(" Command %q does not exist.", cmdName))
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply("❌ Settings store unavailable.")
+		return ctx.Reply(" Settings store unavailable.")
 	}
 
 	raw, err := s.GetSetting(ctx.Ctx, "disabled_commands")
@@ -258,7 +258,7 @@ func handleDisableCmd(ctx *Context) error {
 	disabled := strings.Fields(raw)
 	for _, d := range disabled {
 		if strings.EqualFold(d, cmdName) {
-			return ctx.Reply(fmt.Sprintf("ℹ️ Command %q is already disabled.", cmdName))
+			return ctx.Reply(fmt.Sprintf("ℹ Command %q is already disabled.", cmdName))
 		}
 	}
 
@@ -267,22 +267,22 @@ func handleDisableCmd(ctx *Context) error {
 		return err
 	}
 
-	return ctx.Reply(fmt.Sprintf("✅ Command %q has been disabled.", cmdName))
+	return ctx.Reply(fmt.Sprintf(" Command %q has been disabled.", cmdName))
 }
 
 func handleEnableCmd(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ You are not authorized to use this command.")
+		return ctx.Reply(" You are not authorized to use this command.")
 	}
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("❌ Usage: enablecmd <command_name>")
+		return ctx.Reply(" Usage: enablecmd <command_name>")
 	}
 
 	cmdName := strings.ToLower(ctx.Args[0])
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply("❌ Settings store unavailable.")
+		return ctx.Reply(" Settings store unavailable.")
 	}
 
 	raw, err := s.GetSetting(ctx.Ctx, "disabled_commands")
@@ -303,33 +303,33 @@ func handleEnableCmd(ctx *Context) error {
 	}
 
 	if !found {
-		return ctx.Reply(fmt.Sprintf("ℹ️ Command %q is not currently disabled.", cmdName))
+		return ctx.Reply(fmt.Sprintf("ℹ Command %q is not currently disabled.", cmdName))
 	}
 
 	if err := s.PutSetting(ctx.Ctx, "disabled_commands", strings.Join(newDisabled, " ")); err != nil {
 		return err
 	}
 
-	return ctx.Reply(fmt.Sprintf("✅ Command %q has been enabled.", cmdName))
+	return ctx.Reply(fmt.Sprintf(" Command %q has been enabled.", cmdName))
 }
 
 func handleAutoVV(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ You are not authorized to use this command.")
+		return ctx.Reply(" You are not authorized to use this command.")
 	}
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("❌ Usage: autovv [on/off]")
+		return ctx.Reply(" Usage: autovv [on/off]")
 	}
 
 	state := strings.ToLower(ctx.Args[0])
 	if state != "on" && state != "off" {
-		return ctx.Reply("❌ Invalid state. Usage: autovv [on/off]")
+		return ctx.Reply(" Invalid state. Usage: autovv [on/off]")
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply("❌ Settings store unavailable.")
+		return ctx.Reply(" Settings store unavailable.")
 	}
 
 	err := s.PutSetting(ctx.Ctx, "autovv", state)
@@ -338,29 +338,29 @@ func handleAutoVV(ctx *Context) error {
 	}
 
 	if state == "on" {
-		return ctx.Reply("✅ Auto ViewOnce forwarding enabled.\n\n⚠️ Note: This feature only works if the client connection type is set to Android or iOS (web clients do not receive ViewOnce media).")
+		return ctx.Reply(" Auto ViewOnce forwarding enabled.\n\n Note: This feature only works if the client connection type is set to Android or iOS (web clients do not receive ViewOnce media).")
 	}
 
-	return ctx.Reply("✅ Auto ViewOnce forwarding disabled.")
+	return ctx.Reply(" Auto ViewOnce forwarding disabled.")
 }
 
 func handleAutoStatusSave(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ You are not authorized to use this command.")
+		return ctx.Reply(" You are not authorized to use this command.")
 	}
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("❌ Usage: autostatussave [on/off]")
+		return ctx.Reply(" Usage: autostatussave [on/off]")
 	}
 
 	state := strings.ToLower(ctx.Args[0])
 	if state != "on" && state != "off" {
-		return ctx.Reply("❌ Invalid state. Usage: autostatussave [on/off]")
+		return ctx.Reply(" Invalid state. Usage: autostatussave [on/off]")
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply("❌ Settings store unavailable.")
+		return ctx.Reply(" Settings store unavailable.")
 	}
 
 	err := s.PutSetting(ctx.Ctx, "autostatussave", state)
@@ -369,25 +369,25 @@ func handleAutoStatusSave(ctx *Context) error {
 	}
 
 	if state == "on" {
-		return ctx.Reply("✅ Auto Status saving enabled. Status updates will now be automatically sent to your DM.")
+		return ctx.Reply(" Auto Status saving enabled. Status updates will now be automatically sent to your DM.")
 	}
 
-	return ctx.Reply("✅ Auto Status saving disabled.")
+	return ctx.Reply(" Auto Status saving disabled.")
 }
 
 func handleBan(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ You are not authorized to use this command.")
+		return ctx.Reply(" You are not authorized to use this command.")
 	}
 
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
-		return ctx.Reply("❌ Please reply to a user, tag them, or type their phone number.")
+		return ctx.Reply(" Please reply to a user, tag them, or type their phone number.")
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply("❌ Settings store unavailable.")
+		return ctx.Reply(" Settings store unavailable.")
 	}
 
 	// Sudo list to verify we don't ban a sudo/owner
@@ -443,29 +443,29 @@ func handleBan(ctx *Context) error {
 	}
 
 	if len(bannedJIDs) == 0 {
-		return ctx.Reply("ℹ️ Target(s) could not be banned (already banned, owner, or sudo).")
+		return ctx.Reply("ℹ Target(s) could not be banned (already banned, owner, or sudo).")
 	}
 
 	if err := s.PutSetting(ctx.Ctx, "banned_users", strings.Join(bannedUsers, " ")); err != nil {
 		return err
 	}
 
-	return ctx.ReplyWithMentions(fmt.Sprintf("✅ Banned from commands: %s", strings.Join(displayNames, ", ")), bannedJIDs)
+	return ctx.ReplyWithMentions(fmt.Sprintf(" Banned from commands: %s", strings.Join(displayNames, ", ")), bannedJIDs)
 }
 
 func handleUnban(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ You are not authorized to use this command.")
+		return ctx.Reply(" You are not authorized to use this command.")
 	}
 
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
-		return ctx.Reply("❌ Please reply to a user, tag them, or type their phone number.")
+		return ctx.Reply(" Please reply to a user, tag them, or type their phone number.")
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply("❌ Settings store unavailable.")
+		return ctx.Reply(" Settings store unavailable.")
 	}
 
 	rawBanned, err := s.GetSetting(ctx.Ctx, "banned_users")
@@ -496,24 +496,24 @@ func handleUnban(ctx *Context) error {
 	}
 
 	if len(unbannedJIDs) == 0 {
-		return ctx.Reply("ℹ️ Target(s) not found in the banned list.")
+		return ctx.Reply("ℹ Target(s) not found in the banned list.")
 	}
 
 	if err := s.PutSetting(ctx.Ctx, "banned_users", strings.Join(newBanned, " ")); err != nil {
 		return err
 	}
 
-	return ctx.ReplyWithMentions(fmt.Sprintf("✅ Unbanned from commands: %s", strings.Join(displayNames, ", ")), unbannedJIDs)
+	return ctx.ReplyWithMentions(fmt.Sprintf(" Unbanned from commands: %s", strings.Join(displayNames, ", ")), unbannedJIDs)
 }
 
 func handleMode(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ You are not authorized to use this command.")
+		return ctx.Reply(" You are not authorized to use this command.")
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply("❌ Settings store unavailable.")
+		return ctx.Reply(" Settings store unavailable.")
 	}
 
 	if len(ctx.Args) == 0 {
@@ -524,12 +524,12 @@ func handleMode(ctx *Context) error {
 		if current == "" {
 			current = "public"
 		}
-		return ctx.Reply(fmt.Sprintf("ℹ️ The bot is currently in %s mode.", current))
+		return ctx.Reply(fmt.Sprintf("ℹ The bot is currently in %s mode.", current))
 	}
 
 	mode := strings.ToLower(ctx.Args[0])
 	if mode != "public" && mode != "private" {
-		return ctx.Reply("❌ Invalid mode. Usage: mode [public/private]")
+		return ctx.Reply(" Invalid mode. Usage: mode [public/private]")
 	}
 
 	err := s.PutSetting(ctx.Ctx, "mode", mode)
@@ -537,16 +537,16 @@ func handleMode(ctx *Context) error {
 		return err
 	}
 
-	return ctx.Reply(fmt.Sprintf("✅ Bot mode set to %s.", mode))
+	return ctx.Reply(fmt.Sprintf(" Bot mode set to %s.", mode))
 }
 
 func handleSh(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply("❌ You are not authorized to use this command.")
+		return ctx.Reply(" You are not authorized to use this command.")
 	}
 
 	if ctx.RawArgs == "" {
-		return ctx.Reply("❌ Usage: !sh <command>")
+		return ctx.Reply(" Usage: !sh <command>")
 	}
 
 	cmd := exec.CommandContext(ctx.Ctx, "bash", "-c", ctx.RawArgs)
@@ -557,8 +557,8 @@ func handleSh(ctx *Context) error {
 	}
 
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf("❌ Error: %v\n\n```\n%s\n```", err, outStr))
+		return ctx.Reply(fmt.Sprintf(" Error: %v\n\n```\n%s\n```", err, outStr))
 	}
 
-	return ctx.Reply(fmt.Sprintf("💻 Output:\n```\n%s\n```", outStr))
+	return ctx.Reply(fmt.Sprintf(" Output:\n```\n%s\n```", outStr))
 }
