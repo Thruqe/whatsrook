@@ -247,9 +247,33 @@ func handleAI(ctx *Context) error {
 		}
 	}
 
-	var botCommands []string
+	cmdByCategory := map[string][]string{}
+	catOrder := []string{}
+	catSeen := map[string]bool{}
 	for _, c := range Visible() {
-		botCommands = append(botCommands, fmt.Sprintf("- !%s: %s (Aliases: %s)", c.Name, c.Description, strings.Join(c.Aliases, ", ")))
+		cat := c.Category
+		if cat == "" {
+			cat = "other"
+		}
+		if !catSeen[cat] {
+			catSeen[cat] = true
+			catOrder = append(catOrder, cat)
+		}
+		entry := fmt.Sprintf("  !%s", c.Name)
+		if len(c.Aliases) > 0 {
+			entry += fmt.Sprintf(" (aliases: %s)", strings.Join(c.Aliases, ", "))
+		}
+		if !c.IsPublic {
+			entry += " [sudo]"
+		}
+		entry += ": " + c.Description
+		cmdByCategory[cat] = append(cmdByCategory[cat], entry)
+	}
+
+	var botCommands []string
+	for _, cat := range catOrder {
+		botCommands = append(botCommands, "["+cat+"]")
+		botCommands = append(botCommands, cmdByCategory[cat]...)
 	}
 	botCommandsList := strings.Join(botCommands, "\n")
 
