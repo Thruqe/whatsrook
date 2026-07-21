@@ -12,7 +12,6 @@ import (
 	"go.mau.fi/whatsmeow"
 	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/proto/waE2E"
-	"google.golang.org/protobuf/proto"
 )
 
 var defaultImageUrls = []string{
@@ -95,7 +94,7 @@ func handleGallery(ctx *Context) error {
 						Mimetype:      new("image/jpeg"),
 						FileEncSHA256: uploaded.FileEncSHA256,
 						FileSHA256:    uploaded.FileSHA256,
-						FileLength:    proto.Uint64(uint64(len(res.data))),
+						FileLength:    new(uint64(len(res.data))),
 					},
 				},
 				Title:    new(fmt.Sprintf("Image %d", res.index+1)),

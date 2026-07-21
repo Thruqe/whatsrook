@@ -11,7 +11,6 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
-	"google.golang.org/protobuf/proto"
 )
 
 // metaAiBotJID is the fixed JID Meta AI's bot account is reached at.
@@ -102,7 +101,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 	slog.Debug("queryMetaAi: sending request", "chat", chatKey, "request", request)
 
 	if _, err := client.SendMessage(ctx, metaAiBotJID, &waE2E.Message{
-		Conversation: proto.String(request),
+		Conversation: new(request),
 	}); err != nil {
 		slog.Error("queryMetaAi: failed to send request", "chat", chatKey, "err", err)
 		return "", fmt.Errorf("failed to send request to meta ai: %w", err)
@@ -202,7 +201,7 @@ func handleAI(ctx *Context) error {
 	slog.Info("handleAI: sending request to Meta AI", "chat", ctx.Chat.String())
 
 	placeholderResp, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
-		Conversation: proto.String("Thinking..."),
+		Conversation: new("Thinking..."),
 	})
 	if err != nil {
 		slog.Error("handleAI: failed to send placeholder message", "chat", ctx.Chat.String(), "err", err)
@@ -214,7 +213,7 @@ func handleAI(ctx *Context) error {
 			return nil
 		}
 		editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
-			Conversation: proto.String(text),
+			Conversation: new(text),
 		})
 		_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
 		if err != nil {
@@ -231,7 +230,7 @@ func handleAI(ctx *Context) error {
 		}
 		slog.Error("handleAI: queryMetaAi failed", "chat", ctx.Chat.String(), "err", err)
 		editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
-			Conversation: proto.String("Failed to get a response: " + err.Error()),
+			Conversation: new("Failed to get a response: " + err.Error()),
 		})
 		_, _ = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
 		return err
