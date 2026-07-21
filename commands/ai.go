@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/rand"
