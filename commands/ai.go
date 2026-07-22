@@ -414,6 +414,15 @@ func handleAI(ctx *Context) error {
 			return err
 		}
 
+		if cmdName == "ai" || cmdName == "autoai" || cmdName == "gpt" || cmdName == "ask" {
+			slog.Warn("handleAI: blocked recursive AI command execution", "command", cmdName)
+			editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
+				Conversation: new(reply),
+			})
+			_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
+			return err
+		}
+
 		targetCmd, exists := Get(cmdName)
 		if !exists {
 			slog.Warn("handleAI: RUN_COMMAND referenced unknown command", "command", cmdName)
