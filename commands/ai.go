@@ -113,6 +113,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 		mu        sync.Mutex
 		metaMsgID string
 		seen      bool
+		finished  bool
 		final     string
 		done      = make(chan struct{})
 		closeOnce sync.Once
@@ -127,6 +128,11 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 		pm := msgEvt.Message.GetProtocolMessage()
 
 		mu.Lock()
+		if finished {
+			mu.Unlock()
+			return
+		}
+
 		if !seen {
 			if pm != nil {
 				mu.Unlock()
@@ -161,6 +167,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 			slog.Info("queryMetaAi: RUN_COMMAND detected early, completing response", "chat", chatKey, "cmd_text", text)
 			mu.Lock()
 			final = text
+			finished = true
 			mu.Unlock()
 			closeOnce.Do(func() { close(done) })
 			return
@@ -175,6 +182,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 		if editType == "last" {
 			mu.Lock()
 			final = text
+			finished = true
 			mu.Unlock()
 			closeOnce.Do(func() { close(done) })
 		}
