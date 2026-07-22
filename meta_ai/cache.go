@@ -14,9 +14,9 @@ const cacheTTL = 10 * time.Minute
 // concatenation over the full command list) and identical for every
 // request until the command set changes.
 var (
-	instructionMu      sync.Mutex
-	cachedInstruction  string
-	instructionSetAt   time.Time
+	instructionMu     sync.Mutex
+	cachedInstruction string
+	instructionSetAt  time.Time
 )
 
 // GetOrBuildInstruction returns the cached instruction block if it's still
