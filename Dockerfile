@@ -1,13 +1,26 @@
+FROM golang:1.26-bookworm AS builder
+
+WORKDIR /app
+COPY . .
+RUN go build -o whatsrook .
+
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
+    git \
+    tar \
+    gzip \
     && rm -rf /var/lib/apt/lists/*
 
-RUN curl -L https://github.com/Thruqe/whatsrook/releases/download/v4.0.0/whatsrook-linux-amd64.tar.gz -o whatsrook.tar.gz \
-    && tar -xzf whatsrook.tar.gz \
-    && rm whatsrook.tar.gz
+WORKDIR /app
+
+COPY --from=builder /app/whatsrook /app/whatsrook
+COPY version.toml /app/version.toml
+COPY scripts /app/scripts
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 ENV PORT=3000
 ENV AUTH_DIR=/app/auth
@@ -15,8 +28,5 @@ ENV AUTH_DIR=/app/auth
 VOLUME ["/app/auth"]
 
 EXPOSE ${PORT}
-
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]

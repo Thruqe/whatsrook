@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/Thruqe/whatsrook/store/sqlstore"
 	"github.com/Thruqe/whatsrook/updater"
 	"go.mau.fi/whatsmeow"
 	waBinary "go.mau.fi/whatsmeow/binary"
@@ -14,14 +15,14 @@ import (
 func init() {
 	Register(&Command{
 		Name:        "update",
-		Description: "Check for updates and show update menu or execute update",
+		Description: "Check for updates and manage channel configuration",
 		Category:    "updater",
 		IsPublic:    false,
 		Handler:     handleUpdateCommand,
 	})
 	Register(&Command{
 		Name:        "upgrade",
-		Description: "Upgrade the bot to Beta release (nightly build per commit)",
+		Description: "Upgrade the bot according to the selected channel (Stable / Beta)",
 		Category:    "updater",
 		IsPublic:    false,
 		Handler:     handleUpgradeCommand,
@@ -33,11 +34,30 @@ func handleUpdateCommand(ctx *Context) error {
 		return ctx.Reply("You are not authorized to use this command.")
 	}
 
+	s, _ := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+
 	if len(ctx.Args) > 0 {
 		arg := strings.ToLower(ctx.Args[0])
+		if arg == "stable" {
+			if s != nil {
+				_ = updater.SetChannel(ctx.Ctx, s, "stable")
+			}
+			return ctx.Reply("Update channel set to **Stable**. Running check...")
+		}
+		if arg == "beta" {
+			if s != nil {
+				_ = updater.SetChannel(ctx.Ctx, s, "beta")
+			}
+			return ctx.Reply("Update channel set to **Beta**. Running check...")
+		}
 		if arg == "check" || arg == "confirm" || arg == "now" {
 			return performCheckAndUpdate(ctx)
 		}
+	}
+
+	rawCh := updater.GetChannel(ctx.Ctx, s)
+	if rawCh == "" {
+		return sendChannelSelectMenu(ctx)
 	}
 
 	return sendCheckPrompt(ctx)
@@ -48,12 +68,51 @@ func handleUpgradeCommand(ctx *Context) error {
 		return ctx.Reply("You are not authorized to use this command.")
 	}
 
+	s, _ := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	channel := updater.GetChannel(ctx.Ctx, s)
+	isBeta := channel == "beta"
+
 	if len(ctx.Args) > 0 && strings.EqualFold(ctx.Args[0], "now") {
-		_ = ctx.Reply("Upgrading to Beta (nightly build)...")
-		return executeUpdate(ctx, true)
+		if isBeta {
+			_ = ctx.Reply("Upgrading bot via Beta release (per commit nightly)...")
+		} else {
+			_ = ctx.Reply("Upgrading bot via Stable release...")
+		}
+		return executeUpdate(ctx, isBeta)
 	}
 
-	return sendUpgradePrompt(ctx)
+	return sendUpgradePrompt(ctx, channel)
+}
+
+func sendChannelSelectMenu(ctx *Context) error {
+	bodyText := `┌─ム ᴡʜᴀᴛsʀᴏᴏᴋ ᴜᴘᴅᴀᴛᴇ
+│ ғɪʀsᴛ ᴛɪᴍᴇ sᴇᴛᴜᴘ:
+│ sᴇʟᴇᴄᴛ ʏᴏᴜʀ ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ
+╰──────────────────╯
+
+┌─ム  ᴄʜᴏᴏsᴇ ᴄʜᴀɴɴᴇʟ
+│
+├─ム  sᴛᴀʙʟᴇ: ᴏғғɪᴄɪᴀʟ ᴠᴇʀsɪᴏɴ ʀᴇʟᴇᴀsᴇs
+├─ム  ʙᴇᴛᴀ: ɴɪɢʜᴛʟʏ ᴘᴇʀ-ᴄᴏᴍᴍɪᴛ ʙᴜɪʟᴅs
+│
+╰─────────◆────────╯`
+
+	return sendButtonsMessage(ctx, bodyText, []*waE2E.ButtonsMessage_Button{
+		{
+			ButtonID: new("!update stable"),
+			ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
+				DisplayText: new("Stable"),
+			},
+			Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
+		},
+		{
+			ButtonID: new("!update beta"),
+			ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
+				DisplayText: new("Beta"),
+			},
+			Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
+		},
+	})
 }
 
 func sendCheckPrompt(ctx *Context) error {
@@ -100,22 +159,23 @@ func performCheckAndUpdate(ctx *Context) error {
 	return sendUpdateAvailableMenu(ctx, check)
 }
 
-func sendUpgradePrompt(ctx *Context) error {
-	bodyText := `┌─ム ᴡʜᴀᴛsʀᴏᴏᴋ ᴜᴘɢʀᴀᴅᴇ
-│ sᴡɪᴛᴄʜ ғʀᴏᴍ sᴛᴀʙʟᴇ ᴛᴏ ɴɪɢʜᴛʟʏ (ʙᴇᴛᴀ)?
+func sendUpgradePrompt(ctx *Context, channel string) error {
+	bodyText := fmt.Sprintf(`┌─ム ᴡʜᴀᴛsʀᴏᴏᴋ ᴜᴘɢʀᴀᴅᴇ
+│ ᴄᴜʀʀᴇɴᴛ ᴄʜᴀɴɴᴇʟ: %s
+│ ᴘʀᴏᴄᴇᴇᴅ ᴡɪᴛʜ %s ᴜᴘɢʀᴀᴅᴇ?
 ╰──────────────────╯
 
-┌─ム  sᴡɪᴛᴄʜ ᴄʜᴀɴɴᴇʟ
+┌─ム  ᴄᴏɴғɪʀᴍ ᴜᴘɢʀᴀᴅᴇ
 │
 ├─ム  sᴇʟᴇᴄᴛ ᴀ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ
 │
-╰─────────◆────────╯`
+╰─────────◆────────╯`, strings.ToUpper(channel), strings.ToUpper(channel))
 
 	return sendButtonsMessage(ctx, bodyText, []*waE2E.ButtonsMessage_Button{
 		{
 			ButtonID: new("!upgrade now"),
 			ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
-				DisplayText: new("Switch to Nightly"),
+				DisplayText: new("Upgrade Now"),
 			},
 			Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
 		},

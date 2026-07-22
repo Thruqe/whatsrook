@@ -52,10 +52,16 @@ func handleMenu(ctx *Context) error {
 	}
 
 	botMode := "public"
+	buildChannel := "Stable"
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if ok {
 		if rawMode, err := s.GetSetting(ctx.Ctx, "mode"); err == nil && rawMode != "" {
 			botMode = rawMode
+		}
+		if rawCh, err := s.GetSetting(ctx.Ctx, "update_channel"); err == nil && rawCh != "" {
+			if strings.EqualFold(rawCh, "beta") {
+				buildChannel = "Beta"
+			}
 		}
 	}
 
@@ -64,6 +70,7 @@ func handleMenu(ctx *Context) error {
 	fmt.Fprintf(&sb, "│╭──────────────\n")
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("User    : %s", user)))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Version : %s", "4.0.0")))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Build   : %s", buildChannel)))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Mode    : %s", botMode)))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Plugins : %d", total)))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Runtime : %s", uptime)))
