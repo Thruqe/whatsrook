@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 
@@ -39,6 +40,9 @@ func (b *Bot) handleWAEvent(evt any) {
 		b.hub.Broadcast(simpleEvent(EventConnected))
 
 	case *events.Message:
+		if pretty, err := json.MarshalIndent(v, "", "  "); err == nil {
+			slog.Info("Incoming message event payload (pretty JSON)", "json", string(pretty))
+		}
 
 		text := extractMessageText(v)
 		from := v.Info.Sender.String()
