@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCompanionReg"
@@ -53,9 +54,11 @@ func (b *Bot) run(ctx context.Context) error {
 				return err
 			}
 		} else {
-			if err := b.runQR(ctx); err != nil {
-				return err
-			}
+			go func() {
+				if err := b.runQR(ctx); err != nil {
+					slog.Error("runQR failed", "err", err)
+				}
+			}()
 		}
 	} else {
 		if err := b.client.Connect(); err != nil {
