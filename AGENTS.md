@@ -19,22 +19,22 @@ We value simplicity, pragmatism, and raw speed. If you contribute code, please a
 
 ## Codebase Map
 
-* [main.go](file:///home/thruqe/whatsrook/main.go): Application entrypoint launcher. Automatically builds `whatsrook` if missing and delegates execution to `entrypoint.sh` or `client.go`.
-* [client.go](file:///home/thruqe/whatsrook/client.go): Contains the core WhatsRook daemon lifecycle, database initialization, HTTP/WebSocket server, and session management.
-* [cli.go](file:///home/thruqe/whatsrook/cli.go): Manages command line flags (`--session`, `--pair`, `--port`, `--auth-dir`, `--client`, `--qrcode`, `--logout`, `--debug`, `--verbose`, `--dev`).
-* [session.go](file:///home/thruqe/whatsrook/session.go): Controls the lifecycle of the WhatsApp connection, including QR/pairing-code registration, event handling, and executing WebSocket control commands.
-* [ws.go](file:///home/thruqe/whatsrook/ws.go): Implements the WebSocket connection `Hub` for managing real-time connections, concurrent broadcasting, and safe read/write loops.
-* [messages.go](file:///home/thruqe/whatsrook/messages.go): Schema mapping for JSON-based WebSocket payloads.
-* [proto/](file:///home/thruqe/whatsrook/proto/):
-  * [ws.proto](file:///home/thruqe/whatsrook/proto/ws.proto): Protocol Buffer definitions for WebSocket control frames, event frames, and typed payload messages.
-* [example/](file:///home/thruqe/whatsrook/example/):
-  * [client.go](file:///home/thruqe/whatsrook/example/client.go): Working demonstration of connecting to WhatsRook, decoding JSON & Protobuf WebSocket messages, and sending control commands.
-* [commands/](file:///home/thruqe/whatsrook/commands/):
-  * [commands.go](file:///home/thruqe/whatsrook/commands/commands.go): Registers command handlers via an `init()` block using `Register(&Command{...})`.
-  * [dispatch.go](file:///home/thruqe/whatsrook/commands/dispatch.go): The entry point for incoming events. It parses messages, matches prefixes, runs moderation triggers, and routes valid commands asynchronously.
-  * [helper.go](file:///home/thruqe/whatsrook/commands/helper.go): Internal command helpers (e.g. sending raw responses or retrieving configuration settings).
-* [utils/](file:///home/thruqe/whatsrook/utils/):
-  * [utils.go](file:///home/thruqe/whatsrook/utils/utils.go): Shared helper functions (FFmpeg audio transcoding, ffprobe audio duration, URL matching, JID sanitization, message extraction).
+* [main.go](./main.go): Application entrypoint launcher. Automatically builds `whatsrook` if missing and delegates execution to `entrypoint.sh` or `client.go`.
+* [client.go](./client.go): Contains the core WhatsRook daemon lifecycle, database initialization, HTTP/WebSocket server, and session management.
+* [cli.go](./cli.go): Manages command line flags (`--session`, `--pair`, `--port`, `--auth-dir`, `--client`, `--qrcode`, `--logout`, `--debug`, `--verbose`, `--dev`).
+* [session.go](./session.go): Controls the lifecycle of the WhatsApp connection, including QR/pairing-code registration, event handling, and executing WebSocket control commands.
+* [ws.go](./ws.go): Implements the WebSocket connection `Hub` for managing real-time connections, concurrent broadcasting, and safe read/write loops.
+* [messages.go](./messages.go): Schema mapping for JSON-based WebSocket payloads.
+* [proto/](./proto/):
+  * [ws.proto](./proto/ws.proto): Protocol Buffer definitions for WebSocket control frames, event frames, and typed payload messages.
+* [example/](./example/):
+  * [client.go](./example/client.go): Working demonstration of connecting to WhatsRook, decoding JSON & Protobuf WebSocket messages, and sending control commands.
+* [commands/](./commands/):
+  * [commands.go](./commands/commands.go): Registers command handlers via an `init()` block using `Register(&Command{...})`.
+  * [dispatch.go](./commands/dispatch.go): The entry point for incoming events. It parses messages, matches prefixes, runs moderation triggers, and routes valid commands asynchronously.
+  * [helper.go](./commands/helper.go): Internal command helpers (e.g. sending raw responses or retrieving configuration settings).
+* [utils/](./utils/):
+  * [utils.go](./utils/utils.go): Shared helper functions (FFmpeg audio transcoding, ffprobe audio duration, URL matching, JID sanitization, message extraction).
 
 ## Agent Guidelines & Validation
 

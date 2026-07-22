@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `IsOwner()` method in `sender/abstract.go` and updated `!delsudo` in `commands/sudo.go` to enforce that only the bot owner can remove users from the sudo list.
 - Created Protocol Buffer schema `proto/ws.proto` defining Protobuf message contracts for WebSocket control frames, event frames, and typed payloads (`ControlFrame`, `EventFrame`, `SendMessagePayload`, `IncomingMessagePayload`, etc.).
 - Added `scripts/generate-proto.sh` shell script and `make proto` Makefile target to automate Protobuf code generation.
-- Added `example/` folder with [`client.go`](file:///home/thruqe/whatsrook/example/client.go) and step-by-step setup documentation in [`README.md`](file:///home/thruqe/whatsrook/example/README.md) demonstrating how to launch the daemon and test Protobuf WebSocket event streaming.
+- Added `example/` folder with [`client.go`](./example/client.go) and step-by-step setup documentation in [`README.md`](./example/README.md) demonstrating how to launch the daemon and test Protobuf WebSocket event streaming.
 
 ### Changed
 - Upgraded `github.com/purpshell/meowcaller` dependency to latest release (`v0.0.0-20260722160050-8e4008f12884`).
