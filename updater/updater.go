@@ -19,7 +19,7 @@ const (
 	RepoOwner     = "Thruqe"
 	RepoName      = "whatsrook"
 	VersionFile   = "version.toml"
-	VersionGithub = "https://raw.githubusercontent.com/Thruqe/whatsrook/main/version.toml"
+	VersionGithub = "https://raw.githubusercontent.com/Thruqe/whatsrook/refs/heads/master/version.toml"
 )
 
 type UpdateResult struct {
