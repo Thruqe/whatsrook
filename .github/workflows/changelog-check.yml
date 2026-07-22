@@ -1,0 +1,30 @@
+name: Changelog Enforcement
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths-ignore:
+      - '**.md'
+
+permissions:
+  contents: read
+
+jobs:
+  check-changelog:
+    name: Verify CHANGELOG update
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check CHANGELOG modification
+        run: |
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q "^CHANGELOG.md$"; then
+            echo "CHANGELOG.md was updated."
+          else
+            echo "::error::CHANGELOG.md has not been modified in this pull request. Please update CHANGELOG.md."
+            exit 1
+          fi

@@ -6,6 +6,7 @@ import (
 
 	"github.com/Thruqe/whatsrook/ember"
 	"github.com/Thruqe/whatsrook/sender"
+	"github.com/Thruqe/whatsrook/utils"
 )
 
 func init() {
@@ -25,7 +26,7 @@ func handleFacebook(ctx *Context) error {
 		slog.Warn("handleFacebook: no URL provided")
 		return sendText(ctx, "Usage: !facebook <url>")
 	}
-	if !isFacebookURL(ctx.Args[0]) {
+	if !utils.IsFacebookURL(ctx.Args[0]) {
 		slog.Warn("handleFacebook: invalid URL", "url", ctx.Args[0])
 		return sendText(ctx, "Invalid facebook url!")
 	}

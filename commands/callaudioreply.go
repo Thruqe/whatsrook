@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Thruqe/whatsrook/utils"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
@@ -32,8 +33,8 @@ func HandlePendingAudioReply(ctx context.Context, client *whatsmeow.Client, evt 
 	if msg := evt.Message.GetAudioMessage(); msg != nil {
 		log.Printf("[DEBUG] Detected direct audio message from %s", sender.String())
 		audioMsg = msg
-		saveRequested = isSaveText(getDirectMessageText(evt.Message))
-	} else if extText := evt.Message.GetExtendedTextMessage(); extText != nil && isSaveText(extText.GetText()) {
+		saveRequested = utils.IsSaveText(utils.GetDirectMessageText(evt.Message))
+	} else if extText := evt.Message.GetExtendedTextMessage(); extText != nil && utils.IsSaveText(extText.GetText()) {
 		log.Printf("[DEBUG] Detected text message containing 'save' from %s. Checking if it quotes audio...", sender.String())
 		if ctxInfo := extText.GetContextInfo(); ctxInfo != nil && ctxInfo.QuotedMessage != nil {
 			if quotedAudio := ctxInfo.QuotedMessage.GetAudioMessage(); quotedAudio != nil {
@@ -84,8 +85,8 @@ func handleAudioDownload(ctx context.Context, client *whatsmeow.Client, cctx *Co
 		return
 	}
 
-	ext := extensionFor(audioMsg.GetMimetype())
-	path := filepath.Join(audioDir, sanitizeJID(sender.String())+ext)
+	ext := utils.ExtensionFor(audioMsg.GetMimetype())
+	path := filepath.Join(audioDir, utils.SanitizeJID(sender.String())+ext)
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		log.Printf("[ERROR] File save failed: %v", err)
 		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to save audio: %v", err)); sendErr != nil {
@@ -97,7 +98,7 @@ func handleAudioDownload(ctx context.Context, client *whatsmeow.Client, cctx *Co
 	// meowcaller's OpusFile can't reliably play back WhatsApp's Ogg/Opus voice
 	// notes (silent output despite RTP flowing) — transcode to MP3 via ffmpeg
 	// so every call source is a format meowcaller actually plays correctly.
-	path, err = transcodeToMP3(path)
+	path, err = utils.TranscodeToMP3(path)
 	if err != nil {
 		log.Printf("[ERROR] Transcode failed: %v", err)
 		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to process audio: %v", err)); sendErr != nil {

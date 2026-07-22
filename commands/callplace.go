@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Thruqe/whatsrook/utils"
 	"github.com/purpshell/meowcaller"
 	"github.com/rs/zerolog"
 )
@@ -19,7 +20,7 @@ func placeCallWithAudio(ctx *Context, target, audioPath string) error {
 		return sendText(ctx, fmt.Sprintf("call failed: %v", err))
 	}
 
-	duration, durErr := audioDuration(audioPath)
+	duration, durErr := utils.AudioDuration(audioPath)
 	if durErr != nil {
 		logHandlerErr("call", fmt.Errorf("could not determine audio duration, using 30s fallback: %w", durErr))
 		duration = 30 * time.Second

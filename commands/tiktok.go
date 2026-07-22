@@ -6,6 +6,7 @@ import (
 
 	"github.com/Thruqe/whatsrook/ember"
 	"github.com/Thruqe/whatsrook/sender"
+	"github.com/Thruqe/whatsrook/utils"
 )
 
 func init() {
@@ -25,7 +26,7 @@ func handleTikTok(ctx *Context) error {
 		slog.Warn("handleTikTok: no URL provided")
 		return sendText(ctx, "Usage: !tiktok <url>")
 	}
-	if !isTikTokURL(ctx.Args[0]) {
+	if !utils.IsTikTokURL(ctx.Args[0]) {
 		slog.Warn("handleTikTok: invalid URL", "url", ctx.Args[0])
 		return sendText(ctx, "Invalid tiktok url!")
 	}
