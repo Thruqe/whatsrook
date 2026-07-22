@@ -406,7 +406,7 @@ func handleAI(ctx *Context) error {
 				output = "(no output)"
 			}
 
-			resText := fmt.Sprintf("```\n%s\n```", output)
+			resText := fmt.Sprintf("Output:\n```\n%s\n```", output)
 			editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
 				Conversation: &resText,
 			})
