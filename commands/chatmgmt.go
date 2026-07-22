@@ -333,7 +333,7 @@ func isJIDSudo(ctx *Context, jid types.JID) bool {
 	if err != nil || raw == "" {
 		return false
 	}
-	for _, sudoerStr := range strings.Fields(raw) {
+	for sudoerStr := range strings.FieldsSeq(raw) {
 		sudoerJID, err := types.ParseJID(sudoerStr)
 		if err == nil {
 			if ctx.IsSameUser(jid, sudoerJID) {
@@ -387,8 +387,8 @@ func handleReport(ctx *Context) error {
 	count := 1
 	for _, arg := range ctx.Args {
 		trimmed := strings.ToLower(strings.TrimSpace(arg))
-		if strings.HasSuffix(trimmed, "x") {
-			numPart := strings.TrimSuffix(trimmed, "x")
+		if before, ok := strings.CutSuffix(trimmed, "x"); ok {
+			numPart := before
 			var val int
 			if _, err := fmt.Sscan(numPart, &val); err == nil && val > 0 {
 				count = val

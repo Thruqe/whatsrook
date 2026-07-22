@@ -27,14 +27,14 @@ type Media struct {
 }
 
 type FormatInfo struct {
-	FormatID   *string     `json:"format_id"`
-	URL        *string     `json:"url"`
-	Ext        *string     `json:"ext"`
-	Resolution interface{} `json:"resolution"`
-	Filesize   interface{} `json:"filesize"`
-	VCodec     *string     `json:"vcodec"`
-	ACodec     *string     `json:"acodec"`
-	FPS        interface{} `json:"fps"`
+	FormatID   *string `json:"format_id"`
+	URL        *string `json:"url"`
+	Ext        *string `json:"ext"`
+	Resolution any     `json:"resolution"`
+	Filesize   any     `json:"filesize"`
+	VCodec     *string `json:"vcodec"`
+	ACodec     *string `json:"acodec"`
+	FPS        any     `json:"fps"`
 }
 
 type Result struct {
@@ -44,18 +44,18 @@ type Result struct {
 }
 
 type Data struct {
-	ID           *string                `json:"id"`
-	RawTitle     *string                `json:"title"`
-	Description  *string                `json:"description"`
-	Duration     interface{}            `json:"duration"`
-	RawThumbnail *string                `json:"thumbnail"`
-	Thumbnails   interface{}            `json:"thumbnails"`
-	Uploader     *string                `json:"uploader"`
-	UploaderURL  *string                `json:"uploader_url"`
-	WebpageURL   *string                `json:"webpage_url"`
-	Extractor    *string                `json:"extractor"`
-	Formats      []FormatInfo           `json:"formats"`
-	Raw          map[string]interface{} `json:"raw"`
+	ID           *string        `json:"id"`
+	RawTitle     *string        `json:"title"`
+	Description  *string        `json:"description"`
+	Duration     any            `json:"duration"`
+	RawThumbnail *string        `json:"thumbnail"`
+	Thumbnails   any            `json:"thumbnails"`
+	Uploader     *string        `json:"uploader"`
+	UploaderURL  *string        `json:"uploader_url"`
+	WebpageURL   *string        `json:"webpage_url"`
+	Extractor    *string        `json:"extractor"`
+	Formats      []FormatInfo   `json:"formats"`
+	Raw          map[string]any `json:"raw"`
 
 	// Derived fields for backward compatibility
 	URL       string  `json:"-"`
@@ -172,10 +172,10 @@ func extractMediasFromData(d *Data) []Media {
 	// First check if raw entries exist for carousel/playlist
 	if d.Raw != nil {
 		if entriesVal, ok := d.Raw["entries"]; ok && entriesVal != nil {
-			if entries, ok := entriesVal.([]interface{}); ok {
+			if entries, ok := entriesVal.([]any); ok {
 				var list []Media
 				for _, entryVal := range entries {
-					if entry, ok := entryVal.(map[string]interface{}); ok {
+					if entry, ok := entryVal.(map[string]any); ok {
 						list = append(list, extractMediasFromMap(entry)...)
 					}
 				}
@@ -299,17 +299,17 @@ func extractMediasFromData(d *Data) []Media {
 	return nil
 }
 
-func extractMediasFromMap(info map[string]interface{}) []Media {
+func extractMediasFromMap(info map[string]any) []Media {
 	if info == nil {
 		return nil
 	}
 
 	// Handle playlist/carousel entries
 	if entriesVal, ok := info["entries"]; ok && entriesVal != nil {
-		if entries, ok := entriesVal.([]interface{}); ok {
+		if entries, ok := entriesVal.([]any); ok {
 			var list []Media
 			for _, entryVal := range entries {
-				if entry, ok := entryVal.(map[string]interface{}); ok {
+				if entry, ok := entryVal.(map[string]any); ok {
 					list = append(list, extractMediasFromMap(entry)...)
 				}
 			}
@@ -320,17 +320,17 @@ func extractMediasFromMap(info map[string]interface{}) []Media {
 	}
 
 	// Determine if there are formats
-	var formats []interface{}
-	if fmts, ok := info["formats"].([]interface{}); ok {
+	var formats []any
+	if fmts, ok := info["formats"].([]any); ok {
 		formats = fmts
 	}
 
-	var bestVideoAndAudio map[string]interface{}
-	var bestVideoOnly map[string]interface{}
-	var bestAudioOnly map[string]interface{}
+	var bestVideoAndAudio map[string]any
+	var bestVideoOnly map[string]any
+	var bestAudioOnly map[string]any
 
 	for _, fVal := range formats {
-		f, ok := fVal.(map[string]interface{})
+		f, ok := fVal.(map[string]any)
 		if !ok {
 			continue
 		}

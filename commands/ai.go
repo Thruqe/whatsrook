@@ -59,11 +59,11 @@ func extractMetaAiText(msg *waE2E.Message) string {
 		return ext.GetText()
 	}
 	if rich := msg.GetRichResponseMessage(); rich != nil {
-		var text string
+		var text strings.Builder
 		for _, sub := range rich.GetSubmessages() {
-			text += sub.GetMessageText()
+			text.WriteString(sub.GetMessageText())
 		}
-		return text
+		return text.String()
 	}
 	return ""
 }
