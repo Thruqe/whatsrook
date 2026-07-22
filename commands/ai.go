@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Thruqe/whatsrook/meta_ai"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
@@ -196,7 +197,103 @@ func handleAI(ctx *Context) error {
 	if len(ctx.Args) == 0 {
 		return sendText(ctx, "Usage: !ai <question>")
 	}
-	query := ctx.RawArgs
+
+	// Build (or reuse cached) instruction block describing available
+	// bot commands.
+	instruction := meta_ai.GetOrBuildInstruction(func() string {
+		cmdInfos := ListCommands()
+		metaCmds := make([]meta_ai.CommandInfo, 0, len(cmdInfos))
+		for _, c := range cmdInfos {
+			metaCmds = append(metaCmds, meta_ai.CommandInfo{
+				Name:        c.Name,
+				Aliases:     c.Aliases,
+				Description: c.Description,
+				IsPublic:    c.IsPublic,
+			})
+		}
+		return meta_ai.BuildRunCommandInstruction(metaCmds)
+	})
+
+	data := meta_ai.Data{
+		ChatID:   ctx.Chat.String(),
+		Question: ctx.RawArgs,
+		User:     ctx.Sender,
+		IsSudo:   ctx.IsSudo(),
+	}
+
+	isGroup := ctx.Chat.Server == "g.us"
+
+	if isGroup {
+		data.ChatType = "group"
+		groupInfo, err := meta_ai.GetOrFetchGroupMeta(ctx.Chat.String(), func() (types.GroupInfo, error) {
+			info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
+			if err != nil || info == nil {
+				return types.GroupInfo{}, err
+			}
+			return *info, nil
+		})
+		if err == nil {
+			data.GroupMetaData = groupInfo
+		}
+	} else {
+		data.ChatType = "direct"
+	}
+
+	// Populate quoted-message context, if this message is a reply.
+	if quotedMsg := getQuotedMessageFromEvent(ctx.Evt); quotedMsg != nil {
+		if quotedText := extractTextFromProto(quotedMsg); quotedText != "" {
+			data.QuotedMessageOfQuestion = quotedText
+
+			var quotedParticipant string
+			msg := ctx.Evt.Message
+			var ci *waE2E.ContextInfo
+			switch {
+			case msg.GetExtendedTextMessage() != nil:
+				ci = msg.GetExtendedTextMessage().GetContextInfo()
+			case msg.GetImageMessage() != nil:
+				ci = msg.GetImageMessage().GetContextInfo()
+			case msg.GetVideoMessage() != nil:
+				ci = msg.GetVideoMessage().GetContextInfo()
+			case msg.GetAudioMessage() != nil:
+				ci = msg.GetAudioMessage().GetContextInfo()
+			case msg.GetDocumentMessage() != nil:
+				ci = msg.GetDocumentMessage().GetContextInfo()
+			}
+			if ci != nil {
+				quotedParticipant = ci.GetParticipant()
+			}
+
+			if quotedParticipant != "" {
+				if quotedJID, err := types.ParseJID(quotedParticipant); err == nil {
+					data.UserOfQuotedMessage = quotedJID.User
+
+					if isGroup {
+						for _, p := range data.GroupMetaData.Participants {
+							if p.JID.User == quotedJID.User {
+								switch {
+								case p.IsSuperAdmin:
+									data.QuotedMessageParticipantRole = "Super Admin"
+								case p.IsAdmin:
+									data.QuotedMessageParticipantRole = "Admin"
+								default:
+									data.QuotedMessageParticipantRole = "Member"
+								}
+								break
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Assemble the full query sent to Meta AI.
+	query := instruction
+	if isGroup {
+		query += meta_ai.RenderGroupContext(data.GroupMetaData)
+	}
+	query += meta_ai.RenderQuotedContext(data)
+	query += data.Question
 
 	slog.Info("handleAI: sending request to Meta AI", "chat", ctx.Chat.String())
 
@@ -222,7 +319,7 @@ func handleAI(ctx *Context) error {
 		return err
 	}
 
-	_, err = queryMetaAi(ctx.Ctx, ctx.Client, ctx.Chat, query, onUpdate)
+	reply, err := queryMetaAi(ctx.Ctx, ctx.Client, ctx.Chat, query, onUpdate)
 	if err != nil {
 		if err == ErrMetaAiBusy {
 			slog.Warn("handleAI: meta ai busy for chat", "chat", ctx.Chat.String())
@@ -234,6 +331,46 @@ func handleAI(ctx *Context) error {
 		})
 		_, _ = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
 		return err
+	}
+
+	// Check whether the final reply is a RUN_COMMAND request.
+	if cmdName, rawArgs, ok := meta_ai.ParseRunCommand(reply); ok {
+		targetCmd, exists := Get(cmdName)
+		if !exists {
+			slog.Warn("handleAI: RUN_COMMAND referenced unknown command", "command", cmdName)
+			editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
+				Conversation: new("Sorry, I don't have a command called \"" + cmdName + "\"."),
+			})
+			_, _ = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
+			return nil
+		}
+
+		if !targetCmd.IsPublic && !ctx.IsSudo() {
+			slog.Warn("handleAI: blocked unauthorized RUN_COMMAND", "sender", ctx.Sender.String(), "command", cmdName)
+			editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
+				Conversation: new("You are not authorized to run this command."),
+			})
+			_, _ = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
+			return nil
+		}
+
+		editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
+			Conversation: new("Running !" + cmdName + "..."),
+		})
+		_, _ = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
+
+		cctx := &Context{
+			Ctx:     ctx.Ctx,
+			Client:  ctx.Client,
+			Evt:     ctx.Evt,
+			Command: cmdName,
+			Args:    strings.Fields(rawArgs),
+			RawArgs: rawArgs,
+			Chat:    ctx.Chat,
+			Sender:  ctx.Sender,
+		}
+		slog.Info("handleAI: executing command on behalf of AI", "command", cmdName, "args", cctx.Args)
+		return targetCmd.Handler(cctx)
 	}
 
 	slog.Info("handleAI: completed successfully", "chat", ctx.Chat.String())
