@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"slices"
 	"strings"
 )
 
@@ -77,15 +76,34 @@ Options:
 		return ""
 	}
 
-	hasFlag := func(flag string) bool {
-		return slices.Contains(args, flag)
+	getBoolFlag := func(flag string, envVar string) bool {
+		for i, a := range args {
+			if a == flag {
+				if i+1 < len(args) && (args[i+1] == "true" || args[i+1] == "false") {
+					return args[i+1] == "true"
+				}
+				return true
+			}
+			if strings.HasPrefix(a, flag+"=") {
+				val := strings.TrimPrefix(a, flag+"=")
+				return val == "true" || val == "1"
+			}
+		}
+		if envVar != "" {
+			envVal := strings.ToLower(os.Getenv(envVar))
+			return envVal == "true" || envVal == "1"
+		}
+		return false
 	}
 
-	isUpdate := hasFlag("--update")
+	isUpdate := getBoolFlag("--update", "UPDATE")
 
 	session := getValue("--session")
+	if session == "" {
+		session = os.Getenv("SESSION")
+	}
 	if session == "" && !isUpdate {
-		fmt.Fprintln(os.Stderr, "Error: --session <phone_number> is required. Run with -h for help.")
+		fmt.Fprintln(os.Stderr, "Error: --session <phone_number> or $SESSION environment variable is required. Run with -h for help.")
 		os.Exit(1)
 	}
 
@@ -97,6 +115,10 @@ Options:
 			os.Exit(1)
 		}
 		client = c
+	} else if rawEnv := os.Getenv("CLIENT"); rawEnv != "" {
+		if c, ok := parseClientType(rawEnv); ok {
+			client = c
+		}
 	}
 
 	port := getValue("--port")
@@ -109,20 +131,23 @@ Options:
 
 	authDir := getValue("--auth-dir")
 	if authDir == "" {
+		authDir = os.Getenv("AUTH_DIR")
+	}
+	if authDir == "" {
 		authDir = "auth"
 	}
 
 	return CliArgs{
 		Session: session,
-		Pair:    hasFlag("--pair"),
+		Pair:    getBoolFlag("--pair", "PAIR"),
 		Port:    port,
 		AuthDir: authDir,
-		QRCode:  hasFlag("--qrcode"),
-		Logout:  hasFlag("--logout"),
+		QRCode:  getBoolFlag("--qrcode", "QRCODE"),
+		Logout:  getBoolFlag("--logout", "LOGOUT"),
 		Update:  isUpdate,
-		Debug:   hasFlag("--debug"),
-		Verbose: hasFlag("--verbose"),
-		Dev:     hasFlag("--dev"),
+		Debug:   getBoolFlag("--debug", "DEBUG"),
+		Verbose: getBoolFlag("--verbose", "VERBOSE"),
+		Dev:     getBoolFlag("--dev", "DEV"),
 		Client:  client,
 	}
 }
