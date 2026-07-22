@@ -1,0 +1,140 @@
+syntax = "proto3";
+
+package whatsrook.ws;
+
+option go_package = "github.com/Thruqe/whatsrook/proto/wsproto";
+
+enum ControlType {
+  CONTROL_TYPE_UNSPECIFIED = 0;
+  CONTROL_TYPE_SEND_MESSAGE = 1;
+  CONTROL_TYPE_SEND_REACTION = 2;
+  CONTROL_TYPE_EDIT_MESSAGE = 3;
+  CONTROL_TYPE_REVOKE_MESSAGE = 4;
+  CONTROL_TYPE_DISCONNECT = 5;
+  CONTROL_TYPE_LOGOUT = 6;
+  CONTROL_TYPE_GET_STATUS = 7;
+}
+
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_PAIR_QR = 1;
+  EVENT_TYPE_PAIR_CODE = 2;
+  EVENT_TYPE_PAIR_SUCCESS = 3;
+  EVENT_TYPE_PAIR_ERROR = 4;
+  EVENT_TYPE_LOGGED_OUT = 5;
+  EVENT_TYPE_DISCONNECTED = 6;
+  EVENT_TYPE_CONNECTED = 7;
+  EVENT_TYPE_INCOMING_MESSAGE = 8;
+  EVENT_TYPE_INCOMING_CALL = 9;
+  EVENT_TYPE_ACK = 10;
+  EVENT_TYPE_STATUS = 11;
+}
+
+// ControlFrame is sent by WebSocket clients to control the bot daemon.
+message ControlFrame {
+  ControlType type = 1;
+  string id = 2;
+
+  oneof payload {
+    SendMessagePayload send_message = 3;
+    SendReactionPayload send_reaction = 4;
+    EditMessagePayload edit_message = 5;
+    RevokeMessagePayload revoke_message = 6;
+    GetStatusPayload get_status = 7;
+    DisconnectPayload disconnect = 8;
+    LogoutPayload logout = 9;
+  }
+}
+
+// EventFrame is sent by the bot daemon to connected WebSocket clients.
+message EventFrame {
+  EventType type = 1;
+  string id = 2;
+
+  oneof payload {
+    AckPayload ack = 3;
+    StatusPayload status = 4;
+    PairQRPayload pair_qr = 5;
+    PairCodePayload pair_code = 6;
+    PairErrorPayload pair_error = 7;
+    IncomingMessagePayload message = 8;
+    IncomingCallPayload incoming_call = 9;
+  }
+}
+
+message SendMessagePayload {
+  string to = 1;
+  string text = 2;
+  optional string quote_id = 3;
+  optional string quote_sender = 4;
+}
+
+message SendReactionPayload {
+  string to = 1;
+  string message_id = 2;
+  optional string sender = 3;
+  string emoji = 4;
+}
+
+message EditMessagePayload {
+  string to = 1;
+  string message_id = 2;
+  string new_text = 3;
+}
+
+message RevokeMessagePayload {
+  string to = 1;
+  string message_id = 2;
+  optional string original_sender = 3;
+}
+
+message GetStatusPayload {}
+
+message DisconnectPayload {}
+
+message LogoutPayload {}
+
+message AckPayload {
+  bool ok = 1;
+  optional string error = 2;
+}
+
+message StatusPayload {
+  bool connected = 1;
+  bool logged_in = 2;
+  optional string jid = 3;
+  optional string push_name = 4;
+}
+
+message PairQRPayload {
+  string code = 1;
+}
+
+message PairCodePayload {
+  string code = 1;
+}
+
+message PairErrorPayload {
+  string reason = 1;
+}
+
+message IncomingMessagePayload {
+  string from = 1;
+  string chat = 2;
+  string sender = 3;
+  string text = 4;
+  string message_id = 5;
+  optional string push_name = 6;
+  int64 timestamp_unix = 7;
+  bool is_group = 8;
+  bool is_from_me = 9;
+  optional string media_type = 10;
+  optional string quoted_id = 11;
+  optional string quoted_text = 12;
+}
+
+message IncomingCallPayload {
+  string call_id = 1;
+  string from = 2;
+  int64 timestamp_unix = 3;
+}

@@ -148,13 +148,27 @@ func (b *Bot) handleRevokeMessage(ctx context.Context, ctrl ControlMessage) Even
 func (b *Bot) handleGetStatus(ctrl ControlMessage) EventMessage {
 	connected := b.client.IsConnected()
 	loggedIn := b.client.IsLoggedIn()
+	var jidStr *string
+	var pushName *string
+
+	if b.client.Store != nil && b.client.Store.ID != nil {
+		str := b.client.Store.ID.String()
+		jidStr = &str
+		if b.client.Store.PushName != "" {
+			pn := b.client.Store.PushName
+			pushName = &pn
+		}
+	}
+
 	slog.Info("status", "connected", connected, "logged_in", loggedIn)
 	return EventMessage{
 		Kind: EventStatus,
 		ID:   &ctrl.ID,
-		Payload: map[string]any{
-			"connected": connected,
-			"logged_in": loggedIn,
+		Payload: StatusPayload{
+			Connected: connected,
+			LoggedIn:  loggedIn,
+			JID:       jidStr,
+			PushName:  pushName,
 		},
 	}
 }
