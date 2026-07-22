@@ -26,7 +26,7 @@ func main() {
 
 	if cli.Update {
 		fmt.Println("Checking for application update...")
-		res, err := updater.PerformUpdate()
+		res, err := updater.PerformUpdate(false)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Update failed: %v\n", err)
 			os.Exit(1)
