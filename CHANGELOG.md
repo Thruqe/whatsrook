@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated CLI argument parsing in `cli.go` to support optional boolean values (`--pair=true`, `--qrcode=false`) and environment variable fallbacks (`SESSION`, `PAIR`, `QRCODE`, `CLIENT`, `AUTH_DIR`, `DEBUG`, `VERBOSE`, `DEV`, `LOGOUT`).
 - Updated `AGENTS.md` codebase map to document the `utils/` package.
 - Reorganized command categories: created new `interactive` category for UI/button/list demonstration commands (`buttons`, `gallery`, `selectlist`, `locbuttons`, `statusmenu`), updated font customization commands to `tools`, normalized `ai` category casing, and unified `filter` commands under `filters`.
+- Refactored `main.go` into a lightweight entrypoint launcher that delegates to `entrypoint.sh` or `client.go` and automatically builds `whatsrook` on `go run .`. Moved daemon lifecycle and session handling into `client.go`.
 
 ## [4.0.0] - 2026-07-22
 
