@@ -137,7 +137,8 @@ func serializeWebP(chunks []WebPChunk) []byte {
 // getSimpleWebPDimensions extracts canvas width, height, and alpha usage from VP8 (lossy) or VP8L (lossless) chunks.
 func getSimpleWebPDimensions(chunks []WebPChunk) (width uint32, height uint32, hasAlpha bool, err error) {
 	for _, chunk := range chunks {
-		if chunk.Type == [4]byte{'V', 'P', '8', ' '} {
+		switch chunk.Type {
+		case [4]byte{'V', 'P', '8', ' '}:
 			if len(chunk.Data) < 10 {
 				return 0, 0, false, fmt.Errorf("VP8 chunk too short")
 			}
@@ -148,7 +149,7 @@ func getSimpleWebPDimensions(chunks []WebPChunk) (width uint32, height uint32, h
 			w := uint32(chunk.Data[6]) | (uint32(chunk.Data[7]) << 8)
 			h := uint32(chunk.Data[8]) | (uint32(chunk.Data[9]) << 8)
 			return w & 0x3fff, h & 0x3fff, false, nil
-		} else if chunk.Type == [4]byte{'V', 'P', '8', 'L'} {
+		case [4]byte{'V', 'P', '8', 'L'}:
 			if len(chunk.Data) < 5 {
 				return 0, 0, false, fmt.Errorf("VP8L chunk too short")
 			}

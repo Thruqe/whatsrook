@@ -101,7 +101,7 @@ func handleSticker(ctx *Context) error {
 	isVideo := strings.HasPrefix(mimetype, "video") || strings.Contains(mimetype, "gif")
 
 	_ = ctx.Reply(" Processing sticker...")
-	stickerData, err := processSticker(ctx, data, isVideo, packName, author, "")
+	stickerData, err := processSticker(data, isVideo, packName, author, "")
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf(" Failed to process sticker: %v", err))
 	}
@@ -121,7 +121,7 @@ func handleCircle(ctx *Context) error {
 	_ = ctx.Reply(" Processing circular sticker...")
 	// apply transparent circle mask using ffmpeg's geq/alpha filter
 	circleFilter := "format=yuva420p,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0,geq=alpha_expr='if(lte(hypot(X-W/2,Y-H/2),W/2),255,0)'"
-	stickerData, err := processSticker(ctx, data, isVideo, packName, author, circleFilter)
+	stickerData, err := processSticker(data, isVideo, packName, author, circleFilter)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf(" Failed to process circular sticker: %v", err))
 	}
@@ -141,7 +141,7 @@ func handleCrop(ctx *Context) error {
 	_ = ctx.Reply(" Processing cropped sticker...")
 	// crop to square first, then scale
 	cropFilter := "crop='min(iw,ih)':'min(iw,ih)',scale=512:512"
-	stickerData, err := processSticker(ctx, data, isVideo, packName, author, cropFilter)
+	stickerData, err := processSticker(data, isVideo, packName, author, cropFilter)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf(" Failed to process cropped sticker: %v", err))
 	}
@@ -256,7 +256,7 @@ func handleSteal(ctx *Context) error {
 	return ctx.ReplyWithSticker(updatedData)
 }
 
-func processSticker(ctx *Context, data []byte, isVideo bool, packName, author string, filter string) ([]byte, error) {
+func processSticker(data []byte, isVideo bool, packName, author, filter string) ([]byte, error) {
 	tempIn, err := os.CreateTemp("", "sticker_in_*")
 	if err != nil {
 		return nil, err

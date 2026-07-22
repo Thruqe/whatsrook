@@ -137,7 +137,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 			err := db.QueryRow(ctx, `SELECT value FROM bot_settings WHERE our_jid=$1 AND key='mention_proto'`, client.Store.ID.ToNonAD().String()).Scan(&mentionProto)
 			if err == nil && mentionProto != "" {
 				if msg, err := waSender.DecodeProtoMessage(mentionProto); err == nil {
-					setReplyContextInfo(msg, evt.Info.Chat, evt)
+					setReplyContextInfo(msg, evt)
 					_ = client.SendChatPresence(ctx, evt.Info.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaText)
 					time.Sleep(3 * time.Second)
 					_, _ = client.SendMessage(ctx, evt.Info.Chat, msg)
@@ -414,7 +414,7 @@ func isSenderBanned(ctx context.Context, client *whatsmeow.Client, sender types.
 	return false
 }
 
-func setReplyContextInfo(msg *waE2E.Message, chat types.JID, evt *events.Message) {
+func setReplyContextInfo(msg *waE2E.Message, evt *events.Message) {
 	stanzaID := evt.Info.ID
 	participant := evt.Info.Sender.ToNonAD().String()
 	ci := &waE2E.ContextInfo{
@@ -481,7 +481,7 @@ func handleFiltersAndBGM(ctx context.Context, client *whatsmeow.Client, evt *eve
 	err := db.QueryRow(ctx, `SELECT message_proto FROM bot_bgm WHERE our_jid=$1 AND trigger_word=$2`, ourJID, trigger).Scan(&bgmProto)
 	if err == nil && bgmProto != "" {
 		if msg, err := waSender.DecodeProtoMessage(bgmProto); err == nil {
-			setReplyContextInfo(msg, evt.Info.Chat, evt)
+			setReplyContextInfo(msg, evt)
 			_ = client.SendChatPresence(ctx, evt.Info.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaAudio)
 			time.Sleep(3 * time.Second)
 			_, _ = client.SendMessage(ctx, evt.Info.Chat, msg)
@@ -494,7 +494,7 @@ func handleFiltersAndBGM(ctx context.Context, client *whatsmeow.Client, evt *eve
 	err = db.QueryRow(ctx, `SELECT message_proto FROM bot_filters WHERE our_jid=$1 AND trigger_word=$2`, ourJID, trigger).Scan(&filterProto)
 	if err == nil && filterProto != "" {
 		if msg, err := waSender.DecodeProtoMessage(filterProto); err == nil {
-			setReplyContextInfo(msg, evt.Info.Chat, evt)
+			setReplyContextInfo(msg, evt)
 			_ = client.SendChatPresence(ctx, evt.Info.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaText)
 			time.Sleep(3 * time.Second)
 			_, _ = client.SendMessage(ctx, evt.Info.Chat, msg)
