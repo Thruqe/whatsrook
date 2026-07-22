@@ -76,6 +76,9 @@ func ParseRunCommand(reply string) (cmdName string, rawArgs string, ok bool) {
 	}
 
 	cmdLine := strings.TrimSpace(cmdContent)
+	cmdLine = strings.ReplaceAll(cmdLine, "(link unavailable)", "")
+	cmdLine = strings.ReplaceAll(cmdLine, "link unavailable", "")
+	cmdLine = strings.TrimSpace(cmdLine)
 	cmdLine = strings.TrimLeft(cmdLine, ".!/ ")
 
 	fields := strings.Fields(cmdLine)
