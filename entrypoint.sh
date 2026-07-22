@@ -1,11 +1,22 @@
 #!/bin/sh
 
-if [ -z "$SESSION" ]; then
-  echo "Error: SESSION environment variable is required."
+HAS_SESSION_ARG=false
+for arg in "$@"; do
+  if [ "$arg" = "--session" ] || echo "$arg" | grep -q "^--session="; then
+    HAS_SESSION_ARG=true
+    break
+  fi
+done
+
+if [ -z "$SESSION" ] && [ "$HAS_SESSION_ARG" = "false" ]; then
+  echo "Error: SESSION environment variable or --session argument is required."
   exit 1
 fi
 
-ARGS="--session $SESSION"
+ARGS=""
+if [ -n "$SESSION" ]; then
+  ARGS="--session $SESSION"
+fi
 
 if [ "$PAIR" = "true" ]; then
   ARGS="$ARGS --pair"
