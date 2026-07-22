@@ -189,13 +189,13 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 				slog.Info("Direct command matched (empty prefix)", "command", first, "body", body)
 				return runCommand(ctx, client, evt, body)
 			}
-			// 2. Match with standard common prefixes
-			for _, common := range []string{".", "!", ",", "/", "?"} {
-				if strings.HasPrefix(first, common) {
-					strippedName := first[len(common):]
+			// 2. Match with database configured active prefixes
+			for _, p := range activePrefixes(ctx, client) {
+				if p != "" && strings.HasPrefix(first, p) {
+					strippedName := first[len(p):]
 					if _, exists := Get(strings.ToLower(strippedName)); exists {
-						strippedBody := strings.TrimSpace(body[len(common):])
-						slog.Info("Common prefix matched (empty prefix)", "prefix", common, "command", strippedName, "body", strippedBody)
+						strippedBody := strings.TrimSpace(body[len(p):])
+						slog.Info("Configured prefix matched", "prefix", p, "command", strippedName, "body", strippedBody)
 						return runCommand(ctx, client, evt, strippedBody)
 					}
 				}
@@ -315,7 +315,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		// 1. Group-only check
 		if cmd.GroupOnly && cctx.Chat.Server != "g.us" {
 			slog.Warn("Group-only command executed in non-group chat JID", "command", name, "chat", cctx.Chat.String())
-			_ = cctx.Reply(" This command can only be used in a group chat.")
+			_ = cctx.Reply("This command can only be used in a group chat.")
 			return
 		}
 
@@ -324,14 +324,14 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 			botMode, _ := s.GetSetting(ctx, "mode")
 			if botMode == "private" && !cctx.IsSudo() {
 				slog.Warn("Private mode check failed", "command", name, "sender", cctx.Sender.String())
-				_ = cctx.Reply(" The bot is currently in private mode. Only sudoers/owners can use it.")
+				_ = cctx.Reply("The bot is currently in private mode. Only sudoers/owners can use it.")
 				return
 			}
 		}
 
 		if !cmd.IsPublic && !cctx.IsSudo() {
 			slog.Warn("Sudoer command check failed", "command", name, "sender", cctx.Sender.String())
-			_ = cctx.Reply(" This command is restricted to sudoers/owners only.")
+			_ = cctx.Reply("This command is restricted to sudoers/owners only.")
 			return
 		}
 
@@ -717,7 +717,7 @@ func handleStickerCommand(ctx context.Context, client *whatsmeow.Client, evt *ev
 	go func() {
 		botMode, _ := s.GetSetting(ctx, "mode")
 		if botMode == "private" && !cctx.IsSudo() {
-			_ = cctx.Reply(" The bot is currently in private mode. Only sudoers/owners can use it.")
+			_ = cctx.Reply("The bot is currently in private mode. Only sudoers/owners can use it.")
 			return
 		}
 

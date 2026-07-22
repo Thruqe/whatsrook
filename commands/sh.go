@@ -38,7 +38,7 @@ func init() {
 
 func handleSh(ctx *Context) error {
 	if len(ctx.Args) == 0 {
-		return sendText(ctx, "Usage: !sh <command> [args] — only allowlisted commands are permitted.")
+		return sendText(ctx, fmt.Sprintf("Usage: %ssh <command> [args] — only allowlisted commands are permitted.", ctx.GetPrefix()))
 	}
 
 	name := ctx.Args[0]

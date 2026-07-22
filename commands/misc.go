@@ -32,7 +32,7 @@ func handleSave(ctx *Context) error {
 	}
 
 	if ctx.Client.Store.ID == nil {
-		return ctx.Reply(" Owner ID unavailable.")
+		return ctx.Reply("Owner ID unavailable.")
 	}
 
 	ownerJID := ctx.Client.Store.ID.ToNonAD()
@@ -41,12 +41,12 @@ func handleSave(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf(" Failed to forward message: %v", err))
 	}
 
-	return ctx.Reply(" Message forwarded to your DM.")
+	return ctx.Reply("Message forwarded to your DM.")
 }
 
 func handleWeather(ctx *Context) error {
 	if len(ctx.Args) == 0 {
-		return ctx.Reply(" Usage: weather [city/town]")
+		return ctx.Reply("Usage: weather [city/town]")
 	}
 
 	query := strings.Join(ctx.Args, " ")
