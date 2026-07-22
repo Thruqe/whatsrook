@@ -3,6 +3,7 @@ package updater
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/Thruqe/whatsrook/store/sqlstore"
 )
 
 const (
@@ -21,6 +24,7 @@ const (
 	RepoName      = "whatsrook"
 	VersionFile   = "version.toml"
 	VersionGithub = "https://raw.githubusercontent.com/Thruqe/whatsrook/refs/heads/master/version.toml"
+	ChannelKey    = "update_channel" // "stable" or "beta"
 )
 
 type Version struct {
@@ -40,7 +44,31 @@ type UpdateResult struct {
 	Message        string
 }
 
-// ParseVersion converts a semantic version string (e.g. "4.0.0" or "v4.0.0") to structured Version with integer components.
+// GetChannel gets configured update channel ("stable" or "beta").
+func GetChannel(ctx context.Context, store *sqlstore.SQLStore) string {
+	if store == nil {
+		return "stable"
+	}
+	ch, err := store.GetSetting(ctx, ChannelKey)
+	if err != nil || ch == "" {
+		return "stable"
+	}
+	return strings.ToLower(ch)
+}
+
+// SetChannel sets update channel ("stable" or "beta").
+func SetChannel(ctx context.Context, store *sqlstore.SQLStore, channel string) error {
+	if store == nil {
+		return fmt.Errorf("settings store unavailable")
+	}
+	channel = strings.ToLower(channel)
+	if channel != "stable" && channel != "beta" {
+		return fmt.Errorf("invalid channel %q", channel)
+	}
+	return store.PutSetting(ctx, ChannelKey, channel)
+}
+
+// ParseVersion converts semver string to Version struct.
 func ParseVersion(raw string) (Version, error) {
 	clean := strings.TrimSpace(raw)
 	clean = strings.TrimPrefix(clean, "v")
@@ -67,7 +95,6 @@ func ParseVersion(raw string) (Version, error) {
 	}, nil
 }
 
-// Compare returns 1 if v > other, -1 if v < other, 0 if v == other.
 func (v Version) Compare(other Version) int {
 	if v.Major != other.Major {
 		if v.Major > other.Major {
@@ -90,7 +117,6 @@ func (v Version) Compare(other Version) int {
 	return 0
 }
 
-// ReadLocalVersion parses local version.toml.
 func ReadLocalVersion(versionPath string) (string, error) {
 	data, err := os.ReadFile(versionPath)
 	if err != nil {
@@ -115,7 +141,6 @@ func parseVersionFromTOML(content string) (string, error) {
 	return "", fmt.Errorf("version key not found in version.toml")
 }
 
-// FetchRemoteVersion fetches raw version.toml from GitHub master branch.
 func FetchRemoteVersion() (string, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(VersionGithub)
@@ -142,7 +167,6 @@ func IsGitRepo() bool {
 		return true
 	}
 
-	// Check if running via go run
 	for _, arg := range os.Args {
 		if strings.HasPrefix(arg, "-test.") || strings.Contains(arg, "go-build") {
 			return true
@@ -155,7 +179,6 @@ func IsGitRepo() bool {
 	return false
 }
 
-// CheckUpdate compares local version.toml with remote version.toml using numerical component parsing.
 func CheckUpdate() (*UpdateResult, error) {
 	localStr, err := ReadLocalVersion(VersionFile)
 	if err != nil {
@@ -196,7 +219,6 @@ func CheckUpdate() (*UpdateResult, error) {
 	return res, nil
 }
 
-// PerformUpdate performs either stable release/git update or beta/nightly update.
 func PerformUpdate(isBeta bool) (*UpdateResult, error) {
 	check, err := CheckUpdate()
 	if err != nil && !isBeta {
@@ -220,6 +242,22 @@ func PerformUpdate(isBeta bool) (*UpdateResult, error) {
 			return nil, fmt.Errorf("git pull failed: %s (%w)", strings.TrimSpace(string(outPull)), errPull)
 		}
 
+		if runtime.GOOS == "windows" {
+			// Windows PowerShell script invocation to avoid file lock on binary
+			pidStr := strconv.Itoa(os.Getpid())
+			psScript := filepath.Join(".", "scripts", "rebuild.ps1")
+			if _, errScript := os.Stat(psScript); errScript == nil {
+				cmd := exec.Command("powershell", "-ExecutionPolicy", "Bypass", "-File", psScript, "-PIDToWait", pidStr)
+				if err := cmd.Start(); err != nil {
+					return nil, fmt.Errorf("failed to launch Windows rebuild script: %w", err)
+				}
+				check.Updated = true
+				check.Message = "Windows rebuild script launched. Process will restart automatically."
+				os.Exit(0)
+				return check, nil
+			}
+		}
+
 		outBuild, errBuild := exec.Command("go", "build", "-o", "whatsrook", ".").CombinedOutput()
 		if errBuild != nil {
 			return nil, fmt.Errorf("rebuild failed after git pull: %s (%w)", strings.TrimSpace(string(outBuild)), errBuild)
@@ -230,7 +268,7 @@ func PerformUpdate(isBeta bool) (*UpdateResult, error) {
 		return check, nil
 	}
 
-	// Release update
+	// Release / Nightly download update
 	check.Method = "release"
 	tag := "latest"
 	if isBeta {
@@ -327,7 +365,6 @@ func downloadReleaseAsset(tag string) error {
 	return nil
 }
 
-// RestartProcess restarts the current process using syscall.Exec.
 func RestartProcess() error {
 	argv := os.Args
 	execPath, err := exec.LookPath(argv[0])
