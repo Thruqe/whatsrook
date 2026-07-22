@@ -6,6 +6,7 @@ import (
 
 	"github.com/Thruqe/whatsrook/ember"
 	"github.com/Thruqe/whatsrook/sender"
+	"github.com/Thruqe/whatsrook/utils"
 )
 
 func init() {
@@ -25,7 +26,7 @@ func handleTwitter(ctx *Context) error {
 		slog.Warn("handleTwitter: no URL provided")
 		return sendText(ctx, "Usage: !twitter <url>")
 	}
-	if !isTwitterURL(ctx.Args[0]) {
+	if !utils.IsTwitterURL(ctx.Args[0]) {
 		slog.Warn("handleTwitter: invalid URL", "url", ctx.Args[0])
 		return sendText(ctx, "Invalid twitter/x url!")
 	}

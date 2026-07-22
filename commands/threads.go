@@ -6,6 +6,7 @@ import (
 
 	"github.com/Thruqe/whatsrook/ember"
 	"github.com/Thruqe/whatsrook/sender"
+	"github.com/Thruqe/whatsrook/utils"
 )
 
 func init() {
@@ -25,7 +26,7 @@ func handleThreads(ctx *Context) error {
 		slog.Warn("handleThreads: no URL provided")
 		return sendText(ctx, "Usage: !threads <url>")
 	}
-	if !isThreadsURL(ctx.Args[0]) {
+	if !utils.IsThreadsURL(ctx.Args[0]) {
 		slog.Warn("handleThreads: invalid URL", "url", ctx.Args[0])
 		return sendText(ctx, "Invalid threads url!")
 	}

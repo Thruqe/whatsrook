@@ -6,6 +6,7 @@ import (
 
 	"github.com/Thruqe/whatsrook/ember"
 	"github.com/Thruqe/whatsrook/sender"
+	"github.com/Thruqe/whatsrook/utils"
 )
 
 func init() {
@@ -25,7 +26,7 @@ func handleInstagram(ctx *Context) error {
 		slog.Warn("handleInstagram: no URL provided")
 		return sendText(ctx, "Usage: !instagram <url>")
 	}
-	if !isInstagramURL(ctx.Args[0]) {
+	if !utils.IsInstagramURL(ctx.Args[0]) {
 		slog.Warn("handleInstagram: invalid URL", "url", ctx.Args[0])
 		return sendText(ctx, "Invalid instagram url!")
 	}

@@ -27,7 +27,9 @@ We value simplicity, pragmatism, and raw speed. If you contribute code, please a
 * [commands/](file:///home/thruqe/whatsrook/commands/):
   * [commands.go](file:///home/thruqe/whatsrook/commands/commands.go): Registers command handlers via an `init()` block using `Register(&Command{...})`.
   * [dispatch.go](file:///home/thruqe/whatsrook/commands/dispatch.go): The entry point for incoming events. It parses messages, matches prefixes, runs moderation triggers, and routes valid commands asynchronously.
-  * [helper.go](file:///home/thruqe/whatsrook/commands/helper.go): Helper utilities for transcoding files, looking up URLs, getting audio durations, etc.
+  * [helper.go](file:///home/thruqe/whatsrook/commands/helper.go): Internal command helpers (e.g. sending raw responses or retrieving configuration settings).
+* [utils/](file:///home/thruqe/whatsrook/utils/):
+  * [utils.go](file:///home/thruqe/whatsrook/utils/utils.go): Shared helper functions (FFmpeg audio transcoding, ffprobe audio duration, URL matching, JID sanitization, message extraction).
 
 ## Agent Guidelines & Validation
 

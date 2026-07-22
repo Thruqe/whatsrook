@@ -11,6 +11,7 @@ import (
 
 	"github.com/Thruqe/whatsrook/ember"
 	"github.com/Thruqe/whatsrook/sender"
+	"github.com/Thruqe/whatsrook/utils"
 )
 
 var urlPattern = regexp.MustCompile(`https?://[^\s<>"']+`)
@@ -47,7 +48,7 @@ func handleDl(ctx *Context) error {
 	}
 
 	var cookie string
-	if isYouTubeURL(link) {
+	if utils.IsYouTubeURL(link) {
 		cookie = getYouTubeCookie(ctx)
 		slog.Info("handleDl: YouTube cookie retrieved", "cookie_len", len(cookie))
 	}
@@ -208,10 +209,10 @@ func firstURL(text string) string {
 }
 
 func isSupportedFetchURL(link string) bool {
-	return isInstagramURL(link) ||
-		isTikTokURL(link) ||
-		isYouTubeURL(link) ||
-		isFacebookURL(link) ||
-		isThreadsURL(link) ||
-		isTwitterURL(link)
+	return utils.IsInstagramURL(link) ||
+		utils.IsTikTokURL(link) ||
+		utils.IsYouTubeURL(link) ||
+		utils.IsFacebookURL(link) ||
+		utils.IsThreadsURL(link) ||
+		utils.IsTwitterURL(link)
 }

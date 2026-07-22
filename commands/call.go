@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/Thruqe/whatsrook/store/sqlstore"
+	"github.com/Thruqe/whatsrook/utils"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 )
 
@@ -63,14 +64,14 @@ func handleSetCallAudio(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf(" Failed to create media directory: %v", err))
 	}
 
-	ext := extensionFor(audioMsg.GetMimetype())
-	path := filepath.Join("media", sanitizeJID(ctx.Sender.String())+ext)
+	ext := utils.ExtensionFor(audioMsg.GetMimetype())
+	path := filepath.Join("media", utils.SanitizeJID(ctx.Sender.String())+ext)
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		return ctx.Reply(fmt.Sprintf(" Failed to save audio: %v", err))
 	}
 
 	// Transcode to MP3
-	path, err = transcodeToMP3(path)
+	path, err = utils.TranscodeToMP3(path)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf(" Failed to transcode audio: %v", err))
 	}
