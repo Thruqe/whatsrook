@@ -55,6 +55,29 @@ func placeCallWithAudio(ctx *Context, target, audioPath string) error {
 	return sendText(ctx, " calling "+target+"...")
 }
 
+// placeVideoCall places an outbound video call to target.
+func placeVideoCall(ctx *Context, target string) error {
+	logger := zerolog.Nop()
+	client := meowcaller.NewClient(ctx.Client, meowcaller.WithLogger(logger))
+
+	call, err := client.CallWithOptions(ctx.Ctx, target, meowcaller.CallOptions{Video: true})
+	if err != nil {
+		return sendText(ctx, fmt.Sprintf("video call failed: %v", err))
+	}
+
+	call.OnReady(func() {
+		// Video stream media is active and ready
+	})
+
+	call.OnEnd(func(reason string) {
+		if err := sendText(ctx, "video call ended: "+reason); err != nil {
+			logHandlerErr("videocall", err)
+		}
+	})
+
+	return sendText(ctx, " video calling "+target+"...")
+}
+
 func openAudioSource(path string) (meowcaller.AudioSource, error) {
 	switch {
 	case hasSuffix(path, ".mp3"):
