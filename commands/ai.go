@@ -157,12 +157,6 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 		editType := string(msgEvt.Info.MsgBotInfo.EditType)
 		slog.Debug("queryMetaAi: update", "chat", chatKey, "edit_type", editType, "text", text)
 
-		if onUpdate != nil {
-			if err := onUpdate(text); err != nil {
-				slog.Error("queryMetaAi: onUpdate callback failed", "chat", chatKey, "err", err)
-			}
-		}
-
 		if _, _, isRunCmd := meta_ai.ParseRunCommand(text); isRunCmd {
 			slog.Info("queryMetaAi: RUN_COMMAND detected early, completing response", "chat", chatKey, "cmd_text", text)
 			mu.Lock()
@@ -170,6 +164,12 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 			mu.Unlock()
 			closeOnce.Do(func() { close(done) })
 			return
+		}
+
+		if onUpdate != nil {
+			if err := onUpdate(text); err != nil {
+				slog.Error("queryMetaAi: onUpdate callback failed", "chat", chatKey, "err", err)
+			}
 		}
 
 		if editType == "last" {
