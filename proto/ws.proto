@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package whatsrook.ws;
 
-option go_package = "github.com/Thruqe/whatsrook/proto/wsproto";
+option go_package = "whatsrook/proto/wsproto";
 
 enum ControlType {
   CONTROL_TYPE_UNSPECIFIED = 0;
@@ -13,6 +13,8 @@ enum ControlType {
   CONTROL_TYPE_DISCONNECT = 5;
   CONTROL_TYPE_LOGOUT = 6;
   CONTROL_TYPE_GET_STATUS = 7;
+  CONTROL_TYPE_REQUEST_PAIR_CODE = 8;
+  CONTROL_TYPE_REQUEST_PAIR_QR = 9;
 }
 
 enum EventType {
@@ -43,8 +45,16 @@ message ControlFrame {
     GetStatusPayload get_status = 7;
     DisconnectPayload disconnect = 8;
     LogoutPayload logout = 9;
+    RequestPairCodePayload request_pair_code = 10;
+    RequestPairQRPayload request_pair_qr = 11;
   }
 }
+
+message RequestPairCodePayload {
+  string phone_number = 1;
+}
+
+message RequestPairQRPayload {}
 
 // EventFrame is sent by the bot daemon to connected WebSocket clients.
 message EventFrame {

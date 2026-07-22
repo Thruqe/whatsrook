@@ -9,9 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Thruqe/whatsrook/font"
-	waSender "github.com/Thruqe/whatsrook/sender"
-	"github.com/Thruqe/whatsrook/store/sqlstore"
+	"whatsrook/font"
+	waSender "whatsrook/sender"
+	"whatsrook/store/sqlstore"
+
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"

@@ -7,8 +7,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Thruqe/whatsrook/meta_ai"
-	"github.com/Thruqe/whatsrook/store/sqlstore"
+	"whatsrook/meta_ai"
+	"whatsrook/store/sqlstore"
+
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"

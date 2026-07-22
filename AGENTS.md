@@ -27,6 +27,8 @@ We value simplicity, pragmatism, and raw speed. If you contribute code, please a
 * [messages.go](file:///home/thruqe/whatsrook/messages.go): Schema mapping for JSON-based WebSocket payloads.
 * [proto/](file:///home/thruqe/whatsrook/proto/):
   * [ws.proto](file:///home/thruqe/whatsrook/proto/ws.proto): Protocol Buffer definitions for WebSocket control frames, event frames, and typed payload messages.
+* [example/](file:///home/thruqe/whatsrook/example/):
+  * [client.go](file:///home/thruqe/whatsrook/example/client.go): Working demonstration of connecting to WhatsRook, decoding JSON & Protobuf WebSocket messages, and sending control commands.
 * [commands/](file:///home/thruqe/whatsrook/commands/):
   * [commands.go](file:///home/thruqe/whatsrook/commands/commands.go): Registers command handlers via an `init()` block using `Register(&Command{...})`.
   * [dispatch.go](file:///home/thruqe/whatsrook/commands/dispatch.go): The entry point for incoming events. It parses messages, matches prefixes, runs moderation triggers, and routes valid commands asynchronously.

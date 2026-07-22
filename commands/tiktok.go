@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/Thruqe/whatsrook/ember"
-	"github.com/Thruqe/whatsrook/sender"
-	"github.com/Thruqe/whatsrook/utils"
+	"whatsrook/ember"
+	"whatsrook/sender"
+	"whatsrook/utils"
 )
 
 func init() {

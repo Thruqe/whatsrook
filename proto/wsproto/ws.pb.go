@@ -24,14 +24,16 @@ const (
 type ControlType int32
 
 const (
-	ControlType_CONTROL_TYPE_UNSPECIFIED    ControlType = 0
-	ControlType_CONTROL_TYPE_SEND_MESSAGE   ControlType = 1
-	ControlType_CONTROL_TYPE_SEND_REACTION  ControlType = 2
-	ControlType_CONTROL_TYPE_EDIT_MESSAGE   ControlType = 3
-	ControlType_CONTROL_TYPE_REVOKE_MESSAGE ControlType = 4
-	ControlType_CONTROL_TYPE_DISCONNECT     ControlType = 5
-	ControlType_CONTROL_TYPE_LOGOUT         ControlType = 6
-	ControlType_CONTROL_TYPE_GET_STATUS     ControlType = 7
+	ControlType_CONTROL_TYPE_UNSPECIFIED       ControlType = 0
+	ControlType_CONTROL_TYPE_SEND_MESSAGE      ControlType = 1
+	ControlType_CONTROL_TYPE_SEND_REACTION     ControlType = 2
+	ControlType_CONTROL_TYPE_EDIT_MESSAGE      ControlType = 3
+	ControlType_CONTROL_TYPE_REVOKE_MESSAGE    ControlType = 4
+	ControlType_CONTROL_TYPE_DISCONNECT        ControlType = 5
+	ControlType_CONTROL_TYPE_LOGOUT            ControlType = 6
+	ControlType_CONTROL_TYPE_GET_STATUS        ControlType = 7
+	ControlType_CONTROL_TYPE_REQUEST_PAIR_CODE ControlType = 8
+	ControlType_CONTROL_TYPE_REQUEST_PAIR_QR   ControlType = 9
 )
 
 // Enum value maps for ControlType.
@@ -45,16 +47,20 @@ var (
 		5: "CONTROL_TYPE_DISCONNECT",
 		6: "CONTROL_TYPE_LOGOUT",
 		7: "CONTROL_TYPE_GET_STATUS",
+		8: "CONTROL_TYPE_REQUEST_PAIR_CODE",
+		9: "CONTROL_TYPE_REQUEST_PAIR_QR",
 	}
 	ControlType_value = map[string]int32{
-		"CONTROL_TYPE_UNSPECIFIED":    0,
-		"CONTROL_TYPE_SEND_MESSAGE":   1,
-		"CONTROL_TYPE_SEND_REACTION":  2,
-		"CONTROL_TYPE_EDIT_MESSAGE":   3,
-		"CONTROL_TYPE_REVOKE_MESSAGE": 4,
-		"CONTROL_TYPE_DISCONNECT":     5,
-		"CONTROL_TYPE_LOGOUT":         6,
-		"CONTROL_TYPE_GET_STATUS":     7,
+		"CONTROL_TYPE_UNSPECIFIED":       0,
+		"CONTROL_TYPE_SEND_MESSAGE":      1,
+		"CONTROL_TYPE_SEND_REACTION":     2,
+		"CONTROL_TYPE_EDIT_MESSAGE":      3,
+		"CONTROL_TYPE_REVOKE_MESSAGE":    4,
+		"CONTROL_TYPE_DISCONNECT":        5,
+		"CONTROL_TYPE_LOGOUT":            6,
+		"CONTROL_TYPE_GET_STATUS":        7,
+		"CONTROL_TYPE_REQUEST_PAIR_CODE": 8,
+		"CONTROL_TYPE_REQUEST_PAIR_QR":   9,
 	}
 )
 
@@ -175,6 +181,8 @@ type ControlFrame struct {
 	//	*ControlFrame_GetStatus
 	//	*ControlFrame_Disconnect
 	//	*ControlFrame_Logout
+	//	*ControlFrame_RequestPairCode
+	//	*ControlFrame_RequestPairQr
 	Payload       isControlFrame_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -294,6 +302,24 @@ func (x *ControlFrame) GetLogout() *LogoutPayload {
 	return nil
 }
 
+func (x *ControlFrame) GetRequestPairCode() *RequestPairCodePayload {
+	if x != nil {
+		if x, ok := x.Payload.(*ControlFrame_RequestPairCode); ok {
+			return x.RequestPairCode
+		}
+	}
+	return nil
+}
+
+func (x *ControlFrame) GetRequestPairQr() *RequestPairQRPayload {
+	if x != nil {
+		if x, ok := x.Payload.(*ControlFrame_RequestPairQr); ok {
+			return x.RequestPairQr
+		}
+	}
+	return nil
+}
+
 type isControlFrame_Payload interface {
 	isControlFrame_Payload()
 }
@@ -326,6 +352,14 @@ type ControlFrame_Logout struct {
 	Logout *LogoutPayload `protobuf:"bytes,9,opt,name=logout,proto3,oneof"`
 }
 
+type ControlFrame_RequestPairCode struct {
+	RequestPairCode *RequestPairCodePayload `protobuf:"bytes,10,opt,name=request_pair_code,json=requestPairCode,proto3,oneof"`
+}
+
+type ControlFrame_RequestPairQr struct {
+	RequestPairQr *RequestPairQRPayload `protobuf:"bytes,11,opt,name=request_pair_qr,json=requestPairQr,proto3,oneof"`
+}
+
 func (*ControlFrame_SendMessage) isControlFrame_Payload() {}
 
 func (*ControlFrame_SendReaction) isControlFrame_Payload() {}
@@ -339,6 +373,90 @@ func (*ControlFrame_GetStatus) isControlFrame_Payload() {}
 func (*ControlFrame_Disconnect) isControlFrame_Payload() {}
 
 func (*ControlFrame_Logout) isControlFrame_Payload() {}
+
+func (*ControlFrame_RequestPairCode) isControlFrame_Payload() {}
+
+func (*ControlFrame_RequestPairQr) isControlFrame_Payload() {}
+
+type RequestPairCodePayload struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PhoneNumber   string                 `protobuf:"bytes,1,opt,name=phone_number,json=phoneNumber,proto3" json:"phone_number,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequestPairCodePayload) Reset() {
+	*x = RequestPairCodePayload{}
+	mi := &file_ws_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequestPairCodePayload) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestPairCodePayload) ProtoMessage() {}
+
+func (x *RequestPairCodePayload) ProtoReflect() protoreflect.Message {
+	mi := &file_ws_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestPairCodePayload.ProtoReflect.Descriptor instead.
+func (*RequestPairCodePayload) Descriptor() ([]byte, []int) {
+	return file_ws_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *RequestPairCodePayload) GetPhoneNumber() string {
+	if x != nil {
+		return x.PhoneNumber
+	}
+	return ""
+}
+
+type RequestPairQRPayload struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequestPairQRPayload) Reset() {
+	*x = RequestPairQRPayload{}
+	mi := &file_ws_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequestPairQRPayload) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestPairQRPayload) ProtoMessage() {}
+
+func (x *RequestPairQRPayload) ProtoReflect() protoreflect.Message {
+	mi := &file_ws_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestPairQRPayload.ProtoReflect.Descriptor instead.
+func (*RequestPairQRPayload) Descriptor() ([]byte, []int) {
+	return file_ws_proto_rawDescGZIP(), []int{2}
+}
 
 // EventFrame is sent by the bot daemon to connected WebSocket clients.
 type EventFrame struct {
@@ -361,7 +479,7 @@ type EventFrame struct {
 
 func (x *EventFrame) Reset() {
 	*x = EventFrame{}
-	mi := &file_ws_proto_msgTypes[1]
+	mi := &file_ws_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -373,7 +491,7 @@ func (x *EventFrame) String() string {
 func (*EventFrame) ProtoMessage() {}
 
 func (x *EventFrame) ProtoReflect() protoreflect.Message {
-	mi := &file_ws_proto_msgTypes[1]
+	mi := &file_ws_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -386,7 +504,7 @@ func (x *EventFrame) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventFrame.ProtoReflect.Descriptor instead.
 func (*EventFrame) Descriptor() ([]byte, []int) {
-	return file_ws_proto_rawDescGZIP(), []int{1}
+	return file_ws_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *EventFrame) GetType() EventType {
@@ -531,7 +649,7 @@ type SendMessagePayload struct {
 
 func (x *SendMessagePayload) Reset() {
 	*x = SendMessagePayload{}
-	mi := &file_ws_proto_msgTypes[2]
+	mi := &file_ws_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -543,7 +661,7 @@ func (x *SendMessagePayload) String() string {
 func (*SendMessagePayload) ProtoMessage() {}
 
 func (x *SendMessagePayload) ProtoReflect() protoreflect.Message {
-	mi := &file_ws_proto_msgTypes[2]
+	mi := &file_ws_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -556,7 +674,7 @@ func (x *SendMessagePayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendMessagePayload.ProtoReflect.Descriptor instead.
 func (*SendMessagePayload) Descriptor() ([]byte, []int) {
-	return file_ws_proto_rawDescGZIP(), []int{2}
+	return file_ws_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *SendMessagePayload) GetTo() string {
@@ -599,7 +717,7 @@ type SendReactionPayload struct {
 
 func (x *SendReactionPayload) Reset() {
 	*x = SendReactionPayload{}
-	mi := &file_ws_proto_msgTypes[3]
+	mi := &file_ws_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -611,7 +729,7 @@ func (x *SendReactionPayload) String() string {
 func (*SendReactionPayload) ProtoMessage() {}
 
 func (x *SendReactionPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_ws_proto_msgTypes[3]
+	mi := &file_ws_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -624,7 +742,7 @@ func (x *SendReactionPayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendReactionPayload.ProtoReflect.Descriptor instead.
 func (*SendReactionPayload) Descriptor() ([]byte, []int) {
-	return file_ws_proto_rawDescGZIP(), []int{3}
+	return file_ws_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *SendReactionPayload) GetTo() string {
@@ -666,7 +784,7 @@ type EditMessagePayload struct {
 
 func (x *EditMessagePayload) Reset() {
 	*x = EditMessagePayload{}
-	mi := &file_ws_proto_msgTypes[4]
+	mi := &file_ws_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -678,7 +796,7 @@ func (x *EditMessagePayload) String() string {
 func (*EditMessagePayload) ProtoMessage() {}
 
 func (x *EditMessagePayload) ProtoReflect() protoreflect.Message {
-	mi := &file_ws_proto_msgTypes[4]
+	mi := &file_ws_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -691,7 +809,7 @@ func (x *EditMessagePayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditMessagePayload.ProtoReflect.Descriptor instead.
 func (*EditMessagePayload) Descriptor() ([]byte, []int) {
-	return file_ws_proto_rawDescGZIP(), []int{4}
+	return file_ws_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *EditMessagePayload) GetTo() string {
@@ -726,7 +844,7 @@ type RevokeMessagePayload struct {
 
 func (x *RevokeMessagePayload) Reset() {
 	*x = RevokeMessagePayload{}
-	mi := &file_ws_proto_msgTypes[5]
+	mi := &file_ws_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -738,7 +856,7 @@ func (x *RevokeMessagePayload) String() string {
 func (*RevokeMessagePayload) ProtoMessage() {}
 
 func (x *RevokeMessagePayload) ProtoReflect() protoreflect.Message {
-	mi := &file_ws_proto_msgTypes[5]
+	mi := &file_ws_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -751,7 +869,7 @@ func (x *RevokeMessagePayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeMessagePayload.ProtoReflect.Descriptor instead.
 func (*RevokeMessagePayload) Descriptor() ([]byte, []int) {
-	return file_ws_proto_rawDescGZIP(), []int{5}
+	return file_ws_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *RevokeMessagePayload) GetTo() string {
@@ -783,7 +901,7 @@ type GetStatusPayload struct {
 
 func (x *GetStatusPayload) Reset() {
 	*x = GetStatusPayload{}
-	mi := &file_ws_proto_msgTypes[6]
+	mi := &file_ws_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -795,7 +913,7 @@ func (x *GetStatusPayload) String() string {
 func (*GetStatusPayload) ProtoMessage() {}
 
 func (x *GetStatusPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_ws_proto_msgTypes[6]
+	mi := &file_ws_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -808,7 +926,7 @@ func (x *GetStatusPayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStatusPayload.ProtoReflect.Descriptor instead.
 func (*GetStatusPayload) Descriptor() ([]byte, []int) {
-	return file_ws_proto_rawDescGZIP(), []int{6}
+	return file_ws_proto_rawDescGZIP(), []int{8}
 }
 
 type DisconnectPayload struct {
@@ -819,7 +937,7 @@ type DisconnectPayload struct {
 
 func (x *DisconnectPayload) Reset() {
 	*x = DisconnectPayload{}
-	mi := &file_ws_proto_msgTypes[7]
+	mi := &file_ws_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -831,7 +949,7 @@ func (x *DisconnectPayload) String() string {
 func (*DisconnectPayload) ProtoMessage() {}
 
 func (x *DisconnectPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_ws_proto_msgTypes[7]
+	mi := &file_ws_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -844,7 +962,7 @@ func (x *DisconnectPayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisconnectPayload.ProtoReflect.Descriptor instead.
 func (*DisconnectPayload) Descriptor() ([]byte, []int) {
-	return file_ws_proto_rawDescGZIP(), []int{7}
+	return file_ws_proto_rawDescGZIP(), []int{9}
 }
 
 type LogoutPayload struct {
@@ -855,7 +973,7 @@ type LogoutPayload struct {
 
 func (x *LogoutPayload) Reset() {
 	*x = LogoutPayload{}
-	mi := &file_ws_proto_msgTypes[8]
+	mi := &file_ws_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -867,7 +985,7 @@ func (x *LogoutPayload) String() string {
 func (*LogoutPayload) ProtoMessage() {}
 
 func (x *LogoutPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_ws_proto_msgTypes[8]
+	mi := &file_ws_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -880,7 +998,7 @@ func (x *LogoutPayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogoutPayload.ProtoReflect.Descriptor instead.
 func (*LogoutPayload) Descriptor() ([]byte, []int) {
-	return file_ws_proto_rawDescGZIP(), []int{8}
+	return file_ws_proto_rawDescGZIP(), []int{10}
 }
 
 type AckPayload struct {
@@ -893,7 +1011,7 @@ type AckPayload struct {
 
 func (x *AckPayload) Reset() {
 	*x = AckPayload{}
-	mi := &file_ws_proto_msgTypes[9]
+	mi := &file_ws_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -905,7 +1023,7 @@ func (x *AckPayload) String() string {
 func (*AckPayload) ProtoMessage() {}
 
 func (x *AckPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_ws_proto_msgTypes[9]
+	mi := &file_ws_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -918,7 +1036,7 @@ func (x *AckPayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AckPayload.ProtoReflect.Descriptor instead.
 func (*AckPayload) Descriptor() ([]byte, []int) {
-	return file_ws_proto_rawDescGZIP(), []int{9}
+	return file_ws_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *AckPayload) GetOk() bool {
@@ -947,7 +1065,7 @@ type StatusPayload struct {
 
 func (x *StatusPayload) Reset() {
 	*x = StatusPayload{}
-	mi := &file_ws_proto_msgTypes[10]
+	mi := &file_ws_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -959,7 +1077,7 @@ func (x *StatusPayload) String() string {
 func (*StatusPayload) ProtoMessage() {}
 
 func (x *StatusPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_ws_proto_msgTypes[10]
+	mi := &file_ws_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -972,7 +1090,7 @@ func (x *StatusPayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusPayload.ProtoReflect.Descriptor instead.
 func (*StatusPayload) Descriptor() ([]byte, []int) {
-	return file_ws_proto_rawDescGZIP(), []int{10}
+	return file_ws_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *StatusPayload) GetConnected() bool {
@@ -1012,7 +1130,7 @@ type PairQRPayload struct {
 
 func (x *PairQRPayload) Reset() {
 	*x = PairQRPayload{}
-	mi := &file_ws_proto_msgTypes[11]
+	mi := &file_ws_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1024,7 +1142,7 @@ func (x *PairQRPayload) String() string {
 func (*PairQRPayload) ProtoMessage() {}
 
 func (x *PairQRPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_ws_proto_msgTypes[11]
+	mi := &file_ws_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1037,7 +1155,7 @@ func (x *PairQRPayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PairQRPayload.ProtoReflect.Descriptor instead.
 func (*PairQRPayload) Descriptor() ([]byte, []int) {
-	return file_ws_proto_rawDescGZIP(), []int{11}
+	return file_ws_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *PairQRPayload) GetCode() string {
@@ -1056,7 +1174,7 @@ type PairCodePayload struct {
 
 func (x *PairCodePayload) Reset() {
 	*x = PairCodePayload{}
-	mi := &file_ws_proto_msgTypes[12]
+	mi := &file_ws_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1068,7 +1186,7 @@ func (x *PairCodePayload) String() string {
 func (*PairCodePayload) ProtoMessage() {}
 
 func (x *PairCodePayload) ProtoReflect() protoreflect.Message {
-	mi := &file_ws_proto_msgTypes[12]
+	mi := &file_ws_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1081,7 +1199,7 @@ func (x *PairCodePayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PairCodePayload.ProtoReflect.Descriptor instead.
 func (*PairCodePayload) Descriptor() ([]byte, []int) {
-	return file_ws_proto_rawDescGZIP(), []int{12}
+	return file_ws_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *PairCodePayload) GetCode() string {
@@ -1100,7 +1218,7 @@ type PairErrorPayload struct {
 
 func (x *PairErrorPayload) Reset() {
 	*x = PairErrorPayload{}
-	mi := &file_ws_proto_msgTypes[13]
+	mi := &file_ws_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1112,7 +1230,7 @@ func (x *PairErrorPayload) String() string {
 func (*PairErrorPayload) ProtoMessage() {}
 
 func (x *PairErrorPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_ws_proto_msgTypes[13]
+	mi := &file_ws_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1125,7 +1243,7 @@ func (x *PairErrorPayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PairErrorPayload.ProtoReflect.Descriptor instead.
 func (*PairErrorPayload) Descriptor() ([]byte, []int) {
-	return file_ws_proto_rawDescGZIP(), []int{13}
+	return file_ws_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *PairErrorPayload) GetReason() string {
@@ -1155,7 +1273,7 @@ type IncomingMessagePayload struct {
 
 func (x *IncomingMessagePayload) Reset() {
 	*x = IncomingMessagePayload{}
-	mi := &file_ws_proto_msgTypes[14]
+	mi := &file_ws_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1167,7 +1285,7 @@ func (x *IncomingMessagePayload) String() string {
 func (*IncomingMessagePayload) ProtoMessage() {}
 
 func (x *IncomingMessagePayload) ProtoReflect() protoreflect.Message {
-	mi := &file_ws_proto_msgTypes[14]
+	mi := &file_ws_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1180,7 +1298,7 @@ func (x *IncomingMessagePayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IncomingMessagePayload.ProtoReflect.Descriptor instead.
 func (*IncomingMessagePayload) Descriptor() ([]byte, []int) {
-	return file_ws_proto_rawDescGZIP(), []int{14}
+	return file_ws_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *IncomingMessagePayload) GetFrom() string {
@@ -1278,7 +1396,7 @@ type IncomingCallPayload struct {
 
 func (x *IncomingCallPayload) Reset() {
 	*x = IncomingCallPayload{}
-	mi := &file_ws_proto_msgTypes[15]
+	mi := &file_ws_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1290,7 +1408,7 @@ func (x *IncomingCallPayload) String() string {
 func (*IncomingCallPayload) ProtoMessage() {}
 
 func (x *IncomingCallPayload) ProtoReflect() protoreflect.Message {
-	mi := &file_ws_proto_msgTypes[15]
+	mi := &file_ws_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1303,7 +1421,7 @@ func (x *IncomingCallPayload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IncomingCallPayload.ProtoReflect.Descriptor instead.
 func (*IncomingCallPayload) Descriptor() ([]byte, []int) {
-	return file_ws_proto_rawDescGZIP(), []int{15}
+	return file_ws_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *IncomingCallPayload) GetCallId() string {
@@ -1331,7 +1449,7 @@ var File_ws_proto protoreflect.FileDescriptor
 
 const file_ws_proto_rawDesc = "" +
 	"\n" +
-	"\bws.proto\x12\fwhatsrook.ws\"\xb8\x04\n" +
+	"\bws.proto\x12\fwhatsrook.ws\"\xda\x05\n" +
 	"\fControlFrame\x12-\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x19.whatsrook.ws.ControlTypeR\x04type\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12E\n" +
@@ -1344,8 +1462,14 @@ const file_ws_proto_rawDesc = "" +
 	"\n" +
 	"disconnect\x18\b \x01(\v2\x1f.whatsrook.ws.DisconnectPayloadH\x00R\n" +
 	"disconnect\x125\n" +
-	"\x06logout\x18\t \x01(\v2\x1b.whatsrook.ws.LogoutPayloadH\x00R\x06logoutB\t\n" +
-	"\apayload\"\xfc\x03\n" +
+	"\x06logout\x18\t \x01(\v2\x1b.whatsrook.ws.LogoutPayloadH\x00R\x06logout\x12R\n" +
+	"\x11request_pair_code\x18\n" +
+	" \x01(\v2$.whatsrook.ws.RequestPairCodePayloadH\x00R\x0frequestPairCode\x12L\n" +
+	"\x0frequest_pair_qr\x18\v \x01(\v2\".whatsrook.ws.RequestPairQRPayloadH\x00R\rrequestPairQrB\t\n" +
+	"\apayload\";\n" +
+	"\x16RequestPairCodePayload\x12!\n" +
+	"\fphone_number\x18\x01 \x01(\tR\vphoneNumber\"\x16\n" +
+	"\x14RequestPairQRPayload\"\xfc\x03\n" +
 	"\n" +
 	"EventFrame\x12+\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x17.whatsrook.ws.EventTypeR\x04type\x12\x0e\n" +
@@ -1433,7 +1557,7 @@ const file_ws_proto_rawDesc = "" +
 	"\x13IncomingCallPayload\x12\x17\n" +
 	"\acall_id\x18\x01 \x01(\tR\x06callId\x12\x12\n" +
 	"\x04from\x18\x02 \x01(\tR\x04from\x12%\n" +
-	"\x0etimestamp_unix\x18\x03 \x01(\x03R\rtimestampUnix*\xfd\x01\n" +
+	"\x0etimestamp_unix\x18\x03 \x01(\x03R\rtimestampUnix*\xc3\x02\n" +
 	"\vControlType\x12\x1c\n" +
 	"\x18CONTROL_TYPE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19CONTROL_TYPE_SEND_MESSAGE\x10\x01\x12\x1e\n" +
@@ -1442,7 +1566,9 @@ const file_ws_proto_rawDesc = "" +
 	"\x1bCONTROL_TYPE_REVOKE_MESSAGE\x10\x04\x12\x1b\n" +
 	"\x17CONTROL_TYPE_DISCONNECT\x10\x05\x12\x17\n" +
 	"\x13CONTROL_TYPE_LOGOUT\x10\x06\x12\x1b\n" +
-	"\x17CONTROL_TYPE_GET_STATUS\x10\a*\xcd\x02\n" +
+	"\x17CONTROL_TYPE_GET_STATUS\x10\a\x12\"\n" +
+	"\x1eCONTROL_TYPE_REQUEST_PAIR_CODE\x10\b\x12 \n" +
+	"\x1cCONTROL_TYPE_REQUEST_PAIR_QR\x10\t*\xcd\x02\n" +
 	"\tEventType\x12\x1a\n" +
 	"\x16EVENT_TYPE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12EVENT_TYPE_PAIR_QR\x10\x01\x12\x18\n" +
@@ -1471,49 +1597,53 @@ func file_ws_proto_rawDescGZIP() []byte {
 }
 
 var file_ws_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_ws_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_ws_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_ws_proto_goTypes = []any{
 	(ControlType)(0),               // 0: whatsrook.ws.ControlType
 	(EventType)(0),                 // 1: whatsrook.ws.EventType
 	(*ControlFrame)(nil),           // 2: whatsrook.ws.ControlFrame
-	(*EventFrame)(nil),             // 3: whatsrook.ws.EventFrame
-	(*SendMessagePayload)(nil),     // 4: whatsrook.ws.SendMessagePayload
-	(*SendReactionPayload)(nil),    // 5: whatsrook.ws.SendReactionPayload
-	(*EditMessagePayload)(nil),     // 6: whatsrook.ws.EditMessagePayload
-	(*RevokeMessagePayload)(nil),   // 7: whatsrook.ws.RevokeMessagePayload
-	(*GetStatusPayload)(nil),       // 8: whatsrook.ws.GetStatusPayload
-	(*DisconnectPayload)(nil),      // 9: whatsrook.ws.DisconnectPayload
-	(*LogoutPayload)(nil),          // 10: whatsrook.ws.LogoutPayload
-	(*AckPayload)(nil),             // 11: whatsrook.ws.AckPayload
-	(*StatusPayload)(nil),          // 12: whatsrook.ws.StatusPayload
-	(*PairQRPayload)(nil),          // 13: whatsrook.ws.PairQRPayload
-	(*PairCodePayload)(nil),        // 14: whatsrook.ws.PairCodePayload
-	(*PairErrorPayload)(nil),       // 15: whatsrook.ws.PairErrorPayload
-	(*IncomingMessagePayload)(nil), // 16: whatsrook.ws.IncomingMessagePayload
-	(*IncomingCallPayload)(nil),    // 17: whatsrook.ws.IncomingCallPayload
+	(*RequestPairCodePayload)(nil), // 3: whatsrook.ws.RequestPairCodePayload
+	(*RequestPairQRPayload)(nil),   // 4: whatsrook.ws.RequestPairQRPayload
+	(*EventFrame)(nil),             // 5: whatsrook.ws.EventFrame
+	(*SendMessagePayload)(nil),     // 6: whatsrook.ws.SendMessagePayload
+	(*SendReactionPayload)(nil),    // 7: whatsrook.ws.SendReactionPayload
+	(*EditMessagePayload)(nil),     // 8: whatsrook.ws.EditMessagePayload
+	(*RevokeMessagePayload)(nil),   // 9: whatsrook.ws.RevokeMessagePayload
+	(*GetStatusPayload)(nil),       // 10: whatsrook.ws.GetStatusPayload
+	(*DisconnectPayload)(nil),      // 11: whatsrook.ws.DisconnectPayload
+	(*LogoutPayload)(nil),          // 12: whatsrook.ws.LogoutPayload
+	(*AckPayload)(nil),             // 13: whatsrook.ws.AckPayload
+	(*StatusPayload)(nil),          // 14: whatsrook.ws.StatusPayload
+	(*PairQRPayload)(nil),          // 15: whatsrook.ws.PairQRPayload
+	(*PairCodePayload)(nil),        // 16: whatsrook.ws.PairCodePayload
+	(*PairErrorPayload)(nil),       // 17: whatsrook.ws.PairErrorPayload
+	(*IncomingMessagePayload)(nil), // 18: whatsrook.ws.IncomingMessagePayload
+	(*IncomingCallPayload)(nil),    // 19: whatsrook.ws.IncomingCallPayload
 }
 var file_ws_proto_depIdxs = []int32{
 	0,  // 0: whatsrook.ws.ControlFrame.type:type_name -> whatsrook.ws.ControlType
-	4,  // 1: whatsrook.ws.ControlFrame.send_message:type_name -> whatsrook.ws.SendMessagePayload
-	5,  // 2: whatsrook.ws.ControlFrame.send_reaction:type_name -> whatsrook.ws.SendReactionPayload
-	6,  // 3: whatsrook.ws.ControlFrame.edit_message:type_name -> whatsrook.ws.EditMessagePayload
-	7,  // 4: whatsrook.ws.ControlFrame.revoke_message:type_name -> whatsrook.ws.RevokeMessagePayload
-	8,  // 5: whatsrook.ws.ControlFrame.get_status:type_name -> whatsrook.ws.GetStatusPayload
-	9,  // 6: whatsrook.ws.ControlFrame.disconnect:type_name -> whatsrook.ws.DisconnectPayload
-	10, // 7: whatsrook.ws.ControlFrame.logout:type_name -> whatsrook.ws.LogoutPayload
-	1,  // 8: whatsrook.ws.EventFrame.type:type_name -> whatsrook.ws.EventType
-	11, // 9: whatsrook.ws.EventFrame.ack:type_name -> whatsrook.ws.AckPayload
-	12, // 10: whatsrook.ws.EventFrame.status:type_name -> whatsrook.ws.StatusPayload
-	13, // 11: whatsrook.ws.EventFrame.pair_qr:type_name -> whatsrook.ws.PairQRPayload
-	14, // 12: whatsrook.ws.EventFrame.pair_code:type_name -> whatsrook.ws.PairCodePayload
-	15, // 13: whatsrook.ws.EventFrame.pair_error:type_name -> whatsrook.ws.PairErrorPayload
-	16, // 14: whatsrook.ws.EventFrame.message:type_name -> whatsrook.ws.IncomingMessagePayload
-	17, // 15: whatsrook.ws.EventFrame.incoming_call:type_name -> whatsrook.ws.IncomingCallPayload
-	16, // [16:16] is the sub-list for method output_type
-	16, // [16:16] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	6,  // 1: whatsrook.ws.ControlFrame.send_message:type_name -> whatsrook.ws.SendMessagePayload
+	7,  // 2: whatsrook.ws.ControlFrame.send_reaction:type_name -> whatsrook.ws.SendReactionPayload
+	8,  // 3: whatsrook.ws.ControlFrame.edit_message:type_name -> whatsrook.ws.EditMessagePayload
+	9,  // 4: whatsrook.ws.ControlFrame.revoke_message:type_name -> whatsrook.ws.RevokeMessagePayload
+	10, // 5: whatsrook.ws.ControlFrame.get_status:type_name -> whatsrook.ws.GetStatusPayload
+	11, // 6: whatsrook.ws.ControlFrame.disconnect:type_name -> whatsrook.ws.DisconnectPayload
+	12, // 7: whatsrook.ws.ControlFrame.logout:type_name -> whatsrook.ws.LogoutPayload
+	3,  // 8: whatsrook.ws.ControlFrame.request_pair_code:type_name -> whatsrook.ws.RequestPairCodePayload
+	4,  // 9: whatsrook.ws.ControlFrame.request_pair_qr:type_name -> whatsrook.ws.RequestPairQRPayload
+	1,  // 10: whatsrook.ws.EventFrame.type:type_name -> whatsrook.ws.EventType
+	13, // 11: whatsrook.ws.EventFrame.ack:type_name -> whatsrook.ws.AckPayload
+	14, // 12: whatsrook.ws.EventFrame.status:type_name -> whatsrook.ws.StatusPayload
+	15, // 13: whatsrook.ws.EventFrame.pair_qr:type_name -> whatsrook.ws.PairQRPayload
+	16, // 14: whatsrook.ws.EventFrame.pair_code:type_name -> whatsrook.ws.PairCodePayload
+	17, // 15: whatsrook.ws.EventFrame.pair_error:type_name -> whatsrook.ws.PairErrorPayload
+	18, // 16: whatsrook.ws.EventFrame.message:type_name -> whatsrook.ws.IncomingMessagePayload
+	19, // 17: whatsrook.ws.EventFrame.incoming_call:type_name -> whatsrook.ws.IncomingCallPayload
+	18, // [18:18] is the sub-list for method output_type
+	18, // [18:18] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_ws_proto_init() }
@@ -1529,8 +1659,10 @@ func file_ws_proto_init() {
 		(*ControlFrame_GetStatus)(nil),
 		(*ControlFrame_Disconnect)(nil),
 		(*ControlFrame_Logout)(nil),
+		(*ControlFrame_RequestPairCode)(nil),
+		(*ControlFrame_RequestPairQr)(nil),
 	}
-	file_ws_proto_msgTypes[1].OneofWrappers = []any{
+	file_ws_proto_msgTypes[3].OneofWrappers = []any{
 		(*EventFrame_Ack)(nil),
 		(*EventFrame_Status)(nil),
 		(*EventFrame_PairQr)(nil),
@@ -1539,19 +1671,19 @@ func file_ws_proto_init() {
 		(*EventFrame_Message)(nil),
 		(*EventFrame_IncomingCall)(nil),
 	}
-	file_ws_proto_msgTypes[2].OneofWrappers = []any{}
-	file_ws_proto_msgTypes[3].OneofWrappers = []any{}
+	file_ws_proto_msgTypes[4].OneofWrappers = []any{}
 	file_ws_proto_msgTypes[5].OneofWrappers = []any{}
-	file_ws_proto_msgTypes[9].OneofWrappers = []any{}
-	file_ws_proto_msgTypes[10].OneofWrappers = []any{}
-	file_ws_proto_msgTypes[14].OneofWrappers = []any{}
+	file_ws_proto_msgTypes[7].OneofWrappers = []any{}
+	file_ws_proto_msgTypes[11].OneofWrappers = []any{}
+	file_ws_proto_msgTypes[12].OneofWrappers = []any{}
+	file_ws_proto_msgTypes[16].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ws_proto_rawDesc), len(file_ws_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   16,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -5,8 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Thruqe/whatsrook/store/sqlstore"
-	"github.com/Thruqe/whatsrook/utils"
+	"whatsrook/store/sqlstore"
+	"whatsrook/utils"
+
 	"go.mau.fi/whatsmeow/proto/waE2E"
 )
 

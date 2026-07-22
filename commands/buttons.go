@@ -38,7 +38,7 @@ func handleButtons(ctx *Context) error {
 								},
 								{
 									Name:             new("cta_url"),
-									ButtonParamsJSON: new(`{"display_text":"Visit Website","url":"https://github.com/Thruqe/whatsrook","merchant_url":"https://github.com/Thruqe/whatsrook"}`),
+									ButtonParamsJSON: new(`{"display_text":"Visit Website","url":"https://whatsrook","merchant_url":"https://whatsrook"}`),
 								},
 								{
 									Name:             new("cta_call"),

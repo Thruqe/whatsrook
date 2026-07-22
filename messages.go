@@ -5,22 +5,24 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/Thruqe/whatsrook/proto/wsproto"
+	"whatsrook/proto/wsproto"
+
 	"github.com/coder/websocket"
-	"github.com/coder/websocket/wsjson"
 	googleProto "google.golang.org/protobuf/proto"
 )
 
 type ControlType string
 
 const (
-	ControlSendMessage   ControlType = "send_message"
-	ControlSendReaction  ControlType = "send_reaction"
-	ControlEditMessage   ControlType = "edit_message"
-	ControlRevokeMessage ControlType = "revoke_message"
-	ControlDisconnect    ControlType = "disconnect"
-	ControlLogout        ControlType = "logout"
-	ControlGetStatus     ControlType = "get_status"
+	ControlSendMessage     ControlType = "send_message"
+	ControlSendReaction    ControlType = "send_reaction"
+	ControlEditMessage     ControlType = "edit_message"
+	ControlRevokeMessage   ControlType = "revoke_message"
+	ControlDisconnect      ControlType = "disconnect"
+	ControlLogout          ControlType = "logout"
+	ControlGetStatus       ControlType = "get_status"
+	ControlRequestPairCode ControlType = "request_pair_code"
+	ControlRequestPairQR   ControlType = "request_pair_qr"
 )
 
 type EventType string
@@ -152,19 +154,20 @@ type RevokeMessagePayload struct {
 	OriginalSender *string `json:"original_sender,omitempty"`
 }
 
-// WriteWSMessage serializes and writes an EventMessage to a WebSocket connection,
-// supporting both Protobuf binary messages and JSON text frames.
-func WriteWSMessage(ctx context.Context, conn *websocket.Conn, messageType websocket.MessageType, msg EventMessage) error {
-	if messageType == websocket.MessageBinary {
-		frame := EventMessageToProto(msg)
-		data, err := googleProto.Marshal(frame)
-		if err != nil {
-			return err
-		}
-		return conn.Write(ctx, websocket.MessageBinary, data)
-	}
+type RequestPairCodePayload struct {
+	PhoneNumber string `json:"phone_number"`
+}
 
-	return wsjson.Write(ctx, conn, msg)
+type RequestPairQRPayload struct{}
+
+// WriteWSMessage serializes and writes an EventMessage to a WebSocket connection using Protobuf.
+func WriteWSMessage(ctx context.Context, conn *websocket.Conn, msg EventMessage) error {
+	frame := EventMessageToProto(msg)
+	data, err := googleProto.Marshal(frame)
+	if err != nil {
+		return err
+	}
+	return conn.Write(ctx, websocket.MessageBinary, data)
 }
 
 // EventMessageToProto converts a high-level EventMessage into its Protobuf EventFrame representation.
@@ -330,6 +333,17 @@ func ControlProtoToMessage(frame *wsproto.ControlFrame) (ControlMessage, error) 
 		ctrl.Kind = ControlDisconnect
 	case wsproto.ControlType_CONTROL_TYPE_LOGOUT:
 		ctrl.Kind = ControlLogout
+	case wsproto.ControlType_CONTROL_TYPE_REQUEST_PAIR_CODE:
+		ctrl.Kind = ControlRequestPairCode
+		if p := frame.GetRequestPairCode(); p != nil {
+			payload := RequestPairCodePayload{
+				PhoneNumber: p.PhoneNumber,
+			}
+			b, _ := json.Marshal(payload)
+			ctrl.Payload = b
+		}
+	case wsproto.ControlType_CONTROL_TYPE_REQUEST_PAIR_QR:
+		ctrl.Kind = ControlRequestPairQR
 	}
 
 	return ctrl, nil

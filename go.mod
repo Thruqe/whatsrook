@@ -1,4 +1,4 @@
-module github.com/Thruqe/whatsrook
+module whatsrook
 
 go 1.26.4
 

@@ -3,8 +3,9 @@ package commands
 import (
 	"context"
 
-	"github.com/Thruqe/whatsrook/sender"
-	"github.com/Thruqe/whatsrook/store/sqlstore"
+	"whatsrook/sender"
+	"whatsrook/store/sqlstore"
+
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"

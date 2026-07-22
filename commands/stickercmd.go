@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Thruqe/whatsrook/store/sqlstore"
+	"whatsrook/store/sqlstore"
 )
 
 func init() {

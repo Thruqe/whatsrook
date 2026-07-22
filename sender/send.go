@@ -11,7 +11,8 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/Thruqe/whatsrook/ember"
+	"whatsrook/ember"
+
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
