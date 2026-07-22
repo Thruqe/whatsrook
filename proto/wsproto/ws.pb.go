@@ -1582,7 +1582,7 @@ const file_ws_proto_rawDesc = "" +
 	"\x18EVENT_TYPE_INCOMING_CALL\x10\t\x12\x12\n" +
 	"\x0eEVENT_TYPE_ACK\x10\n" +
 	"\x12\x15\n" +
-	"\x11EVENT_TYPE_STATUS\x10\vB+Z)github.com/Thruqe/whatsrook/proto/wsprotob\x06proto3"
+	"\x11EVENT_TYPE_STATUS\x10\vB\x19Z\x17whatsrook/proto/wsprotob\x06proto3"
 
 var (
 	file_ws_proto_rawDescOnce sync.Once
