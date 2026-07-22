@@ -93,7 +93,6 @@ jobs:
   alpha-release:
     name: Alpha Nightly Per-Commit Release
     needs: [check-version, build]
-    if: needs.check-version.outputs.changed != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -143,8 +142,8 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "v${{ needs.check-version.outputs.version }}" -m "Release v${{ needs.check-version.outputs.version }}"
-          git push origin "v${{ needs.check-version.outputs.version }}"
+          git tag -f -a "v${{ needs.check-version.outputs.version }}" -m "Release v${{ needs.check-version.outputs.version }}"
+          git push -f origin "v${{ needs.check-version.outputs.version }}"
       - name: Publish Production Release
         uses: softprops/action-gh-release@v2
         with:
@@ -156,4 +155,5 @@ jobs:
           files: artifacts/*/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
