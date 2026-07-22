@@ -94,13 +94,13 @@ func init() {
 func handleSticker(ctx *Context) error {
 	data, mimetype, err := ctx.GetMedia()
 	if err != nil {
-		return ctx.Reply(" No media found in this message or the replied message.")
+		return ctx.Reply("No media found in this message or the replied message.")
 	}
 
 	packName, author := parseStickerMetadata(ctx.RawArgs)
 	isVideo := strings.HasPrefix(mimetype, "video") || strings.Contains(mimetype, "gif")
 
-	_ = ctx.Reply(" Processing sticker...")
+	_ = ctx.Reply("Processing sticker...")
 	stickerData, err := processSticker(data, isVideo, packName, author, "")
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf(" Failed to process sticker: %v", err))
@@ -112,13 +112,13 @@ func handleSticker(ctx *Context) error {
 func handleCircle(ctx *Context) error {
 	data, mimetype, err := ctx.GetMedia()
 	if err != nil {
-		return ctx.Reply(" No media found in this message or the replied message.")
+		return ctx.Reply("No media found in this message or the replied message.")
 	}
 
 	packName, author := parseStickerMetadata(ctx.RawArgs)
 	isVideo := strings.HasPrefix(mimetype, "video") || strings.Contains(mimetype, "gif")
 
-	_ = ctx.Reply(" Processing circular sticker...")
+	_ = ctx.Reply("Processing circular sticker...")
 	// apply transparent circle mask using ffmpeg's geq/alpha filter
 	circleFilter := "format=yuva420p,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0,geq=alpha_expr='if(lte(hypot(X-W/2,Y-H/2),W/2),255,0)'"
 	stickerData, err := processSticker(data, isVideo, packName, author, circleFilter)
@@ -132,13 +132,13 @@ func handleCircle(ctx *Context) error {
 func handleCrop(ctx *Context) error {
 	data, mimetype, err := ctx.GetMedia()
 	if err != nil {
-		return ctx.Reply(" No media found in this message or the replied message.")
+		return ctx.Reply("No media found in this message or the replied message.")
 	}
 
 	packName, author := parseStickerMetadata(ctx.RawArgs)
 	isVideo := strings.HasPrefix(mimetype, "video") || strings.Contains(mimetype, "gif")
 
-	_ = ctx.Reply(" Processing cropped sticker...")
+	_ = ctx.Reply("Processing cropped sticker...")
 	// crop to square first, then scale
 	cropFilter := "crop='min(iw,ih)':'min(iw,ih)',scale=512:512"
 	stickerData, err := processSticker(data, isVideo, packName, author, cropFilter)
@@ -152,10 +152,10 @@ func handleCrop(ctx *Context) error {
 func handleMP4(ctx *Context) error {
 	data, _, err := ctx.GetMedia()
 	if err != nil {
-		return ctx.Reply(" No media found in this message or the replied message.")
+		return ctx.Reply("No media found in this message or the replied message.")
 	}
 
-	_ = ctx.Reply(" Converting to MP4...")
+	_ = ctx.Reply("Converting to MP4...")
 	mp4Data, err := processMP4(data)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf(" Failed to convert to MP4: %v", err))
@@ -167,10 +167,10 @@ func handleMP4(ctx *Context) error {
 func handleMP3(ctx *Context) error {
 	data, _, err := ctx.GetMedia()
 	if err != nil {
-		return ctx.Reply(" No media found in this message or the replied message.")
+		return ctx.Reply("No media found in this message or the replied message.")
 	}
 
-	_ = ctx.Reply(" Converting to MP3...")
+	_ = ctx.Reply("Converting to MP3...")
 	mp3Data, err := processMP3(data)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf(" Failed to convert to MP3: %v", err))
@@ -181,11 +181,11 @@ func handleMP3(ctx *Context) error {
 
 func handleMP4URL(ctx *Context) error {
 	if len(ctx.Args) == 0 {
-		return ctx.Reply(" Please provide a direct video URL.")
+		return ctx.Reply("Please provide a direct video URL.")
 	}
 	videoURL := ctx.Args[0]
 
-	_ = ctx.Reply(" Downloading and converting video...")
+	_ = ctx.Reply("Downloading and converting video...")
 	videoBytes, err := downloadFromURL(ctx.Ctx, videoURL)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf(" Failed to download video: %v", err))
@@ -202,10 +202,10 @@ func handleMP4URL(ctx *Context) error {
 func handleBlack(ctx *Context) error {
 	data, _, err := ctx.GetMedia()
 	if err != nil {
-		return ctx.Reply(" No media found in this message or the replied message.")
+		return ctx.Reply("No media found in this message or the replied message.")
 	}
 
-	_ = ctx.Reply(" Creating black video...")
+	_ = ctx.Reply("Creating black video...")
 	blackData, err := processBlackVideo(data)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf(" Failed to create black video: %v", err))
@@ -232,7 +232,7 @@ func parseStickerMetadata(raw string) (string, string) {
 func handleSteal(ctx *Context) error {
 	quoted := ctx.GetQuotedMessage()
 	if quoted == nil || quoted.StickerMessage == nil {
-		return ctx.Reply(" Please reply to a sticker message.")
+		return ctx.Reply("Please reply to a sticker message.")
 	}
 
 	data, mimetype, err := ctx.GetMedia()
@@ -241,12 +241,12 @@ func handleSteal(ctx *Context) error {
 	}
 
 	if !strings.Contains(mimetype, "webp") {
-		return ctx.Reply(" The replied message is not a valid sticker (WebP).")
+		return ctx.Reply("The replied message is not a valid sticker (WebP).")
 	}
 
 	packName, author := parseStickerMetadata(ctx.RawArgs)
 
-	_ = ctx.Reply(" Remapping sticker metadata...")
+	_ = ctx.Reply("Remapping sticker metadata...")
 
 	updatedData, err := AddStickerMetadata(data, packName, author)
 	if err != nil {
@@ -454,11 +454,11 @@ func processBlackVideo(data []byte) ([]byte, error) {
 func handleTrim(ctx *Context) error {
 	data, _, err := ctx.GetMedia()
 	if err != nil {
-		return ctx.Reply(" No media found in this message or the replied message.")
+		return ctx.Reply("No media found in this message or the replied message.")
 	}
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply(" Usage: trim [start] [end] (e.g. trim 00:00:02 00:00:10) or trim [duration] (e.g. trim 10)")
+		return ctx.Reply("Usage: trim [start] [end] (e.g. trim 00:00:02 00:00:10) or trim [duration] (e.g. trim 10)")
 	}
 
 	start := "00:00:00"
@@ -502,7 +502,7 @@ func processTrim(data []byte, start, end string) ([]byte, error) {
 func handleVV(ctx *Context) error {
 	quoted := ctx.GetQuotedMessage()
 	if quoted == nil {
-		return ctx.Reply(" Please reply to a ViewOnce message.")
+		return ctx.Reply("Please reply to a ViewOnce message.")
 	}
 
 	isViewOnce := false
@@ -515,12 +515,12 @@ func handleVV(ctx *Context) error {
 	}
 
 	if !isViewOnce {
-		return ctx.Reply(" The replied message is not a ViewOnce message.")
+		return ctx.Reply("The replied message is not a ViewOnce message.")
 	}
 
 	unwrapped := sender.ExtractViewOnceMessage(quoted)
 	if unwrapped == nil {
-		return ctx.Reply(" Failed to unwrap ViewOnce message.")
+		return ctx.Reply("Failed to unwrap ViewOnce message.")
 	}
 
 	// Link back to the original ViewOnce message as a quote/reply

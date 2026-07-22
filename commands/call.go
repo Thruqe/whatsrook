@@ -51,7 +51,7 @@ func handleSetCallAudio(ctx *Context) error {
 	}
 
 	if audioMsg == nil {
-		return ctx.Reply(" Reply to the audio file you want to set as your default call audio.")
+		return ctx.Reply("Reply to the audio file you want to set as your default call audio.")
 	}
 
 	data, err := ctx.Client.Download(ctx.Ctx, audioMsg)
@@ -79,5 +79,5 @@ func handleSetCallAudio(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf(" Failed to save call audio: %v", err))
 	}
 
-	return ctx.Reply(" Default call audio set successfully.")
+	return ctx.Reply("Default call audio set successfully.")
 }

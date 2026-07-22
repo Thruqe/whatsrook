@@ -103,14 +103,14 @@ func init() {
 
 func handleTagAll(ctx *Context) error {
 	if ctx.Chat.Server != "g.us" {
-		return ctx.Reply(" This command can only be used in a group.")
+		return ctx.Reply("This command can only be used in a group.")
 	}
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf(" Failed to get group info: %v", err))
 	}
 	if !ctx.IsSenderAdmin(info) {
-		return ctx.Reply(" Only group admins can tag everyone.")
+		return ctx.Reply("Only group admins can tag everyone.")
 	}
 
 	var sb strings.Builder
@@ -133,22 +133,22 @@ func handleTagAll(ctx *Context) error {
 
 func handleKick(ctx *Context) error {
 	if ctx.Chat.Server != "g.us" {
-		return ctx.Reply(" This command can only be used in a group.")
+		return ctx.Reply("This command can only be used in a group.")
 	}
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf(" Failed to get group info: %v", err))
 	}
 	if !ctx.IsSenderAdmin(info) {
-		return ctx.Reply(" Only group admins can kick members.")
+		return ctx.Reply("Only group admins can kick members.")
 	}
 	if !ctx.AmIAdmin(info) {
-		return ctx.Reply(" The bot must be an admin to kick members.")
+		return ctx.Reply("The bot must be an admin to kick members.")
 	}
 
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
-		return ctx.Reply(" Please reply to a member, tag them, or type their phone number to kick.")
+		return ctx.Reply("Please reply to a member, tag them, or type their phone number to kick.")
 	}
 
 	var kicked []string
@@ -172,22 +172,22 @@ func handleKick(ctx *Context) error {
 
 func handleAdd(ctx *Context) error {
 	if ctx.Chat.Server != "g.us" {
-		return ctx.Reply(" This command can only be used in a group.")
+		return ctx.Reply("This command can only be used in a group.")
 	}
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf(" Failed to get group info: %v", err))
 	}
 	if !ctx.IsSenderAdmin(info) {
-		return ctx.Reply(" Only group admins can add members.")
+		return ctx.Reply("Only group admins can add members.")
 	}
 	if !ctx.AmIAdmin(info) {
-		return ctx.Reply(" The bot must be an admin to add members.")
+		return ctx.Reply("The bot must be an admin to add members.")
 	}
 
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
-		return ctx.Reply(" Please type a phone number to add.")
+		return ctx.Reply("Please type a phone number to add.")
 	}
 
 	var added []string
@@ -211,22 +211,22 @@ func handleAdd(ctx *Context) error {
 
 func handlePromote(ctx *Context) error {
 	if ctx.Chat.Server != "g.us" {
-		return ctx.Reply(" This command can only be used in a group.")
+		return ctx.Reply("This command can only be used in a group.")
 	}
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf(" Failed to get group info: %v", err))
 	}
 	if !ctx.IsSenderAdmin(info) {
-		return ctx.Reply(" Only group admins can promote members.")
+		return ctx.Reply("Only group admins can promote members.")
 	}
 	if !ctx.AmIAdmin(info) {
-		return ctx.Reply(" The bot must be an admin to promote members.")
+		return ctx.Reply("The bot must be an admin to promote members.")
 	}
 
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
-		return ctx.Reply(" Please reply to a member, tag them, or type their phone number to promote.")
+		return ctx.Reply("Please reply to a member, tag them, or type their phone number to promote.")
 	}
 
 	var promoted []string
@@ -250,22 +250,22 @@ func handlePromote(ctx *Context) error {
 
 func handleDemote(ctx *Context) error {
 	if ctx.Chat.Server != "g.us" {
-		return ctx.Reply(" This command can only be used in a group.")
+		return ctx.Reply("This command can only be used in a group.")
 	}
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf(" Failed to get group info: %v", err))
 	}
 	if !ctx.IsSenderAdmin(info) {
-		return ctx.Reply(" Only group admins can demote members.")
+		return ctx.Reply("Only group admins can demote members.")
 	}
 	if !ctx.AmIAdmin(info) {
-		return ctx.Reply(" The bot must be an admin to demote members.")
+		return ctx.Reply("The bot must be an admin to demote members.")
 	}
 
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
-		return ctx.Reply(" Please reply to a member, tag them, or type their phone number to demote.")
+		return ctx.Reply("Please reply to a member, tag them, or type their phone number to demote.")
 	}
 
 	var demoted []string
@@ -289,21 +289,21 @@ func handleDemote(ctx *Context) error {
 
 func handleGroup(ctx *Context) error {
 	if ctx.Chat.Server != "g.us" {
-		return ctx.Reply(" This command can only be used in a group.")
+		return ctx.Reply("This command can only be used in a group.")
 	}
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf(" Failed to get group info: %v", err))
 	}
 	if !ctx.IsSenderAdmin(info) {
-		return ctx.Reply(" Only group admins can change group settings.")
+		return ctx.Reply("Only group admins can change group settings.")
 	}
 	if !ctx.AmIAdmin(info) {
-		return ctx.Reply(" The bot must be an admin to change group settings.")
+		return ctx.Reply("The bot must be an admin to change group settings.")
 	}
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply(" Usage: group <open|close|lock|unlock>")
+		return ctx.Reply("Usage: group <open|close|lock|unlock>")
 	}
 
 	action := strings.ToLower(ctx.Args[0])
@@ -313,27 +313,27 @@ func handleGroup(ctx *Context) error {
 		if err != nil {
 			return ctx.Reply(fmt.Sprintf(" Failed to open group: %v", err))
 		}
-		return ctx.Reply(" Group opened. Everyone can send messages.")
+		return ctx.Reply("Group opened. Everyone can send messages.")
 	case "close":
 		err = ctx.Client.SetGroupAnnounce(ctx.Ctx, ctx.Chat, true)
 		if err != nil {
 			return ctx.Reply(fmt.Sprintf(" Failed to close group: %v", err))
 		}
-		return ctx.Reply(" Group closed. Only admins can send messages.")
+		return ctx.Reply("Group closed. Only admins can send messages.")
 	case "lock":
 		err = ctx.Client.SetGroupLocked(ctx.Ctx, ctx.Chat, true)
 		if err != nil {
 			return ctx.Reply(fmt.Sprintf(" Failed to lock group: %v", err))
 		}
-		return ctx.Reply(" Group locked. Only admins can edit group settings.")
+		return ctx.Reply("Group locked. Only admins can edit group settings.")
 	case "unlock":
 		err = ctx.Client.SetGroupLocked(ctx.Ctx, ctx.Chat, false)
 		if err != nil {
 			return ctx.Reply(fmt.Sprintf(" Failed to unlock group: %v", err))
 		}
-		return ctx.Reply(" Group unlocked. Everyone can edit group settings.")
+		return ctx.Reply("Group unlocked. Everyone can edit group settings.")
 	default:
-		return ctx.Reply(" Invalid action. Usage: group <open|close|lock|unlock>")
+		return ctx.Reply("Invalid action. Usage: group <open|close|lock|unlock>")
 	}
 }
 
@@ -343,21 +343,21 @@ func handleAntiLink(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf(" Failed to get group info: %v", err))
 	}
 	if !ctx.IsSenderAdmin(info) {
-		return ctx.Reply(" Only group admins can change anti-link settings.")
+		return ctx.Reply("Only group admins can change anti-link settings.")
 	}
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply(" Usage: antilink [on/off]")
+		return ctx.Reply("Usage: antilink [on/off]")
 	}
 
 	state := strings.ToLower(ctx.Args[0])
 	if state != "on" && state != "off" {
-		return ctx.Reply(" Invalid state. Usage: antilink [on/off]")
+		return ctx.Reply("Invalid state. Usage: antilink [on/off]")
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply(" Settings store unavailable.")
+		return ctx.Reply("Settings store unavailable.")
 	}
 
 	err = s.PutSetting(ctx.Ctx, "antilink:"+ctx.Chat.String(), state)
@@ -374,17 +374,17 @@ func handleAntiWord(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf(" Failed to get group info: %v", err))
 	}
 	if !ctx.IsSenderAdmin(info) {
-		return ctx.Reply(" Only group admins can change anti-word settings.")
+		return ctx.Reply("Only group admins can change anti-word settings.")
 	}
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply(" Usage:\n- antiword add [word]\n- antiword del [word]\n- antiword list")
+		return ctx.Reply("Usage:\n- antiword add [word]\n- antiword del [word]\n- antiword list")
 	}
 
 	sub := strings.ToLower(ctx.Args[0])
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply(" Settings store unavailable.")
+		return ctx.Reply("Settings store unavailable.")
 	}
 
 	settingKey := "antiword:" + ctx.Chat.String()
@@ -394,7 +394,7 @@ func handleAntiWord(ctx *Context) error {
 	switch sub {
 	case "add":
 		if len(ctx.Args) < 2 {
-			return ctx.Reply(" Please specify the word to add.")
+			return ctx.Reply("Please specify the word to add.")
 		}
 		wordToAdd := strings.ToLower(ctx.Args[1])
 		exists := false
@@ -416,7 +416,7 @@ func handleAntiWord(ctx *Context) error {
 
 	case "del", "remove":
 		if len(ctx.Args) < 2 {
-			return ctx.Reply(" Please specify the word to remove.")
+			return ctx.Reply("Please specify the word to remove.")
 		}
 		wordToDel := strings.ToLower(ctx.Args[1])
 		found := false
@@ -444,18 +444,18 @@ func handleAntiWord(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf(" *Banned Words list:*\n- %s", strings.Join(words, "\n- ")))
 
 	default:
-		return ctx.Reply(" Invalid action. Usage: antiword <add|del|list>")
+		return ctx.Reply("Invalid action. Usage: antiword <add|del|list>")
 	}
 }
 
 func handleGStats(ctx *Context) error {
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply(" Settings store unavailable.")
+		return ctx.Reply("Settings store unavailable.")
 	}
 	db := s.GetDB()
 	if db == nil {
-		return ctx.Reply(" Database unavailable.")
+		return ctx.Reply("Database unavailable.")
 	}
 
 	chatStr := ctx.Chat.String()
@@ -467,7 +467,7 @@ func handleGStats(ctx *Context) error {
 	}
 
 	if totalMsgs == 0 {
-		return ctx.Reply(" No message activity found in database for this group.")
+		return ctx.Reply("No message activity found in database for this group.")
 	}
 
 	var activeUsers int
@@ -518,7 +518,7 @@ func handleGStats(ctx *Context) error {
 func handlePoll(ctx *Context) error {
 	parts := strings.Split(ctx.RawArgs, "|")
 	if len(parts) < 3 {
-		return ctx.Reply(" Usage: poll Question | Option 1 | Option 2 | ...")
+		return ctx.Reply("Usage: poll Question | Option 1 | Option 2 | ...")
 	}
 	question := strings.TrimSpace(parts[0])
 	var options []string
@@ -529,7 +529,7 @@ func handlePoll(ctx *Context) error {
 		}
 	}
 	if len(options) < 2 {
-		return ctx.Reply(" Please provide at least 2 options.")
+		return ctx.Reply("Please provide at least 2 options.")
 	}
 
 	pollMsg := ctx.Client.BuildPollCreation(question, options, 0)
@@ -543,7 +543,7 @@ func handleInvite(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf(" Failed to get group info: %v", err))
 	}
 	if !ctx.IsSenderAdmin(info) {
-		return ctx.Reply(" Only group admins can retrieve the invite link.")
+		return ctx.Reply("Only group admins can retrieve the invite link.")
 	}
 
 	link, err := ctx.Client.GetGroupInviteLink(ctx.Ctx, ctx.Chat, false)

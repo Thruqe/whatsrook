@@ -85,6 +85,7 @@ func handleUpgradeCommand(ctx *Context) error {
 }
 
 func sendChannelSelectMenu(ctx *Context) error {
+	p := ctx.GetPrefix()
 	bodyText := `┌─ム ᴡʜᴀᴛsʀᴏᴏᴋ ᴜᴘᴅᴀᴛᴇ
 │ ғɪʀsᴛ ᴛɪᴍᴇ sᴇᴛᴜᴘ:
 │ sᴇʟᴇᴄᴛ ʏᴏᴜʀ ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ
@@ -99,14 +100,14 @@ func sendChannelSelectMenu(ctx *Context) error {
 
 	return sendButtonsMessage(ctx, bodyText, []*waE2E.ButtonsMessage_Button{
 		{
-			ButtonID: new("!update stable"),
+			ButtonID: new(p + "update stable"),
 			ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
 				DisplayText: new("Stable"),
 			},
 			Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
 		},
 		{
-			ButtonID: new("!update beta"),
+			ButtonID: new(p + "update beta"),
 			ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
 				DisplayText: new("Beta"),
 			},
@@ -116,6 +117,7 @@ func sendChannelSelectMenu(ctx *Context) error {
 }
 
 func sendCheckPrompt(ctx *Context) error {
+	p := ctx.GetPrefix()
 	bodyText := `┌─ム ᴡʜᴀᴛsʀᴏᴏᴋ ᴜᴘᴅᴀᴛᴇ
 │ ᴄʜᴇᴄᴋ ғᴏʀ ɴᴇᴡ ᴠᴇʀsɪᴏɴs?
 ╰──────────────────╯
@@ -128,7 +130,7 @@ func sendCheckPrompt(ctx *Context) error {
 
 	return sendButtonsMessage(ctx, bodyText, []*waE2E.ButtonsMessage_Button{
 		{
-			ButtonID: new("!update check"),
+			ButtonID: new(p + "update check"),
 			ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
 				DisplayText: new("Continue"),
 			},
@@ -160,6 +162,7 @@ func performCheckAndUpdate(ctx *Context) error {
 }
 
 func sendUpgradePrompt(ctx *Context, channel string) error {
+	p := ctx.GetPrefix()
 	bodyText := fmt.Sprintf(`┌─ム ᴡʜᴀᴛsʀᴏᴏᴋ ᴜᴘɢʀᴀᴅᴇ
 │ ᴄᴜʀʀᴇɴᴛ ᴄʜᴀɴɴᴇʟ: %s
 │ ᴘʀᴏᴄᴇᴇᴅ ᴡɪᴛʜ %s ᴜᴘɢʀᴀᴅᴇ?
@@ -173,7 +176,7 @@ func sendUpgradePrompt(ctx *Context, channel string) error {
 
 	return sendButtonsMessage(ctx, bodyText, []*waE2E.ButtonsMessage_Button{
 		{
-			ButtonID: new("!upgrade now"),
+			ButtonID: new(p + "upgrade now"),
 			ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
 				DisplayText: new("Upgrade Now"),
 			},
@@ -190,6 +193,7 @@ func sendUpgradePrompt(ctx *Context, channel string) error {
 }
 
 func sendUpdateAvailableMenu(ctx *Context, check *updater.UpdateResult) error {
+	p := ctx.GetPrefix()
 	bodyText := fmt.Sprintf(`┌─ム ᴡʜᴀᴛsʀᴏᴏᴋ ᴜᴘᴅᴀᴛᴇ
 │ ᴄᴜʀʀᴇɴᴛ: %s
 │ ʟᴀᴛᴇsᴛ: %s
@@ -204,7 +208,7 @@ func sendUpdateAvailableMenu(ctx *Context, check *updater.UpdateResult) error {
 
 	return sendButtonsMessage(ctx, bodyText, []*waE2E.ButtonsMessage_Button{
 		{
-			ButtonID: new("!update confirm"),
+			ButtonID: new(p + "update confirm"),
 			ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
 				DisplayText: new("Update"),
 			},

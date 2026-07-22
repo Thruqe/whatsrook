@@ -63,7 +63,7 @@ func handleDl(ctx *Context) error {
 
 func handleFetch(ctx *Context) error {
 	if len(ctx.Args) == 0 {
-		return ctx.Reply(" Usage: fetch [METHOD] <url> [body...] [Header: Value...]")
+		return ctx.Reply("Usage: fetch [METHOD] <url> [body...] [Header: Value...]")
 	}
 
 	method := "GET"
@@ -90,7 +90,7 @@ func handleFetch(ctx *Context) error {
 	}
 
 	if argIdx >= len(ctx.Args) {
-		return ctx.Reply(" URL is required.")
+		return ctx.Reply("URL is required.")
 	}
 
 	urlStr = ctx.Args[argIdx]

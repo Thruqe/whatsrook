@@ -31,11 +31,11 @@ func init() {
 
 func handleSetCmd(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply(" You are not authorized to use this command.")
+		return ctx.Reply("You are not authorized to use this command.")
 	}
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply(" Usage: setcmd [command_name] (reply to a sticker)")
+		return ctx.Reply("Usage: setcmd [command_name] (reply to a sticker)")
 	}
 	cmdName := strings.ToLower(ctx.Args[0])
 
@@ -47,21 +47,21 @@ func handleSetCmd(ctx *Context) error {
 
 	quoted := ctx.GetQuotedMessage()
 	if quoted == nil || quoted.StickerMessage == nil {
-		return ctx.Reply(" Please reply to a sticker message.")
+		return ctx.Reply("Please reply to a sticker message.")
 	}
 
 	stk := quoted.StickerMessage
 	if len(stk.FileSHA256) == 0 {
-		return ctx.Reply(" Invalid sticker (no FileSHA256 found).")
+		return ctx.Reply("Invalid sticker (no FileSHA256 found).")
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply(" Settings store unavailable.")
+		return ctx.Reply("Settings store unavailable.")
 	}
 	db := s.GetDB()
 	if db == nil {
-		return ctx.Reply(" Database unavailable.")
+		return ctx.Reply("Database unavailable.")
 	}
 
 	ourJID := ctx.Client.Store.ID.ToNonAD().String()
@@ -81,16 +81,16 @@ func handleSetCmd(ctx *Context) error {
 
 func handleDelCmd(ctx *Context) error {
 	if !ctx.IsSudo() {
-		return ctx.Reply(" You are not authorized to use this command.")
+		return ctx.Reply("You are not authorized to use this command.")
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply(" Settings store unavailable.")
+		return ctx.Reply("Settings store unavailable.")
 	}
 	db := s.GetDB()
 	if db == nil {
-		return ctx.Reply(" Database unavailable.")
+		return ctx.Reply("Database unavailable.")
 	}
 
 	ourJID := ctx.Client.Store.ID.ToNonAD().String()
@@ -99,7 +99,7 @@ func handleDelCmd(ctx *Context) error {
 	if quoted != nil && quoted.StickerMessage != nil {
 		stk := quoted.StickerMessage
 		if len(stk.FileSHA256) == 0 {
-			return ctx.Reply(" Invalid sticker (no FileSHA256 found).")
+			return ctx.Reply("Invalid sticker (no FileSHA256 found).")
 		}
 		shaHex := hex.EncodeToString(stk.FileSHA256)
 
@@ -111,11 +111,11 @@ func handleDelCmd(ctx *Context) error {
 		if rows == 0 {
 			return ctx.Reply("ℹ Mapped sticker not found.")
 		}
-		return ctx.Reply(" Sticker link removed.")
+		return ctx.Reply("Sticker link removed.")
 	}
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply(" Usage:\n- delcmd [command_name]\n- delcmd (replying to a mapped sticker)")
+		return ctx.Reply("Usage:\n- delcmd [command_name]\n- delcmd (replying to a mapped sticker)")
 	}
 
 	cmdName := strings.ToLower(ctx.Args[0])
@@ -134,11 +134,11 @@ func handleDelCmd(ctx *Context) error {
 func handleGetCmd(ctx *Context) error {
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
-		return ctx.Reply(" Settings store unavailable.")
+		return ctx.Reply("Settings store unavailable.")
 	}
 	db := s.GetDB()
 	if db == nil {
-		return ctx.Reply(" Database unavailable.")
+		return ctx.Reply("Database unavailable.")
 	}
 
 	ourJID := ctx.Client.Store.ID.ToNonAD().String()
