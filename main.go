@@ -14,6 +14,7 @@ import (
 
 	"github.com/Thruqe/whatsrook/logger"
 	"github.com/Thruqe/whatsrook/store/sqlstore"
+	"github.com/Thruqe/whatsrook/updater"
 	_ "github.com/mattn/go-sqlite3"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
@@ -22,6 +23,25 @@ import (
 
 func main() {
 	cli := parseArgs()
+
+	if cli.Update {
+		fmt.Println("Checking for application update...")
+		res, err := updater.PerformUpdate()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Update failed: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Println(res.Message)
+		if res.Updated {
+			fmt.Println("Restarting process...")
+			if err := updater.RestartProcess(); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to restart process: %v\n", err)
+				os.Exit(1)
+			}
+		}
+		return
+	}
 
 	if err := logger.InitLogger(cli.Debug || cli.Verbose); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
