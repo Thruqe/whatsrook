@@ -38,9 +38,24 @@ jobs:
             echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           fi
   build:
-    name: Build Release Binary
+    name: Build Binaries (${{ matrix.target.os }}-${{ matrix.target.arch }})
     needs: [check-version]
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - os: linux
+            arch: amd64
+            ext: ""
+          - os: windows
+            arch: amd64
+            ext: ".exe"
+          - os: darwin
+            arch: amd64
+            ext: ""
+          - os: darwin
+            arch: arm64
+            ext: ""
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -48,34 +63,45 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install GCC (required for CGO/go-sqlite3)
-        run: sudo apt-get update && sudo apt-get install -y gcc
+      - name: Install Cross Compilers (GCC / CGO)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc gcc-mingw-w64-x86-64 gcc-aarch64-linux-gnu
       - name: Build Binary
-        run: CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o whatsrook .
+        run: |
+          BIN_NAME="whatsrook${{ matrix.target.ext }}"
+          if [ "${{ matrix.target.os }}" = "windows" ]; then
+            CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc GOOS=windows GOARCH=amd64 go build -o $BIN_NAME .
+          elif [ "${{ matrix.target.os }}" = "darwin" ]; then
+            CGO_ENABLED=0 GOOS=darwin GOARCH=${{ matrix.target.arch }} go build -o $BIN_NAME .
+          else
+            CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o $BIN_NAME .
+          fi
       - name: Package Asset
         run: |
           mkdir staging
-          cp whatsrook staging/
+          cp whatsrook${{ matrix.target.ext }} staging/
           cp LICENSE staging/ 2>/dev/null || true
           cp README.md staging/ 2>/dev/null || true
-          tar -czf whatsrook-linux-amd64.tar.gz -C staging .
+          cp version.toml staging/ 2>/dev/null || true
+          tar -czf whatsrook-${{ matrix.target.os }}-${{ matrix.target.arch }}.tar.gz -C staging .
       - name: Upload Intermediary Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-binary
-          path: whatsrook-linux-amd64.tar.gz
+          name: whatsrook-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          path: whatsrook-${{ matrix.target.os }}-${{ matrix.target.arch }}.tar.gz
   alpha-release:
-    name: Alpha Per-Commit Release
+    name: Alpha Nightly Per-Commit Release
     needs: [check-version, build]
     if: needs.check-version.outputs.changed != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-      - name: Download Artifact
+      - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: release-binary
+          path: artifacts
       - name: Get Commit Info
         id: commit-info
         run: |
@@ -87,7 +113,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: alpha
-          name: "Alpha Build"
+          name: "Nightly / Alpha Build"
           body: |
             **${{ steps.commit-info.outputs.subject }}**
 
@@ -96,7 +122,7 @@ jobs:
             **Commit:** ${{ github.sha }}
           prerelease: true
           make_latest: false
-          files: whatsrook-linux-amd64.tar.gz
+          files: artifacts/*/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   production-release:
@@ -109,10 +135,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Download Artifact
+      - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: release-binary
+          path: artifacts
       - name: Create Git Tag
         run: |
           git config --global user.name "github-actions[bot]"
@@ -127,6 +153,7 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: false
-          files: whatsrook-linux-amd64.tar.gz
+          files: artifacts/*/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

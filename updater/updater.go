@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -22,12 +23,71 @@ const (
 	VersionGithub = "https://raw.githubusercontent.com/Thruqe/whatsrook/refs/heads/master/version.toml"
 )
 
+type Version struct {
+	Major int
+	Minor int
+	Patch int
+	Raw   string
+}
+
 type UpdateResult struct {
 	CurrentVersion string
 	LatestVersion  string
+	HasNewVersion  bool
 	Updated        bool
+	IsBeta         bool
 	Method         string // "git" or "release"
 	Message        string
+}
+
+// ParseVersion converts a semantic version string (e.g. "4.0.0" or "v4.0.0") to structured Version with integer components.
+func ParseVersion(raw string) (Version, error) {
+	clean := strings.TrimSpace(raw)
+	clean = strings.TrimPrefix(clean, "v")
+
+	parts := strings.Split(clean, ".")
+	if len(parts) < 3 {
+		return Version{Raw: raw}, fmt.Errorf("invalid semver format: %s", raw)
+	}
+
+	major, err1 := strconv.Atoi(parts[0])
+	minor, err2 := strconv.Atoi(parts[1])
+	patchStr := strings.Split(parts[2], "-")[0]
+	patch, err3 := strconv.Atoi(patchStr)
+
+	if err1 != nil || err2 != nil || err3 != nil {
+		return Version{Raw: raw}, fmt.Errorf("non-numeric semver component in %s", raw)
+	}
+
+	return Version{
+		Major: major,
+		Minor: minor,
+		Patch: patch,
+		Raw:   raw,
+	}, nil
+}
+
+// Compare returns 1 if v > other, -1 if v < other, 0 if v == other.
+func (v Version) Compare(other Version) int {
+	if v.Major != other.Major {
+		if v.Major > other.Major {
+			return 1
+		}
+		return -1
+	}
+	if v.Minor != other.Minor {
+		if v.Minor > other.Minor {
+			return 1
+		}
+		return -1
+	}
+	if v.Patch != other.Patch {
+		if v.Patch > other.Patch {
+			return 1
+		}
+		return -1
+	}
+	return 0
 }
 
 // ReadLocalVersion parses local version.toml.
@@ -36,10 +96,10 @@ func ReadLocalVersion(versionPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return parseVersionString(string(data))
+	return parseVersionFromTOML(string(data))
 }
 
-func parseVersionString(content string) (string, error) {
+func parseVersionFromTOML(content string) (string, error) {
 	lines := strings.Split(content, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -55,7 +115,7 @@ func parseVersionString(content string) (string, error) {
 	return "", fmt.Errorf("version key not found in version.toml")
 }
 
-// FetchRemoteVersion fetches raw version.toml from GitHub main branch.
+// FetchRemoteVersion fetches raw version.toml from GitHub master branch.
 func FetchRemoteVersion() (string, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(VersionGithub)
@@ -72,42 +132,84 @@ func FetchRemoteVersion() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return parseVersionString(string(body))
+	return parseVersionFromTOML(string(body))
 }
 
-// IsGitRepo checks if the current working directory or executable directory is in a Git repository.
+// IsGitRepo checks if current workspace or executable environment is a Git repository.
 func IsGitRepo() bool {
 	cmd := exec.Command("git", "rev-parse", "--is-inside-work-tree")
-	err := cmd.Run()
-	return err == nil
+	if err := cmd.Run(); err == nil {
+		return true
+	}
+
+	// Check if running via go run
+	for _, arg := range os.Args {
+		if strings.HasPrefix(arg, "-test.") || strings.Contains(arg, "go-build") {
+			return true
+		}
+	}
+
+	if _, err := os.Stat(".git"); err == nil {
+		return true
+	}
+	return false
 }
 
-// PerformUpdate updates the repository or binary based on whether git is available.
-func PerformUpdate() (*UpdateResult, error) {
-	localVer, err := ReadLocalVersion(VersionFile)
+// CheckUpdate compares local version.toml with remote version.toml using numerical component parsing.
+func CheckUpdate() (*UpdateResult, error) {
+	localStr, err := ReadLocalVersion(VersionFile)
 	if err != nil {
 		exePath, errExe := os.Executable()
 		if errExe == nil {
-			localVer, err = ReadLocalVersion(filepath.Join(filepath.Dir(exePath), VersionFile))
+			localStr, err = ReadLocalVersion(filepath.Join(filepath.Dir(exePath), VersionFile))
 		}
 		if err != nil {
-			localVer = "unknown"
+			localStr = "0.0.0"
 		}
 	}
 
-	remoteVer, err := FetchRemoteVersion()
+	remoteStr, err := FetchRemoteVersion()
 	if err != nil {
-		return nil, fmt.Errorf("failed to check remote version: %w", err)
+		return nil, fmt.Errorf("failed to fetch remote version: %w", err)
 	}
 
+	localVer, errLocal := ParseVersion(localStr)
+	remoteVer, errRemote := ParseVersion(remoteStr)
+
 	res := &UpdateResult{
-		CurrentVersion: localVer,
-		LatestVersion:  remoteVer,
+		CurrentVersion: localStr,
+		LatestVersion:  remoteStr,
 	}
 
 	if IsGitRepo() {
 		res.Method = "git"
-		// Git update path: git stash && git pull
+	} else {
+		res.Method = "release"
+	}
+
+	if errLocal == nil && errRemote == nil {
+		res.HasNewVersion = remoteVer.Compare(localVer) > 0
+	} else {
+		res.HasNewVersion = localStr != remoteStr
+	}
+
+	return res, nil
+}
+
+// PerformUpdate performs either stable release/git update or beta/nightly update.
+func PerformUpdate(isBeta bool) (*UpdateResult, error) {
+	check, err := CheckUpdate()
+	if err != nil && !isBeta {
+		return nil, err
+	}
+	if check == nil {
+		check = &UpdateResult{IsBeta: isBeta}
+	} else {
+		check.IsBeta = isBeta
+	}
+
+	if IsGitRepo() {
+		check.Method = "git"
 		outStash, errStash := exec.Command("git", "stash").CombinedOutput()
 		if errStash != nil {
 			return nil, fmt.Errorf("git stash failed: %s (%w)", strings.TrimSpace(string(outStash)), errStash)
@@ -118,38 +220,41 @@ func PerformUpdate() (*UpdateResult, error) {
 			return nil, fmt.Errorf("git pull failed: %s (%w)", strings.TrimSpace(string(outPull)), errPull)
 		}
 
-		// Rebuild binary via go build
 		outBuild, errBuild := exec.Command("go", "build", "-o", "whatsrook", ".").CombinedOutput()
 		if errBuild != nil {
 			return nil, fmt.Errorf("rebuild failed after git pull: %s (%w)", strings.TrimSpace(string(outBuild)), errBuild)
 		}
 
-		res.Updated = true
-		res.Message = fmt.Sprintf("Successfully updated via Git (git stash & git pull). Local version: %s, Remote version: %s.", localVer, remoteVer)
-		return res, nil
+		check.Updated = true
+		check.Message = fmt.Sprintf("Successfully updated via Git (git stash & git pull). Local version: %s, Remote version: %s.", check.CurrentVersion, check.LatestVersion)
+		return check, nil
 	}
 
-	// Non-git release download update path
-	res.Method = "release"
-	if localVer != "unknown" && localVer == remoteVer {
-		res.Updated = false
-		res.Message = fmt.Sprintf("Already up to date (version %s)", localVer)
-		return res, nil
+	// Release update
+	check.Method = "release"
+	tag := "latest"
+	if isBeta {
+		tag = "alpha"
 	}
 
-	err = downloadLatestReleaseBinary()
+	err = downloadReleaseAsset(tag)
 	if err != nil {
-		return nil, fmt.Errorf("failed to download release binary: %w", err)
+		return nil, fmt.Errorf("failed to download release (%s): %w", tag, err)
 	}
 
-	res.Updated = true
-	res.Message = fmt.Sprintf("Successfully updated from version %s to %s via GitHub Release.", localVer, remoteVer)
-	return res, nil
+	check.Updated = true
+	check.Message = fmt.Sprintf("Successfully updated to %s build (%s -> %s).", tag, check.CurrentVersion, check.LatestVersion)
+	return check, nil
 }
 
-func downloadLatestReleaseBinary() error {
-	assetName := fmt.Sprintf("whatsrook_%s_%s.tar.gz", runtime.GOOS, runtime.GOARCH)
-	downloadURL := fmt.Sprintf("https://github.com/%s/%s/releases/latest/download/%s", RepoOwner, RepoName, assetName)
+func downloadReleaseAsset(tag string) error {
+	assetName := fmt.Sprintf("whatsrook-%s-%s.tar.gz", runtime.GOOS, runtime.GOARCH)
+	var downloadURL string
+	if tag == "latest" {
+		downloadURL = fmt.Sprintf("https://github.com/%s/%s/releases/latest/download/%s", RepoOwner, RepoName, assetName)
+	} else {
+		downloadURL = fmt.Sprintf("https://github.com/%s/%s/releases/download/%s/%s", RepoOwner, RepoName, tag, assetName)
+	}
 
 	client := &http.Client{Timeout: 60 * time.Second}
 	resp, err := client.Get(downloadURL)
@@ -159,7 +264,7 @@ func downloadLatestReleaseBinary() error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP %d downloading %s", resp.StatusCode, downloadURL)
+		return fmt.Errorf("HTTP %d downloading asset from %s", resp.StatusCode, downloadURL)
 	}
 
 	exePath, err := os.Executable()
@@ -201,7 +306,7 @@ func downloadLatestReleaseBinary() error {
 		out.Close()
 		if !found {
 			os.Remove(tmpBinary)
-			return fmt.Errorf("binary not found in release tarball")
+			return fmt.Errorf("binary not found in release archive")
 		}
 	} else {
 		if _, err := io.Copy(out, resp.Body); err != nil {
