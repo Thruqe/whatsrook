@@ -1,0 +1,47 @@
+name: Docker CI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+  test-docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: actions/docker-buildx-action@v3
+
+      - name: Test Dockerfile build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: whatsrook:test
+
+      - name: Validate Docker Compose setup
+        run: |
+          docker compose config
+
+      - name: Test run container with Compose
+        env:
+          SESSION: "1234567890"
+        run: |
+          docker compose up -d
+          sleep 5
+          docker compose ps
+          docker compose logs
+
+      - name: Tear down Compose
+        if: always()
+        run: |
+          docker compose down -v
