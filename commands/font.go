@@ -48,14 +48,14 @@ func init() {
 	Register(&Command{
 		Name:        "font",
 		Description: "Switch the type of font the bot uses. Usage: font <style>",
-		Category:    "info",
+		Category:    "tools",
 		IsPublic:    false,
 		Handler:     handleFont,
 	})
 	Register(&Command{
 		Name:        "fontlist",
 		Description: "List all available font styles and preview them.",
-		Category:    "info",
+		Category:    "tools",
 		IsPublic:    false,
 		Handler:     handleFontList,
 	})

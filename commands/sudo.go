@@ -129,6 +129,9 @@ func handleDelSudo(ctx *Context) error {
 	if !ctx.IsSudo() {
 		return ctx.Reply("You are not authorized to use this command.")
 	}
+	if !ctx.IsOwner() {
+		return ctx.Reply("Only the bot owner can remove users from the sudo list.")
+	}
 
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {

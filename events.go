@@ -7,6 +7,10 @@ import (
 	"log/slog"
 
 	"github.com/Thruqe/whatsrook/commands"
+	"github.com/Thruqe/whatsrook/sender"
+	"github.com/Thruqe/whatsrook/updater"
+	"github.com/Thruqe/whatsrook/utils"
+	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types/events"
 )
 
@@ -38,6 +42,7 @@ func (b *Bot) handleWAEvent(evt any) {
 	case *events.Connected:
 		slog.Info("connected", "session", b.cli.Session)
 		b.hub.Broadcast(simpleEvent(EventConnected))
+		go b.notifyOwnerConnected()
 
 	case *events.Message:
 		if pretty, err := json.MarshalIndent(v, "", "  "); err == nil {
@@ -97,4 +102,43 @@ func extractMessageText(v *events.Message) string {
 		return v.Message.VideoMessage.GetCaption()
 	}
 	return ""
+}
+
+func (b *Bot) notifyOwnerConnected() {
+	if b.client == nil || b.client.Store.ID == nil {
+		return
+	}
+	ownerJID := b.client.Store.ID.ToNonAD()
+
+	verStr, err := updater.ReadLocalVersion(updater.VersionFile)
+	if err != nil {
+		verStr = "unknown"
+	}
+
+	meta := utils.GetSystemMetadata(verStr)
+	msgText := fmt.Sprintf(
+		"WhatsRook Connected Successfully\n\n"+
+			"Version: %s\n"+
+			"Git Commit: %s\n"+
+			"Session: %s\n"+
+			"OS/Arch: %s/%s\n"+
+			"CPU Cores: %d\n"+
+			"Go Runtime: %s",
+		meta.Version,
+		meta.Commit,
+		b.cli.Session,
+		meta.OS,
+		meta.Arch,
+		meta.NumCPU,
+		meta.GoVersion,
+	)
+
+	formatted := sender.FormatTextResponseRaw(msgText)
+	if _, err := b.client.SendMessage(context.Background(), ownerJID, &waE2E.Message{
+		Conversation: &formatted,
+	}); err != nil {
+		slog.Error("failed to send connection metadata notification to owner DM", "err", err)
+	} else {
+		slog.Info("sent connection metadata notification to owner DM", "owner", ownerJID.String())
+	}
 }

@@ -212,14 +212,14 @@ func init() {
 		Name:        "ai",
 		Aliases:     []string{"gpt", "ask"},
 		Description: "Ask Meta AI a question.",
-		Category:    "AI",
+		Category:    "ai",
 		IsPublic:    true,
 		Handler:     handleAI,
 	})
 	Register(&Command{
 		Name:        "autoai",
 		Description: "Toggle automatic AI responses when tagged or replied to in this chat (on/off)",
-		Category:    "AI",
+		Category:    "ai",
 		IsPublic:    true,
 		Handler:     handleAutoAI,
 	})

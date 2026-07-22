@@ -10,7 +10,7 @@ func init() {
 	Register(&Command{
 		Name:        "selectlist",
 		Description: "Send a dropdown list/menu of options",
-		Category:    "example",
+		Category:    "interactive",
 		IsPublic:    true,
 		Handler:     handleSelectList,
 	})

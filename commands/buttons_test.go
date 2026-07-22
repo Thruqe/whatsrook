@@ -10,8 +10,8 @@ func TestButtonsCommandRegistration(t *testing.T) {
 		t.Fatal("expected 'buttons' command to be registered")
 	}
 
-	if cmd.Category != "example" {
-		t.Errorf("expected category 'example', got %q", cmd.Category)
+	if cmd.Category != "interactive" {
+		t.Errorf("expected category 'interactive', got %q", cmd.Category)
 	}
 
 	if cmd.Handler == nil {

@@ -9,10 +9,10 @@ func TestFilterCommandsRegistration(t *testing.T) {
 		name     string
 		category string
 	}{
-		{"addfilter", "filter"},
-		{"getfilter", "filter"},
-		{"listfilters", "filter"},
-		{"delfilter", "filter"},
+		{"addfilter", "filters"},
+		{"getfilter", "filters"},
+		{"listfilters", "filters"},
+		{"delfilter", "filters"},
 	}
 
 	for _, tc := range expectedCmds {
