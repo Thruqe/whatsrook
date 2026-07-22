@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Thruqe/whatsrook/utils"
+	"whatsrook/utils"
+
 	"github.com/purpshell/meowcaller"
 	"github.com/rs/zerolog"
 )

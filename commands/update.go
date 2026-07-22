@@ -5,8 +5,9 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/Thruqe/whatsrook/store/sqlstore"
-	"github.com/Thruqe/whatsrook/updater"
+	"whatsrook/store/sqlstore"
+	"whatsrook/updater"
+
 	"go.mau.fi/whatsmeow"
 	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/proto/waE2E"

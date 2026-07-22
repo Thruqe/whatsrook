@@ -16,7 +16,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Thruqe/whatsrook/store/sqlstore"
+	"whatsrook/store/sqlstore"
 )
 
 const (

@@ -4,7 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Thruqe/whatsrook/sender"
+	"whatsrook/sender"
+
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"

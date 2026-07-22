@@ -5,7 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Thruqe/whatsrook/store/sqlstore"
+	"whatsrook/store/sqlstore"
+
 	"go.mau.fi/whatsmeow/appstate"
 	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/proto/waCommon"

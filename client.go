@@ -12,9 +12,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Thruqe/whatsrook/logger"
-	"github.com/Thruqe/whatsrook/store/sqlstore"
-	"github.com/Thruqe/whatsrook/updater"
+	"whatsrook/logger"
+	"whatsrook/store/sqlstore"
+	"whatsrook/updater"
+
 	_ "github.com/mattn/go-sqlite3"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"

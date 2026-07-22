@@ -3,7 +3,8 @@ package utils_test
 import (
 	"testing"
 
-	"github.com/Thruqe/whatsrook/utils"
+	"whatsrook/utils"
+
 	"go.mau.fi/whatsmeow/proto/waE2E"
 )
 

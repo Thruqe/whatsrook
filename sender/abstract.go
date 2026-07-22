@@ -8,8 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Thruqe/whatsrook/font"
-	"github.com/Thruqe/whatsrook/store/sqlstore"
+	"whatsrook/font"
+	"whatsrook/store/sqlstore"
+
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Thruqe/whatsrook/updater"
+	"whatsrook/updater"
 )
 
 func TestParseVersion(t *testing.T) {

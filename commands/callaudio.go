@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/Thruqe/whatsrook/store/sqlstore"
+	"whatsrook/store/sqlstore"
+
 	"go.mau.fi/whatsmeow/types"
 )
 

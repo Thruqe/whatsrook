@@ -17,7 +17,8 @@ import (
 	"go.mau.fi/util/dbutil"
 	"go.mau.fi/util/random"
 
-	"github.com/Thruqe/whatsrook/store/sqlstore/upgrades"
+	"whatsrook/store/sqlstore/upgrades"
+
 	"go.mau.fi/whatsmeow/proto/waAdv"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"

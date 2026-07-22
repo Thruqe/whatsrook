@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/Thruqe/whatsrook/commands"
-	"github.com/Thruqe/whatsrook/sender"
-	"github.com/Thruqe/whatsrook/updater"
-	"github.com/Thruqe/whatsrook/utils"
+	"whatsrook/commands"
+	"whatsrook/sender"
+	"whatsrook/updater"
+	"whatsrook/utils"
+
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types/events"
 )

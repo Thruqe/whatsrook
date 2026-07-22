@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Thruqe/whatsrook/font"
-	"github.com/Thruqe/whatsrook/store/sqlstore"
+	"whatsrook/font"
+	"whatsrook/store/sqlstore"
 )
 
 func init() {

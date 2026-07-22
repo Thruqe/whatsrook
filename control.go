@@ -32,6 +32,10 @@ func (b *Bot) handleControl(ctx context.Context, ctrl ControlMessage) EventMessa
 			return ackEvent(ctrl.ID, false, err.Error())
 		}
 		return ackEvent(ctrl.ID, true, "")
+	case ControlRequestPairCode:
+		return b.handleRequestPairCode(ctx, ctrl)
+	case ControlRequestPairQR:
+		return b.handleRequestPairQR(ctx, ctrl)
 	default:
 		slog.Warn("unknown control type", "kind", ctrl.Kind)
 		return ackEvent(ctrl.ID, false, "unknown control type")
@@ -171,4 +175,47 @@ func (b *Bot) handleGetStatus(ctrl ControlMessage) EventMessage {
 			PushName:  pushName,
 		},
 	}
+}
+
+func (b *Bot) handleRequestPairCode(ctx context.Context, ctrl ControlMessage) EventMessage {
+	var p RequestPairCodePayload
+	if len(ctrl.Payload) > 0 {
+		_ = json.Unmarshal(ctrl.Payload, &p)
+	}
+
+	phone := p.PhoneNumber
+	if phone == "" {
+		phone = b.cli.Session
+	}
+
+	if phone == "" {
+		return ackEvent(ctrl.ID, false, "phone number required for pair code")
+	}
+
+	go func() {
+		b.cli.Session = phone
+		if err := b.runPairCode(ctx); err != nil {
+			slog.Error("requested pair code failed", "err", err)
+			b.hub.Broadcast(EventMessage{
+				Kind:    EventPairError,
+				Payload: PairErrorPayload{Reason: err.Error()},
+			})
+		}
+	}()
+
+	return ackEvent(ctrl.ID, true, "")
+}
+
+func (b *Bot) handleRequestPairQR(ctx context.Context, ctrl ControlMessage) EventMessage {
+	go func() {
+		if err := b.runQR(ctx); err != nil {
+			slog.Error("requested pair QR failed", "err", err)
+			b.hub.Broadcast(EventMessage{
+				Kind:    EventPairError,
+				Payload: PairErrorPayload{Reason: err.Error()},
+			})
+		}
+	}()
+
+	return ackEvent(ctrl.ID, true, "")
 }

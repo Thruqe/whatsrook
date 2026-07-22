@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Thruqe/whatsrook/font"
-	"github.com/Thruqe/whatsrook/store/sqlstore"
+	"whatsrook/font"
+	"whatsrook/store/sqlstore"
 )
 
 var validStyles = map[string]bool{

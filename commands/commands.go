@@ -3,7 +3,7 @@ package commands
 import (
 	"strings"
 
-	"github.com/Thruqe/whatsrook/sender"
+	"whatsrook/sender"
 )
 
 // Context is passed to every command handler.

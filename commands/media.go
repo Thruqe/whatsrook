@@ -11,7 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Thruqe/whatsrook/sender"
+	"whatsrook/sender"
+
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"google.golang.org/protobuf/proto"
 )
