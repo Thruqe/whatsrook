@@ -35,6 +35,7 @@ type CliArgs struct {
 	AuthDir string
 	QRCode  bool
 	Logout  bool
+	Update  bool
 	Debug   bool
 	Verbose bool
 	Dev     bool
@@ -47,15 +48,17 @@ func parseArgs() CliArgs {
 	for _, a := range args {
 		if a == "-h" || a == "--help" {
 			fmt.Print(`Usage: whatsrook --session <phone_number> [OPTIONS]
+       whatsrook --update
 
 Options:
-  --session <phone>     Phone number used to identify the session (required)
+  --session <phone>     Phone number used to identify the session (required unless --update)
   --pair                Request a pair code using the --session phone number
   --port <port>         Specify the HTTP/WebSocket port (default: 3000, or $PORT)
   --auth-dir <path>     Directory to store session auth files (default: ./auth)
   --client <type>       Client type: chrome (default), android, ios
   --qrcode              Print the QR code to stdout for scanning
   --logout              Remove the session auth files and exit
+  --update              Check and perform application update, then exit or restart
   --debug               Enable debug logging
   --verbose             Enable verbose logging for application (excluding whatsmeow)
   --dev                 Dev mode: disables CORS origin check on WebSocket
@@ -78,8 +81,10 @@ Options:
 		return slices.Contains(args, flag)
 	}
 
+	isUpdate := hasFlag("--update")
+
 	session := getValue("--session")
-	if session == "" {
+	if session == "" && !isUpdate {
 		fmt.Fprintln(os.Stderr, "Error: --session <phone_number> is required. Run with -h for help.")
 		os.Exit(1)
 	}
@@ -114,6 +119,7 @@ Options:
 		AuthDir: authDir,
 		QRCode:  hasFlag("--qrcode"),
 		Logout:  hasFlag("--logout"),
+		Update:  isUpdate,
 		Debug:   hasFlag("--debug"),
 		Verbose: hasFlag("--verbose"),
 		Dev:     hasFlag("--dev"),
