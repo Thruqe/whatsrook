@@ -15,6 +15,7 @@ We value simplicity, pragmatism, and raw speed. If you contribute code, please a
 * **Keep Database Access Simple**: We use SQLite via `sqlstore`. We don't use heavy ORMs; instead, write clean, raw SQL queries using `db.Exec` or `db.QueryRow` to keep operations fast and visible.
 * **Concurrency & Memory Safety**: WhatsRook runs continuously. Always avoid leaking goroutines or letting database connections hang open. Clean up temporary files, close readers/writers, and ensure shared state is access-safe (e.g., using mutexes or `sync.Once`).
 * **Direct Communication**: Use `ctx.Reply("...")` to communicate back to users in command handlers. Keep error messages clear and user-friendly.
+* **Command Creation Style**: Do not use emojis or custom formatting like * when writing in strings for the commands, keep it plain and simple.
 
 ## Codebase Map
 
