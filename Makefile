@@ -7,7 +7,7 @@ else
     CLEAN_CMD = rm -f $(BINARY_NAME)
 endif
 
-.PHONY: all build test fmt vet clean help
+.PHONY: all build test fmt vet modernize clean help
 
 # Default target runs everything
 all: fmt vet test build
@@ -28,6 +28,10 @@ fmt:
 vet:
 	go vet ./...
 
+# Run Go modernize analyzer to apply LSP/modern code fixes
+modernize:
+	go run golang.org/x/tools/go/analysis/passes/modernize/cmd/modernize@latest -fix ./...
+
 # Clean build files
 clean:
 	go clean
@@ -36,10 +40,11 @@ clean:
 # Display help menu
 help:
 	@echo "WhatsRook Makefile Targets:"
-	@echo "  all      - Format, vet, run tests, and build the binary (default)"
-	@echo "  build    - Compile the application binary"
-	@echo "  test     - Run unit tests"
-	@echo "  fmt      - Run go fmt on all packages"
-	@echo "  vet      - Run go vet on all packages"
-	@echo "  clean    - Clean up build files and executables"
-	@echo "  help     - Show this help message"
+	@echo "  all       - Format, vet, run tests, and build the binary (default)"
+	@echo "  build     - Compile the application binary"
+	@echo "  test      - Run unit tests"
+	@echo "  fmt       - Run go fmt on all packages"
+	@echo "  vet       - Run go vet on all packages"
+	@echo "  modernize - Automatically apply modern Go code fixes project-wide"
+	@echo "  clean     - Clean up build files and executables"
+	@echo "  help      - Show this help message"

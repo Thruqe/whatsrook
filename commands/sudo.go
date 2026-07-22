@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/Thruqe/whatsrook/store/sqlstore"
@@ -104,13 +105,7 @@ func handleSetSudo(ctx *Context) error {
 
 	for _, target := range targets {
 		targetStr := target.ToNonAD().String()
-		already := false
-		for _, sdr := range sudoers {
-			if sdr == targetStr {
-				already = true
-				break
-			}
-		}
+		already := slices.Contains(sudoers, targetStr)
 		if !already {
 			sudoers = append(sudoers, targetStr)
 			resolvedJID, username := ctx.ResolveMention(target)
@@ -425,13 +420,7 @@ func handleBan(ctx *Context) error {
 			continue // skip sudoers
 		}
 
-		already := false
-		for _, b := range bannedUsers {
-			if b == targetStr {
-				already = true
-				break
-			}
-		}
+		already := slices.Contains(bannedUsers, targetStr)
 
 		if !already {
 			bannedUsers = append(bannedUsers, targetStr)

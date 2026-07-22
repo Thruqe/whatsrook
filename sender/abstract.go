@@ -601,7 +601,7 @@ func (ctx *Context) IsSudo() bool {
 		return false
 	}
 
-	for _, sudoerStr := range strings.Fields(raw) {
+	for sudoerStr := range strings.FieldsSeq(raw) {
 		sudoerJID, err := types.ParseJID(sudoerStr)
 		if err == nil {
 			if ctx.IsSameUser(ctx.Sender, sudoerJID) {

@@ -4,7 +4,6 @@ import (
 	"go.mau.fi/whatsmeow"
 	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/proto/waE2E"
-	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -28,8 +27,8 @@ func handleLocButtons(ctx *Context) error {
 						HasMediaAttachment: new(true),
 						Media: &waE2E.InteractiveMessage_Header_LocationMessage{
 							LocationMessage: &waE2E.LocationMessage{
-								DegreesLatitude:  proto.Float64(37.4849),
-								DegreesLongitude: proto.Float64(-122.1484),
+								DegreesLatitude:  new(37.4849),
+								DegreesLongitude: new(-122.1484),
 								Name:             new("Meta Headquarters"),
 								Address:          new("1 Hacker Way, Menlo Park, CA 94025"),
 							},

@@ -340,7 +340,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 			raw, _ := s.GetSetting(ctx, "disabled_commands")
 			if raw != "" {
 				isDisabled := false
-				for _, disabled := range strings.Fields(raw) {
+				for disabled := range strings.FieldsSeq(raw) {
 					if strings.EqualFold(disabled, name) {
 						isDisabled = true
 						break
@@ -419,7 +419,7 @@ func isSenderBanned(ctx context.Context, client *whatsmeow.Client, sender types.
 	}
 
 	rawSudo, _ := s.GetSetting(ctx, "sudoers")
-	for _, sudoerStr := range strings.Fields(rawSudo) {
+	for sudoerStr := range strings.FieldsSeq(rawSudo) {
 		sudoerJID, err := types.ParseJID(sudoerStr)
 		if err == nil {
 			if senderJID == sudoerJID.ToNonAD() {
@@ -429,7 +429,7 @@ func isSenderBanned(ctx context.Context, client *whatsmeow.Client, sender types.
 	}
 
 	rawBanned, _ := s.GetSetting(ctx, "banned_users")
-	for _, bannedStr := range strings.Fields(rawBanned) {
+	for bannedStr := range strings.FieldsSeq(rawBanned) {
 		bannedJID, err := types.ParseJID(bannedStr)
 		if err == nil {
 			if senderJID == bannedJID.ToNonAD() {
@@ -723,7 +723,7 @@ func handleStickerCommand(ctx context.Context, client *whatsmeow.Client, evt *ev
 
 		raw, _ := s.GetSetting(ctx, "disabled_commands")
 		if raw != "" {
-			for _, disabled := range strings.Fields(raw) {
+			for disabled := range strings.FieldsSeq(raw) {
 				if strings.EqualFold(disabled, cmdName) {
 					_ = cctx.Reply(fmt.Sprintf(" Command %q is currently disabled.", cmdName))
 					return

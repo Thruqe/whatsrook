@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/Thruqe/whatsrook/store/sqlstore"
@@ -397,13 +398,7 @@ func handleAntiWord(ctx *Context) error {
 			return ctx.Reply("Please specify the word to add.")
 		}
 		wordToAdd := strings.ToLower(ctx.Args[1])
-		exists := false
-		for _, w := range words {
-			if w == wordToAdd {
-				exists = true
-				break
-			}
-		}
+		exists := slices.Contains(words, wordToAdd)
 		if exists {
 			return ctx.Reply(fmt.Sprintf("ℹ Word %q is already banned.", wordToAdd))
 		}
