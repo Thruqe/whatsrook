@@ -19,7 +19,8 @@ We value simplicity, pragmatism, and raw speed. If you contribute code, please a
 
 ## Codebase Map
 
-* [main.go](file:///home/thruqe/whatsrook/main.go): Sets up CLI arguments, configures database connection retries, starts the HTTP/WebSocket server, and handles OS shutdown signals gracefully.
+* [main.go](file:///home/thruqe/whatsrook/main.go): Application entrypoint launcher. Automatically builds `whatsrook` if missing and delegates execution to `entrypoint.sh` or `client.go`.
+* [client.go](file:///home/thruqe/whatsrook/client.go): Contains the core WhatsRook daemon lifecycle, database initialization, HTTP/WebSocket server, and session management.
 * [cli.go](file:///home/thruqe/whatsrook/cli.go): Manages command line flags (`--session`, `--pair`, `--port`, `--auth-dir`, `--client`, `--qrcode`, `--logout`, `--debug`, `--verbose`, `--dev`).
 * [session.go](file:///home/thruqe/whatsrook/session.go): Controls the lifecycle of the WhatsApp connection, including QR/pairing-code registration, event handling, and executing WebSocket control commands.
 * [ws.go](file:///home/thruqe/whatsrook/ws.go): Implements the WebSocket connection `Hub` for managing real-time connections, concurrent broadcasting, and safe read/write loops.
