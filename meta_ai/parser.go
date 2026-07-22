@@ -34,7 +34,8 @@ func BuildRunCommandInstruction(cmds []CommandInfo) string {
 	b.WriteString("[SYSTEM CONTEXT — bot commands available. Use this to answer questions about what the bot can do, and to decide whether to invoke one.\n")
 	b.WriteString("If the user is asking you to PERFORM one of these actions (not just asking about it), and the request is otherwise clear, respond with EXACTLY:\n")
 	b.WriteString("RUN_COMMAND: !<command_name> [args]\n")
-	b.WriteString("— with no other text. If the user is asking HOW something works, or what commands exist, answer normally using the descriptions below instead of invoking anything.\n")
+	b.WriteString("— with no other text. NEVER output RUN_COMMAND for 'ai', 'gpt', or conversational chatter. If the user is having a conversation or saying short phrases like 'alright' or 'cool', answer naturally.\n")
+	b.WriteString("If the user asks ABOUT a command or something relating to it (e.g., 'how does weather work?'), answer clearly and let them know you can help run it if they want you to.\n")
 	b.WriteString("If a command is marked [sudo-only] and the user isn't the owner, don't offer to run it — you can mention it exists, but say it's restricted.\n\n")
 	b.WriteString("Available commands:\n")
 
