@@ -14,7 +14,7 @@ all: fmt vet test build
 
 # Build the executable
 build:
-	go build -v -o $(BINARY_NAME) .
+	go build -v -o ./tmp/$(BINARY_NAME) .
 
 # Run unit tests
 test:
