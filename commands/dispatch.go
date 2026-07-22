@@ -373,6 +373,33 @@ func extractText(evt *events.Message) string {
 	if evt.Message.GetExtendedTextMessage() != nil {
 		return evt.Message.GetExtendedTextMessage().GetText()
 	}
+	if btnResp := evt.Message.GetButtonsResponseMessage(); btnResp != nil {
+		if id := btnResp.GetSelectedButtonID(); id != "" {
+			return id
+		}
+		return btnResp.GetSelectedDisplayText()
+	}
+	if templateResp := evt.Message.GetTemplateButtonReplyMessage(); templateResp != nil {
+		if id := templateResp.GetSelectedID(); id != "" {
+			return id
+		}
+		return templateResp.GetSelectedDisplayText()
+	}
+	if interactiveResp := evt.Message.GetInteractiveResponseMessage(); interactiveResp != nil {
+		if nativeFlow := interactiveResp.GetNativeFlowResponseMessage(); nativeFlow != nil {
+			if params := nativeFlow.GetParamsJSON(); params != "" {
+				return params
+			}
+		}
+		if body := interactiveResp.GetBody(); body != nil {
+			return body.GetText()
+		}
+	}
+	if listResp := evt.Message.GetListResponseMessage(); listResp != nil {
+		if singleSelect := listResp.GetSingleSelectReply(); singleSelect != nil {
+			return singleSelect.GetSelectedRowID()
+		}
+	}
 	return ""
 }
 
