@@ -50,7 +50,7 @@ func (b *Bot) runPairCode(ctx context.Context) error {
 	fmt.Printf("Enter this code on your phone: %s\n", code)
 	b.hub.Broadcast(EventMessage{
 		Kind:    EventPairCode,
-		Payload: map[string]any{"code": code},
+		Payload: PairCodePayload{Code: code},
 	})
 
 	pairDeadline := time.After(60 * time.Second)
@@ -81,7 +81,7 @@ func (b *Bot) runQR(ctx context.Context) error {
 			}
 			b.hub.Broadcast(EventMessage{
 				Kind:    EventPairQR,
-				Payload: map[string]any{"code": evt.Code},
+				Payload: PairQRPayload{Code: evt.Code},
 			})
 		} else {
 			slog.Info("qr channel event", "event", evt.Event)

@@ -7,10 +7,14 @@ else
     CLEAN_CMD = rm -f $(BINARY_NAME)
 endif
 
-.PHONY: all build test fmt vet modernize clean help
+.PHONY: all build test fmt vet modernize proto clean help
 
 # Default target runs everything
 all: fmt vet test build
+
+# Generate Protobuf code
+proto:
+	./scripts/generate-proto.sh
 
 # Build the executable
 build:

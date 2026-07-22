@@ -25,6 +25,8 @@ We value simplicity, pragmatism, and raw speed. If you contribute code, please a
 * [session.go](file:///home/thruqe/whatsrook/session.go): Controls the lifecycle of the WhatsApp connection, including QR/pairing-code registration, event handling, and executing WebSocket control commands.
 * [ws.go](file:///home/thruqe/whatsrook/ws.go): Implements the WebSocket connection `Hub` for managing real-time connections, concurrent broadcasting, and safe read/write loops.
 * [messages.go](file:///home/thruqe/whatsrook/messages.go): Schema mapping for JSON-based WebSocket payloads.
+* [proto/](file:///home/thruqe/whatsrook/proto/):
+  * [ws.proto](file:///home/thruqe/whatsrook/proto/ws.proto): Protocol Buffer definitions for WebSocket control frames, event frames, and typed payload messages.
 * [commands/](file:///home/thruqe/whatsrook/commands/):
   * [commands.go](file:///home/thruqe/whatsrook/commands/commands.go): Registers command handlers via an `init()` block using `Register(&Command{...})`.
   * [dispatch.go](file:///home/thruqe/whatsrook/commands/dispatch.go): The entry point for incoming events. It parses messages, matches prefixes, runs moderation triggers, and routes valid commands asynchronously.

@@ -2,13 +2,16 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/Thruqe/whatsrook/proto/wsproto"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+	googleProto "google.golang.org/protobuf/proto"
 )
 
 type Hub struct {
@@ -20,8 +23,9 @@ type Hub struct {
 }
 
 type wsClient struct {
-	conn *websocket.Conn
-	send chan EventMessage
+	conn       *websocket.Conn
+	send       chan EventMessage
+	isProtobuf bool
 }
 
 func newHub() *Hub {
@@ -51,17 +55,22 @@ func (h *Hub) Broadcast(evt EventMessage) {
 
 func (h *Hub) ServeWS(dev bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		subprotocols := []string{"protobuf", "json"}
 		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 			InsecureSkipVerify: dev,
+			Subprotocols:       subprotocols,
 		})
 		if err != nil {
 			slog.Error("ws accept failed", "err", err)
 			return
 		}
 
+		isProtobuf := conn.Subprotocol() == "protobuf"
+
 		c := &wsClient{
-			conn: conn,
-			send: make(chan EventMessage, 64),
+			conn:       conn,
+			send:       make(chan EventMessage, 64),
+			isProtobuf: isProtobuf,
 		}
 
 		h.mu.Lock()
@@ -80,10 +89,7 @@ func (h *Hub) ServeWS(dev bool) http.HandlerFunc {
 			}
 			h.mu.Unlock()
 
-			err := conn.Close(websocket.StatusNormalClosure, "session ended")
-			if err != nil {
-				return
-			}
+			_ = conn.Close(websocket.StatusNormalClosure, "session ended")
 		}()
 
 		// single writer goroutine
@@ -106,19 +112,54 @@ func (h *Hub) ServeWS(dev bool) http.HandlerFunc {
 					if !ok {
 						return
 					}
-					if err := wsjson.Write(ctx, conn, msg); err != nil {
-						cancel()
-						return
+
+					if c.isProtobuf {
+						frame := EventMessageToProto(msg)
+						data, err := googleProto.Marshal(frame)
+						if err != nil {
+							slog.Error("failed to marshal proto event frame", "err", err)
+							continue
+						}
+						if err := conn.Write(ctx, websocket.MessageBinary, data); err != nil {
+							cancel()
+							return
+						}
+					} else {
+						if err := wsjson.Write(ctx, conn, msg); err != nil {
+							cancel()
+							return
+						}
 					}
 				}
 			}
 		}()
 
-		// reader loop — no optimistic ack; handleControl sends the real one
+		// reader loop — supports both JSON text frames and Protobuf binary frames
 		for {
-			var ctrl ControlMessage
-			if err := wsjson.Read(ctx, conn, &ctrl); err != nil {
+			msgType, data, err := conn.Read(ctx)
+			if err != nil {
 				break
+			}
+
+			var ctrl ControlMessage
+
+			if msgType == websocket.MessageBinary || c.isProtobuf {
+				var frame wsproto.ControlFrame
+				if err := googleProto.Unmarshal(data, &frame); err != nil {
+					slog.Warn("bad protobuf control frame", "err", err)
+					continue
+				}
+				pCtrl, err := ControlProtoToMessage(&frame)
+				if err != nil {
+					slog.Warn("failed to convert proto control frame", "err", err)
+					continue
+				}
+				ctrl = pCtrl
+			} else {
+				if err := json.Unmarshal(data, &ctrl); err != nil {
+					slog.Warn("bad json control frame", "err", err)
+					continue
+				}
 			}
 
 			select {
@@ -132,6 +173,6 @@ func (h *Hub) ServeWS(dev bool) http.HandlerFunc {
 			}
 		}
 
-		slog.Info("websocket client disconnected")
+		slog.Info("websocket client disconnected", "subprotocol", conn.Subprotocol())
 	}
 }

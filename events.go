@@ -28,7 +28,7 @@ func (b *Bot) handleWAEvent(evt any) {
 		slog.Warn("pairing failed", "err", v.Error)
 		b.hub.Broadcast(EventMessage{
 			Kind:    EventPairError,
-			Payload: map[string]any{"reason": v.Error.Error()},
+			Payload: PairErrorPayload{Reason: v.Error.Error()},
 		})
 
 	case *events.LoggedOut:
@@ -49,10 +49,6 @@ func (b *Bot) handleWAEvent(evt any) {
 			slog.Info("Incoming message event payload (pretty JSON)", "json", string(pretty))
 		}
 
-		text := extractMessageText(v)
-		from := v.Info.Sender.String()
-		msgID := v.Info.ID
-
 		if commands.HandlePendingAudioReply(context.Background(), b.client, v) {
 			return
 		}
@@ -61,20 +57,21 @@ func (b *Bot) handleWAEvent(evt any) {
 			return
 		}
 
+		payload := buildIncomingMessagePayload(v)
 		b.hub.Broadcast(EventMessage{
-			Kind: EventIncomingMessage,
-			Payload: map[string]any{
-				"from":       from,
-				"text":       text,
-				"message_id": msgID,
-			},
+			Kind:    EventIncomingMessage,
+			Payload: payload,
 		})
 
 	case *events.CallOffer:
 		slog.Info("call offer received")
 		b.hub.Broadcast(EventMessage{
-			Kind:    EventIncomingCall,
-			Payload: map[string]any{"call_id": v.CallID},
+			Kind: EventIncomingCall,
+			Payload: IncomingCallPayload{
+				CallID:    v.CallID,
+				From:      v.CallCreator.String(),
+				Timestamp: v.Timestamp,
+			},
 		})
 
 	case *events.Receipt, *events.PushName, *events.Presence, *events.ChatPresence, *events.AppState, *events.AppStateSyncComplete, *events.Contact, *events.OfflineSyncPreview, *events.OfflineSyncCompleted:
@@ -83,6 +80,83 @@ func (b *Bot) handleWAEvent(evt any) {
 	default:
 		slog.Debug("unhandled event", "type", fmt.Sprintf("%T", evt))
 	}
+}
+
+func buildIncomingMessagePayload(v *events.Message) IncomingMessagePayload {
+	text := extractMessageText(v)
+	mediaType := getMediaType(v.Message)
+
+	var quotedID string
+	var quotedText string
+
+	if ext := v.Message.GetExtendedTextMessage(); ext != nil && ext.GetContextInfo() != nil {
+		ci := ext.GetContextInfo()
+		quotedID = ci.GetStanzaID()
+		if ci.QuotedMessage != nil {
+			quotedText = extractTextFromProto(ci.QuotedMessage)
+		}
+	}
+
+	return IncomingMessagePayload{
+		From:       v.Info.Chat.String(),
+		Chat:       v.Info.Chat.String(),
+		Sender:     v.Info.Sender.String(),
+		Text:       text,
+		MessageID:  v.Info.ID,
+		PushName:   v.Info.PushName,
+		Timestamp:  v.Info.Timestamp,
+		IsGroup:    v.Info.IsGroup,
+		IsFromMe:   v.Info.IsFromMe,
+		MediaType:  mediaType,
+		QuotedID:   quotedID,
+		QuotedText: quotedText,
+	}
+}
+
+func getMediaType(msg *waE2E.Message) string {
+	if msg == nil {
+		return ""
+	}
+	switch {
+	case msg.ImageMessage != nil:
+		return "image"
+	case msg.VideoMessage != nil:
+		return "video"
+	case msg.AudioMessage != nil:
+		return "audio"
+	case msg.DocumentMessage != nil:
+		return "document"
+	case msg.StickerMessage != nil:
+		return "sticker"
+	case msg.ContactMessage != nil || msg.ContactsArrayMessage != nil:
+		return "contact"
+	case msg.LocationMessage != nil || msg.LiveLocationMessage != nil:
+		return "location"
+	default:
+		return ""
+	}
+}
+
+func extractTextFromProto(msg *waE2E.Message) string {
+	if msg == nil {
+		return ""
+	}
+	if msg.GetConversation() != "" {
+		return msg.GetConversation()
+	}
+	if ext := msg.GetExtendedTextMessage(); ext != nil {
+		return ext.GetText()
+	}
+	if doc := msg.GetDocumentMessage(); doc != nil {
+		return doc.GetCaption()
+	}
+	if img := msg.GetImageMessage(); img != nil {
+		return img.GetCaption()
+	}
+	if vid := msg.GetVideoMessage(); vid != nil {
+		return vid.GetCaption()
+	}
+	return ""
 }
 
 func extractMessageText(v *events.Message) string {
