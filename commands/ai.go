@@ -383,7 +383,11 @@ func handleAI(ctx *Context) error {
 	}
 
 	onUpdate := func(text string) error {
-		if strings.TrimSpace(text) == "" {
+		trimmed := strings.TrimSpace(text)
+		if trimmed == "" {
+			return nil
+		}
+		if _, _, ok := meta_ai.ParseRunCommand(trimmed); ok {
 			return nil
 		}
 		editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
