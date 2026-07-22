@@ -23,8 +23,10 @@ func (b *Bot) runPairCode(ctx context.Context) error {
 		}
 	})
 
-	if err := b.client.Connect(); err != nil {
-		return err
+	if !b.client.IsConnected() {
+		if err := b.client.Connect(); err != nil {
+			return err
+		}
 	}
 
 	var pairType whatsmeow.PairClientType
@@ -53,26 +55,31 @@ func (b *Bot) runPairCode(ctx context.Context) error {
 		Payload: PairCodePayload{Code: code},
 	})
 
-	pairDeadline := time.After(60 * time.Second)
-
-	select {
-	case err := <-paired:
-		if err != nil {
-			return err
+	go func() {
+		pairDeadline := time.After(60 * time.Second)
+		select {
+		case err := <-paired:
+			if err != nil {
+				slog.Error("pair error", "err", err)
+			} else {
+				slog.Info("paired successfully")
+			}
+		case <-pairDeadline:
+			slog.Warn("pairing timed out")
+		case <-ctx.Done():
+			return
 		}
-		slog.Info("paired successfully")
-		return nil
-	case <-pairDeadline:
-		return ErrPairTimeout
-	case <-ctx.Done():
-		return nil
-	}
+	}()
+
+	return nil
 }
 
 func (b *Bot) runQR(ctx context.Context) error {
 	qrChan, _ := b.client.GetQRChannel(ctx)
-	if err := b.client.Connect(); err != nil {
-		return err
+	if !b.client.IsConnected() {
+		if err := b.client.Connect(); err != nil {
+			return err
+		}
 	}
 	for evt := range qrChan {
 		if evt.Event == "code" {
