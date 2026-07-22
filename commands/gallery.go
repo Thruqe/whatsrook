@@ -26,7 +26,7 @@ func init() {
 	Register(&Command{
 		Name:        "gallery",
 		Description: "Send an interactive image gallery carousel",
-		Category:    "example",
+		Category:    "interactive",
 		IsPublic:    true,
 		Handler:     handleGallery,
 	})

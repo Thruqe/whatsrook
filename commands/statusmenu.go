@@ -11,7 +11,7 @@ func init() {
 	Register(&Command{
 		Name:        "statusmenu",
 		Description: "Send a status menu with buttons and location header",
-		Category:    "example",
+		Category:    "interactive",
 		IsPublic:    true,
 		Handler:     handleStatusMenu,
 	})

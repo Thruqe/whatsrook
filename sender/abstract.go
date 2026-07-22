@@ -580,14 +580,20 @@ func (ctx *Context) GetTargets() []types.JID {
 	return nil
 }
 
+// IsOwner checks if the message sender is the bot owner (the connected WhatsApp account JID).
+func (ctx *Context) IsOwner() bool {
+	if ctx.Client.Store.ID != nil {
+		return ctx.IsSameUser(ctx.Sender, *ctx.Client.Store.ID)
+	}
+	return false
+}
+
 // IsSudo checks if the message sender is a registered sudo user or the bot owner.
 func (ctx *Context) IsSudo() bool {
 	slog.Debug("IsSudo checking", "sender", ctx.Sender.String())
-	if ctx.Client.Store.ID != nil {
-		if ctx.IsSameUser(ctx.Sender, *ctx.Client.Store.ID) {
-			slog.Debug("IsSudo result: true (bot owner)", "sender", ctx.Sender.String())
-			return true
-		}
+	if ctx.IsOwner() {
+		slog.Debug("IsSudo result: true (bot owner)", "sender", ctx.Sender.String())
+		return true
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)

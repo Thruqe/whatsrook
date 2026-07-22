@@ -10,7 +10,7 @@ func init() {
 	Register(&Command{
 		Name:        "buttons",
 		Description: "Send an interactive message with action buttons",
-		Category:    "example",
+		Category:    "interactive",
 		IsPublic:    true,
 		Handler:     handleButtons,
 	})

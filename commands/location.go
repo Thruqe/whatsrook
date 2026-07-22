@@ -10,7 +10,7 @@ func init() {
 	Register(&Command{
 		Name:        "locbuttons",
 		Description: "Send an interactive message with a location header and buttons",
-		Category:    "example",
+		Category:    "interactive",
 		IsPublic:    true,
 		Handler:     handleLocButtons,
 	})
