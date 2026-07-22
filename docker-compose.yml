@@ -1,0 +1,16 @@
+services:
+  whatsrook:
+    build: .
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    environment:
+      - SESSION=2348000000000
+      - PORT=3000
+      - CLIENT=chrome
+      - QRCODE=true
+    volumes:
+      - whatsrook_auth:/app/auth
+    restart: unless-stopped
+
+volumes:
+  whatsrook_auth:
