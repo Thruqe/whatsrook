@@ -52,7 +52,7 @@ func ParseVersion(raw string) (Version, error) {
 
 	major, err1 := strconv.Atoi(parts[0])
 	minor, err2 := strconv.Atoi(parts[1])
-	patchStr := strings.Split(parts[2], "-")[0]
+	patchStr, _, _ := strings.Cut(parts[2], "-")
 	patch, err3 := strconv.Atoi(patchStr)
 
 	if err1 != nil || err2 != nil || err3 != nil {
@@ -100,8 +100,8 @@ func ReadLocalVersion(versionPath string) (string, error) {
 }
 
 func parseVersionFromTOML(content string) (string, error) {
-	lines := strings.Split(content, "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(content, "\n")
+	for line := range lines {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "version") {
 			parts := strings.SplitN(line, "=", 2)
