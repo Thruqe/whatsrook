@@ -41,15 +41,5 @@
       "value": "false"
     }
   },
-  "formation": {
-    "web": {
-      "quantity": 1,
-      "size": "eco"
-    }
-  },
-  "buildpacks": [
-    {
-      "url": "heroku/go"
-    }
-  ]
+  "stack": "container"
 }
