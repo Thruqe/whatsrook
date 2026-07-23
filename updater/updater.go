@@ -1,4 +1,4 @@
-// Self-update mechanism: downloads, verifies, and applies new releases from GitHub.
+// Self-update mechanism: downloads and applies pre-built releases matching host system from GitHub.
 package updater
 
 import (
@@ -43,8 +43,13 @@ type UpdateResult struct {
 	HasNewVersion  bool
 	Updated        bool
 	IsBeta         bool
-	Method         string // "git" or "release"
+	Platform       string
 	Message        string
+}
+
+// GetPlatform returns operating system and architecture string (e.g. linux/amd64).
+func GetPlatform() string {
+	return fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
 }
 
 // GetChannel gets configured update channel ("stable" or "beta").
@@ -146,7 +151,7 @@ func parseVersionFromTOML(content string) (string, error) {
 	return "", fmt.Errorf("version key not found in version.toml")
 }
 
-// FetchRemoteVersion fetches the latest version string from the remote version.toml.
+// FetchRemoteVersion fetches the latest version string from remote repository.
 func FetchRemoteVersion() (string, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(VersionGithub)
@@ -166,26 +171,7 @@ func FetchRemoteVersion() (string, error) {
 	return parseVersionFromTOML(string(body))
 }
 
-// IsGitRepo checks if current workspace or executable environment is a Git repository.
-func IsGitRepo() bool {
-	cmd := exec.Command("git", "rev-parse", "--is-inside-work-tree")
-	if err := cmd.Run(); err == nil {
-		return true
-	}
-
-	for _, arg := range os.Args {
-		if strings.HasPrefix(arg, "-test.") || strings.Contains(arg, "go-build") {
-			return true
-		}
-	}
-
-	if _, err := os.Stat(".git"); err == nil {
-		return true
-	}
-	return false
-}
-
-// CheckUpdate compares the local and remote versions and returns an UpdateResult.
+// CheckUpdate compares local and remote versions for current platform.
 func CheckUpdate() (*UpdateResult, error) {
 	localStr, err := ReadLocalVersion(VersionFile)
 	if err != nil {
@@ -209,12 +195,7 @@ func CheckUpdate() (*UpdateResult, error) {
 	res := &UpdateResult{
 		CurrentVersion: localStr,
 		LatestVersion:  remoteStr,
-	}
-
-	if IsGitRepo() {
-		res.Method = "git"
-	} else {
-		res.Method = "release"
+		Platform:       GetPlatform(),
 	}
 
 	if errLocal == nil && errRemote == nil {
@@ -226,74 +207,36 @@ func CheckUpdate() (*UpdateResult, error) {
 	return res, nil
 }
 
-// PerformUpdate checks for an update and applies it (via git pull or release download).
+// PerformUpdate downloads the system-matching pre-built binary release and replaces the binary.
 func PerformUpdate(isBeta bool) (*UpdateResult, error) {
 	check, err := CheckUpdate()
 	if err != nil && !isBeta {
 		return nil, err
 	}
 	if check == nil {
-		check = &UpdateResult{IsBeta: isBeta}
+		check = &UpdateResult{
+			IsBeta:   isBeta,
+			Platform: GetPlatform(),
+		}
 	} else {
 		check.IsBeta = isBeta
 	}
 
-	if IsGitRepo() {
-		check.Method = "git"
-		outStash, errStash := exec.Command("git", "stash").CombinedOutput()
-		if errStash != nil {
-			return nil, fmt.Errorf("git stash failed: %s (%w)", strings.TrimSpace(string(outStash)), errStash)
-		}
-
-		outPull, errPull := exec.Command("git", "pull").CombinedOutput()
-		if errPull != nil {
-			return nil, fmt.Errorf("git pull failed: %s (%w)", strings.TrimSpace(string(outPull)), errPull)
-		}
-
-		if runtime.GOOS == "windows" {
-			// Windows PowerShell script invocation to avoid file lock on binary
-			pidStr := strconv.Itoa(os.Getpid())
-			psScript := filepath.Join(".", "scripts", "rebuild.ps1")
-			if _, errScript := os.Stat(psScript); errScript == nil {
-				cmd := exec.Command("powershell", "-ExecutionPolicy", "Bypass", "-File", psScript, "-PIDToWait", pidStr)
-				if err := cmd.Start(); err != nil {
-					return nil, fmt.Errorf("failed to launch Windows rebuild script: %w", err)
-				}
-				check.Updated = true
-				check.Message = "Windows rebuild script launched. Process will restart automatically."
-				os.Exit(0)
-				return check, nil
-			}
-		}
-
-		outBuild, errBuild := exec.Command("go", "build", "-o", "whatsrook", ".").CombinedOutput()
-		if errBuild != nil {
-			return nil, fmt.Errorf("rebuild failed after git pull: %s (%w)", strings.TrimSpace(string(outBuild)), errBuild)
-		}
-
-		check.Updated = true
-		check.Message = fmt.Sprintf("Successfully updated via Git (git stash & git pull). Local version: %s, Remote version: %s.", check.CurrentVersion, check.LatestVersion)
-		return check, nil
-	}
-
-	// Release / Nightly download update
-	check.Method = "release"
 	tag := "latest"
 	if isBeta {
 		tag = "alpha"
 	}
 
-	err = downloadReleaseAsset(tag)
-	if err != nil {
-		return nil, fmt.Errorf("failed to download release (%s): %w", tag, err)
+	if err := downloadAndApplyRelease(tag); err != nil {
+		return nil, fmt.Errorf("failed to update binary for %s: %w", GetPlatform(), err)
 	}
 
 	check.Updated = true
-	check.Message = fmt.Sprintf("Successfully updated to %s build (%s -> %s).", tag, check.CurrentVersion, check.LatestVersion)
+	check.Message = fmt.Sprintf("Successfully updated binary for platform %s to %s release (%s -> %s).", GetPlatform(), tag, check.CurrentVersion, check.LatestVersion)
 	return check, nil
 }
 
-func downloadReleaseAsset(tag string) error {
+func downloadAndApplyRelease(tag string) error {
 	assetName := fmt.Sprintf("whatsrook-%s-%s.tar.gz", runtime.GOOS, runtime.GOARCH)
 	var downloadURL string
 	if tag == "latest" {
@@ -310,70 +253,82 @@ func downloadReleaseAsset(tag string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP %d downloading asset from %s", resp.StatusCode, downloadURL)
+		return fmt.Errorf("HTTP %d downloading %s from %s", resp.StatusCode, assetName, downloadURL)
 	}
 
 	exePath, err := os.Executable()
 	if err != nil {
-		return err
+		exePath = os.Args[0]
 	}
+	exeDir := filepath.Dir(exePath)
 
-	tmpBinary := exePath + ".new"
+	tmpBinary := exePath + ".tmp"
 	out, err := os.OpenFile(tmpBinary, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
 	if err != nil {
 		return err
 	}
 
 	gzr, errGz := gzip.NewReader(resp.Body)
-	if errGz == nil {
-		tr := tar.NewReader(gzr)
-		found := false
-		for {
-			hdr, errHdr := tr.Next()
-			if errHdr == io.EOF {
-				break
-			}
-			if errHdr != nil {
-				out.Close()
-				os.Remove(tmpBinary)
-				return errHdr
-			}
-			if filepath.Base(hdr.Name) == "whatsrook" || filepath.Base(hdr.Name) == "whatsrook.exe" {
-				if _, err := io.Copy(out, tr); err != nil {
-					out.Close()
-					os.Remove(tmpBinary)
-					return err
-				}
-				found = true
-				break
-			}
-		}
-		gzr.Close()
+	if errGz != nil {
 		out.Close()
-		if !found {
-			os.Remove(tmpBinary)
-			return fmt.Errorf("binary not found in release archive")
+		_ = os.Remove(tmpBinary)
+		return fmt.Errorf("failed to decompress archive: %w", errGz)
+	}
+	defer gzr.Close()
+
+	tr := tar.NewReader(gzr)
+	foundBinary := false
+
+	for {
+		hdr, errHdr := tr.Next()
+		if errHdr == io.EOF {
+			break
 		}
-	} else {
-		if _, err := io.Copy(out, resp.Body); err != nil {
+		if errHdr != nil {
 			out.Close()
-			os.Remove(tmpBinary)
-			return err
+			_ = os.Remove(tmpBinary)
+			return errHdr
 		}
-		out.Close()
+
+		baseName := filepath.Base(hdr.Name)
+		if baseName == "whatsrook" || baseName == "whatsrook.exe" {
+			if _, err := io.Copy(out, tr); err != nil {
+				out.Close()
+				_ = os.Remove(tmpBinary)
+				return err
+			}
+			foundBinary = true
+		} else if baseName == VersionFile {
+			versionDest := filepath.Join(exeDir, VersionFile)
+			vFile, errV := os.OpenFile(versionDest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+			if errV == nil {
+				_, _ = io.Copy(vFile, tr)
+				vFile.Close()
+			}
+		}
+	}
+
+	out.Close()
+
+	if !foundBinary {
+		_ = os.Remove(tmpBinary)
+		return fmt.Errorf("binary not found in release archive %s", assetName)
+	}
+
+	if runtime.GOOS == "windows" {
+		oldPath := exePath + ".old"
+		_ = os.Remove(oldPath)
+		_ = os.Rename(exePath, oldPath)
 	}
 
 	if err := os.Rename(tmpBinary, exePath); err != nil {
-		_ = os.Remove(exePath)
-		if err := os.Rename(tmpBinary, exePath); err != nil {
-			return err
-		}
+		return fmt.Errorf("failed to replace executable: %w", err)
 	}
 
 	return nil
 }
 
-// RestartProcess replaces the current process with a new instance of the binary.
+// RestartProcess replaces current process with the updated binary.
 func RestartProcess() error {
 	argv := os.Args
 	execPath, err := exec.LookPath(argv[0])

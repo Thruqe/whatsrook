@@ -49,8 +49,9 @@ func TestReadLocalVersion(t *testing.T) {
 	}
 }
 
-func TestIsGitRepo(t *testing.T) {
-	if !updater.IsGitRepo() {
-		t.Errorf("expected IsGitRepo to return true in current codebase environment")
+func TestGetPlatform(t *testing.T) {
+	platform := updater.GetPlatform()
+	if platform == "" || platform == "/" {
+		t.Errorf("expected valid OS/Arch platform string, got %q", platform)
 	}
 }
