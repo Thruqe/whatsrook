@@ -1,3 +1,4 @@
+// Location command – send interactive messages with location headers and buttons.
 package commands
 
 import (

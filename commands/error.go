@@ -1,3 +1,4 @@
+// Command handler error logging utility.
 package commands
 
 import "log/slog"

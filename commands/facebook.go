@@ -1,3 +1,4 @@
+// Facebook command – download media from Facebook URLs via Ember.
 package commands
 
 import (

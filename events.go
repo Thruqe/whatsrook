@@ -1,3 +1,5 @@
+// WhatsApp event handler – dispatches incoming messages to commands and
+// broadcasts them to WebSocket clients.
 package main
 
 import (

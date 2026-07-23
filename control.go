@@ -1,3 +1,4 @@
+// WebSocket control message handlers – send, edit, revoke messages, react, etc.
 package main
 
 import (

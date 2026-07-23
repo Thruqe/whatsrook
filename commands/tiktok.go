@@ -1,3 +1,4 @@
+// TikTok command – download media from TikTok URLs via Ember.
 package commands
 
 import (

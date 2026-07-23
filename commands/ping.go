@@ -1,3 +1,4 @@
+// Ping command – replies with latency and message ID timing info.
 package commands
 
 import (

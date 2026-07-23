@@ -1,3 +1,4 @@
+// Menu command – lists all available commands with descriptions.
 package commands
 
 import (

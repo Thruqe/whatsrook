@@ -1,3 +1,4 @@
+// Pair-code and QR-code authentication flows for device registration.
 package main
 
 import (

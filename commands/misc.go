@@ -1,3 +1,4 @@
+// Miscellaneous commands – urban dictionary, QR generation, etc.
 package commands
 
 import (

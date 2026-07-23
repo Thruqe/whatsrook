@@ -1,3 +1,4 @@
+// Uptime command – shows how long the daemon has been running.
 package commands
 
 import (

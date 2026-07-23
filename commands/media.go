@@ -1,3 +1,4 @@
+// Media download command – downloads images/video/audio/gif from URLs.
 package commands
 
 import (

@@ -1,3 +1,4 @@
+// Threads command – download media from Threads URLs via Ember.
 package commands
 
 import (

@@ -1,3 +1,4 @@
+// Self-update mechanism: downloads, verifies, and applies new releases from GitHub.
 package updater
 
 import (
@@ -27,6 +28,7 @@ const (
 	ChannelKey    = "update_channel" // "stable" or "beta"
 )
 
+// Version holds a semantic version (major.minor.patch).
 type Version struct {
 	Major int
 	Minor int
@@ -34,6 +36,7 @@ type Version struct {
 	Raw   string
 }
 
+// UpdateResult describes the outcome of an update check or update operation.
 type UpdateResult struct {
 	CurrentVersion string
 	LatestVersion  string
@@ -95,6 +98,7 @@ func ParseVersion(raw string) (Version, error) {
 	}, nil
 }
 
+// Compare compares two versions, returning -1/0/+1 like cmp.Compare.
 func (v Version) Compare(other Version) int {
 	if v.Major != other.Major {
 		if v.Major > other.Major {
@@ -117,6 +121,7 @@ func (v Version) Compare(other Version) int {
 	return 0
 }
 
+// ReadLocalVersion reads and parses the version string from a local version.toml file.
 func ReadLocalVersion(versionPath string) (string, error) {
 	data, err := os.ReadFile(versionPath)
 	if err != nil {
@@ -141,6 +146,7 @@ func parseVersionFromTOML(content string) (string, error) {
 	return "", fmt.Errorf("version key not found in version.toml")
 }
 
+// FetchRemoteVersion fetches the latest version string from the remote version.toml.
 func FetchRemoteVersion() (string, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(VersionGithub)
@@ -179,6 +185,7 @@ func IsGitRepo() bool {
 	return false
 }
 
+// CheckUpdate compares the local and remote versions and returns an UpdateResult.
 func CheckUpdate() (*UpdateResult, error) {
 	localStr, err := ReadLocalVersion(VersionFile)
 	if err != nil {
@@ -219,6 +226,7 @@ func CheckUpdate() (*UpdateResult, error) {
 	return res, nil
 }
 
+// PerformUpdate checks for an update and applies it (via git pull or release download).
 func PerformUpdate(isBeta bool) (*UpdateResult, error) {
 	check, err := CheckUpdate()
 	if err != nil && !isBeta {
@@ -365,6 +373,7 @@ func downloadReleaseAsset(tag string) error {
 	return nil
 }
 
+// RestartProcess replaces the current process with a new instance of the binary.
 func RestartProcess() error {
 	argv := os.Args
 	execPath, err := exec.LookPath(argv[0])

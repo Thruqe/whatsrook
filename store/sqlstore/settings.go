@@ -1,3 +1,4 @@
+// Bot settings key-value store backed by SQLite.
 package sqlstore
 
 import (

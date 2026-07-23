@@ -41,8 +41,10 @@ var PostgresArrayWrapper func(any) interface {
 	sql.Scanner
 }
 
+// SQLStore is an SQL-backed implementation of the store interfaces.
 type SQLStore struct {
 	*Container
+	// JID is the user's JID string that identifies which session these records belong to.
 	JID string
 
 	preKeyLock sync.Mutex

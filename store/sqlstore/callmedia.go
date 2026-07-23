@@ -1,3 +1,4 @@
+// Storage and retrieval of call media (audio/video) metadata.
 package sqlstore
 
 import (
@@ -9,6 +10,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 )
 
+// CallMediaKind distinguishes between audio and video call media.
 type CallMediaKind string
 
 const (

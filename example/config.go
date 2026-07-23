@@ -1,3 +1,4 @@
+// Configuration types for the example WebSocket client.
 package main
 
 // Config defines execution flags and behavior for the example client.

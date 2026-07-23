@@ -1,3 +1,4 @@
+// Filter command – manage chat content filters (keywords, regex, patterns).
 package commands
 
 import (

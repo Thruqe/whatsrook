@@ -1,3 +1,4 @@
+// Status menu command – send interactive status update messages.
 package commands
 
 import (

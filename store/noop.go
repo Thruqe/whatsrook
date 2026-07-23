@@ -4,6 +4,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+// No-op implementations of the store interfaces (used for testing or when
+// persistence is not required).
 package store
 
 import (

@@ -1,3 +1,4 @@
+// Command-line flag parsing and configuration types.
 package main
 
 import (
@@ -6,6 +7,7 @@ import (
 	"strings"
 )
 
+// ClientType represents the platform emulated by the WhatsApp client.
 type ClientType int
 
 const (
@@ -27,6 +29,7 @@ func parseClientType(s string) (ClientType, bool) {
 	}
 }
 
+// CliArgs holds all parsed command-line arguments and environment overrides.
 type CliArgs struct {
 	Session string
 	Pair    bool

@@ -1,3 +1,5 @@
+// Shared utility functions: FFmpeg transcoding, ffprobe duration, URL matching,
+// JID sanitisation, and message extraction.
 package utils
 
 import (

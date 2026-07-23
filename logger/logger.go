@@ -1,3 +1,4 @@
+// Initialisation of slog and zerolog loggers with configurable verbosity.
 package logger
 
 import (
@@ -8,6 +9,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// LogFile is the open file handle for debug.log, used as a log sink.
 var LogFile *os.File
 
 // InitLogger initializes both slog and zerolog loggers to write to stdout and "debug.log".

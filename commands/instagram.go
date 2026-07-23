@@ -1,3 +1,4 @@
+// Instagram command – download media from Instagram URLs via Ember.
 package commands
 
 import (

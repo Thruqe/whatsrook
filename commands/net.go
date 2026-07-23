@@ -1,3 +1,4 @@
+// Network configuration – forces IPv4 preference for DNS resolution.
 package commands
 
 import (

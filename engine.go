@@ -1,3 +1,5 @@
+// Connection engine – manages device login, QR/pair-code registration,
+// reconnection, and logout.
 package main
 
 import (
