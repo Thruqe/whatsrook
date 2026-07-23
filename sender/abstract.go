@@ -1,3 +1,5 @@
+// Abstract message builder for composing rich WhatsApp messages with
+// formatting, quoting, mentions, and buttons.
 package sender
 
 import (

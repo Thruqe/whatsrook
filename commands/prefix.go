@@ -1,3 +1,4 @@
+// Prefix command – get or set the command prefix for the current chat.
 package commands
 
 import (

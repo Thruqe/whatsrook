@@ -4,6 +4,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+// Signal protocol key storage – identity keys, pre-keys, sessions, and sender keys.
 package store
 
 import (
@@ -19,10 +20,12 @@ import (
 	"go.mau.fi/libsignal/state/store"
 )
 
+// SignalProtobufSerializer is the default protobuf serializer for Signal protocol records.
 var SignalProtobufSerializer = serialize.NewProtoBufSerializer()
 
 var _ store.SignalProtocol = (*Device)(nil)
 
+// GetIdentityKeyPair returns the device's Signal identity key pair.
 func (device *Device) GetIdentityKeyPair() *identity.KeyPair {
 	return identity.NewKeyPair(
 		identity.NewKey(ecc.NewDjbECPublicKey(*device.IdentityKey.Pub)),
@@ -30,10 +33,12 @@ func (device *Device) GetIdentityKeyPair() *identity.KeyPair {
 	)
 }
 
+// GetLocalRegistrationID returns the device's registration ID.
 func (device *Device) GetLocalRegistrationID() uint32 {
 	return device.RegistrationID
 }
 
+// SaveIdentity stores a trusted identity key for a Signal address.
 func (device *Device) SaveIdentity(ctx context.Context, address *protocol.SignalAddress, identityKey *identity.Key) error {
 	addrString := address.String()
 	err := device.Identities.PutIdentity(ctx, addrString, identityKey.PublicKey().PublicKey())
@@ -43,6 +48,7 @@ func (device *Device) SaveIdentity(ctx context.Context, address *protocol.Signal
 	return nil
 }
 
+// IsTrustedIdentity checks whether a given identity key is trusted for a Signal address.
 func (device *Device) IsTrustedIdentity(ctx context.Context, address *protocol.SignalAddress, identityKey *identity.Key) (bool, error) {
 	addrString := address.String()
 	isTrusted, err := device.Identities.IsTrustedIdentity(ctx, addrString, identityKey.PublicKey().PublicKey())
@@ -52,6 +58,7 @@ func (device *Device) IsTrustedIdentity(ctx context.Context, address *protocol.S
 	return isTrusted, nil
 }
 
+// LoadPreKey retrieves a pre-key by its ID from the store.
 func (device *Device) LoadPreKey(ctx context.Context, id uint32) (*record.PreKey, error) {
 	preKey, err := device.PreKeys.GetPreKey(ctx, id)
 	if err != nil {
@@ -66,6 +73,7 @@ func (device *Device) LoadPreKey(ctx context.Context, id uint32) (*record.PreKey
 	), nil), nil
 }
 
+// RemovePreKey deletes a pre-key from the store by its ID.
 func (device *Device) RemovePreKey(ctx context.Context, id uint32) error {
 	err := device.PreKeys.RemovePreKey(ctx, id)
 	if err != nil {
@@ -74,14 +82,18 @@ func (device *Device) RemovePreKey(ctx context.Context, id uint32) error {
 	return nil
 }
 
+// StorePreKey saves a pre-key to the store (currently panics: not implemented).
 func (device *Device) StorePreKey(ctx context.Context, preKeyID uint32, preKeyRecord *record.PreKey) error {
 	panic("not implemented")
 }
 
+// ContainsPreKey checks whether a pre-key with the given ID exists (currently panics: not implemented).
 func (device *Device) ContainsPreKey(ctx context.Context, preKeyID uint32) (bool, error) {
 	panic("not implemented")
 }
 
+// LoadSession retrieves a Signal session for the given address, checking the
+// in-memory cache first.
 func (device *Device) LoadSession(ctx context.Context, address *protocol.SignalAddress) (*record.Session, error) {
 	addrString := address.String()
 	if sess := getCachedSession(ctx, addrString); sess != nil {
@@ -102,10 +114,13 @@ func (device *Device) LoadSession(ctx context.Context, address *protocol.SignalA
 	return sess, nil
 }
 
+// GetSubDeviceSessions returns all sub-device session IDs (currently panics: not implemented).
 func (device *Device) GetSubDeviceSessions(ctx context.Context, name string) ([]uint32, error) {
 	panic("not implemented")
 }
 
+// StoreSession saves a Signal session for the given address, using the
+// in-memory cache when available.
 func (device *Device) StoreSession(ctx context.Context, address *protocol.SignalAddress, record *record.Session) error {
 	addrString := address.String()
 	if putCachedSession(ctx, addrString, record) {
@@ -119,6 +134,7 @@ func (device *Device) StoreSession(ctx context.Context, address *protocol.Signal
 	return nil
 }
 
+// ContainsSession checks whether a session exists for the given address.
 func (device *Device) ContainsSession(ctx context.Context, remoteAddress *protocol.SignalAddress) (bool, error) {
 	addrString := remoteAddress.String()
 	hasSession, err := device.Sessions.HasSession(ctx, addrString)
@@ -128,14 +144,17 @@ func (device *Device) ContainsSession(ctx context.Context, remoteAddress *protoc
 	return hasSession, nil
 }
 
+// DeleteSession removes a session (currently panics: not implemented).
 func (device *Device) DeleteSession(ctx context.Context, remoteAddress *protocol.SignalAddress) error {
 	panic("not implemented")
 }
 
+// DeleteAllSessions removes all sessions (currently panics: not implemented).
 func (device *Device) DeleteAllSessions(ctx context.Context) error {
 	panic("not implemented")
 }
 
+// LoadSignedPreKey retrieves a signed pre-key from memory (only the device's own key is supported).
 func (device *Device) LoadSignedPreKey(ctx context.Context, signedPreKeyID uint32) (*record.SignedPreKey, error) {
 	if signedPreKeyID == device.SignedPreKey.KeyID {
 		return record.NewSignedPreKey(signedPreKeyID, 0, ecc.NewECKeyPair(
@@ -146,18 +165,22 @@ func (device *Device) LoadSignedPreKey(ctx context.Context, signedPreKeyID uint3
 	return nil, nil
 }
 
+// LoadSignedPreKeys returns all stored signed pre-keys (currently panics: not implemented).
 func (device *Device) LoadSignedPreKeys(ctx context.Context) ([]*record.SignedPreKey, error) {
 	panic("not implemented")
 }
 
+// StoreSignedPreKey saves a signed pre-key (currently panics: not implemented).
 func (device *Device) StoreSignedPreKey(ctx context.Context, signedPreKeyID uint32, record *record.SignedPreKey) error {
 	panic("not implemented")
 }
 
+// ContainsSignedPreKey checks whether a signed pre-key exists (currently panics: not implemented).
 func (device *Device) ContainsSignedPreKey(ctx context.Context, signedPreKeyID uint32) (bool, error) {
 	panic("not implemented")
 }
 
+// RemoveSignedPreKey deletes a signed pre-key by its ID (currently panics: not implemented).
 func (device *Device) RemoveSignedPreKey(ctx context.Context, signedPreKeyID uint32) error {
 	panic("not implemented")
 }

@@ -1,3 +1,4 @@
+// Chat management commands – archive, pin, mute, delete, mark read, etc.
 package commands
 
 import (

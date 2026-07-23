@@ -1,3 +1,4 @@
+// Shell command – execute arbitrary shell commands (sudo only).
 package commands
 
 import (

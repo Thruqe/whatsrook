@@ -1,3 +1,4 @@
+// Call handling – manage incoming/outgoing call audio replies.
 package commands
 
 import (

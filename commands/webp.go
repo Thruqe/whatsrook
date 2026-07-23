@@ -1,3 +1,4 @@
+// WebP image processing – encode, decode, and manipulate WebP images.
 package commands
 
 import (

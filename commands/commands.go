@@ -1,3 +1,5 @@
+// Command registry – defines the Command type, handler interface, and global
+// registration table used by init() blocks across the package.
 package commands
 
 import (
@@ -9,8 +11,10 @@ import (
 // Context is passed to every command handler.
 type Context = sender.Context
 
+// Handler is the function signature for a command handler.
 type Handler func(ctx *Context) error
 
+// Command is the descriptor for a registered bot command.
 type Command struct {
 	Name         string
 	Aliases      []string

@@ -1,3 +1,4 @@
+// Sudo user management – add/remove/list sudo users who have elevated access.
 package commands
 
 import (

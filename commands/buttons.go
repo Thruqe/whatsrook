@@ -1,3 +1,4 @@
+// Buttons command – send interactive messages with action buttons.
 package commands
 
 import (

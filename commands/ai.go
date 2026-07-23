@@ -1,3 +1,5 @@
+// AI command – integrates with Meta AI for question answering and
+// command invocation via natural language.
 package commands
 
 import (

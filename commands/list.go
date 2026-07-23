@@ -1,3 +1,4 @@
+// Select list command – send an interactive dropdown list message.
 package commands
 
 import (

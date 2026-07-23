@@ -1,3 +1,4 @@
+// Update command – check for and apply self-updates from GitHub releases.
 package commands
 
 import (

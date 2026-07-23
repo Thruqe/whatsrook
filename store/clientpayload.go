@@ -4,6 +4,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+// Client payload generation for device registration and noise handshake.
 package store
 
 import (
@@ -42,6 +43,7 @@ func ParseVersion(version string) (parsed WAVersionContainer, err error) {
 	return
 }
 
+// LessThan returns true if this version is semantically less than the other.
 func (vc WAVersionContainer) LessThan(other WAVersionContainer) bool {
 	return vc[0] < other[0] ||
 		(vc[0] == other[0] && vc[1] < other[1]) ||
@@ -67,6 +69,7 @@ func (vc WAVersionContainer) Hash() [16]byte {
 	return md5.Sum([]byte(vc.String()))
 }
 
+// ProtoAppVersion converts the version into a Protobuf AppVersion message.
 func (vc WAVersionContainer) ProtoAppVersion() *waWa6.ClientPayload_UserAgent_AppVersion {
 	return &waWa6.ClientPayload_UserAgent_AppVersion{
 		Primary:   &vc[0],
@@ -99,6 +102,8 @@ func SetWAVersion(version WAVersionContainer) {
 	BaseClientPayload.UserAgent.AppVersion = waVersion.ProtoAppVersion()
 }
 
+// BaseClientPayload is the template ClientPayload sent to WhatsApp during
+// registration and login, with default metadata (platform, version, locale).
 var BaseClientPayload = &waWa6.ClientPayload{
 	UserAgent: &waWa6.ClientPayload_UserAgent{
 		Platform:       waWa6.ClientPayload_UserAgent_WEB.Enum(),
@@ -121,6 +126,7 @@ var BaseClientPayload = &waWa6.ClientPayload{
 	ConnectReason: waWa6.ClientPayload_USER_ACTIVATED.Enum(),
 }
 
+// DeviceProps defines the device properties sent during WhatsApp registration.
 var DeviceProps = &waCompanionReg.DeviceProps{
 	Os: new("whatsrook"),
 	Version: &waCompanionReg.DeviceProps_AppVersion{
@@ -156,6 +162,7 @@ var DeviceProps = &waCompanionReg.DeviceProps{
 	RequireFullSync: new(false),
 }
 
+// SetOSInfo updates the OS name and version in both DeviceProps and BaseClientPayload.
 func SetOSInfo(name string, version [3]uint32) {
 	DeviceProps.Os = &name
 	DeviceProps.Version.Primary = &version[0]
@@ -200,6 +207,8 @@ func (device *Device) getLoginPayload() *waWa6.ClientPayload {
 	return payload
 }
 
+// GetClientPayload builds the ClientPayload for either registration or login,
+// depending on whether the device is already paired.
 func (device *Device) GetClientPayload() *waWa6.ClientPayload {
 	if device.ID != nil {
 		if *device.ID == types.EmptyJID {

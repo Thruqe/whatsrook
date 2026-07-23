@@ -1,3 +1,5 @@
+// Instruction cache that rebuilds the RUN_COMMAND prompt block at most once
+// per cacheTTL.
 package meta_ai
 
 import (

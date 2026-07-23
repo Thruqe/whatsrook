@@ -1,3 +1,4 @@
+// Internal helpers for sending responses and retrieving configuration settings.
 package commands
 
 import (

@@ -1,3 +1,4 @@
+// Video call command – register and initiate video calls.
 package commands
 
 func init() {

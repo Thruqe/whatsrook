@@ -1,3 +1,4 @@
+// Command context type that is passed to every command handler.
 package sender
 
 import (

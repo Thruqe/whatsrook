@@ -1,3 +1,4 @@
+// CPU command – displays CPU usage and core information.
 package commands
 
 import (

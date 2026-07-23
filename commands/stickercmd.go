@@ -1,3 +1,4 @@
+// Sticker commands – create stickers from images, manage sticker packs.
 package commands
 
 import (

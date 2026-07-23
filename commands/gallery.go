@@ -1,3 +1,4 @@
+// Gallery command – send multiple images as a gallery message.
 package commands
 
 import (

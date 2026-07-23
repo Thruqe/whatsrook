@@ -1,7 +1,10 @@
+// Data types for the Meta AI request context passed to handler functions.
 package meta_ai
 
 import "go.mau.fi/whatsmeow/types"
 
+// Data contains the full context for a Meta AI request, including chat
+// metadata, user info, quoted messages, and group state.
 type Data struct {
 	ChatID                       string          `json:"chat_id"`
 	Question                     string          `json:"question"`
@@ -15,11 +18,14 @@ type Data struct {
 	GroupMetaData                types.GroupInfo `json:"group_meta_data"`
 }
 
+// Tools describes which tools the AI may invoke in its response.
 type Tools struct {
 	Shell   string `json:"shell"`   // Danger
 	Command string `json:"command"` // name of a registered bot command to invoke, e.g. "cpu"
 }
 
+// Response is the structured reply from Meta AI, containing the answer
+// text and any tool invocations to execute.
 type Response struct {
 	ChatID string `json:"chat_id"`
 	Answer string `json:"answer"`

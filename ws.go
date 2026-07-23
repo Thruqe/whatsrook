@@ -1,3 +1,5 @@
+// WebSocket hub for managing real-time connections, concurrent broadcasting,
+// and safe read/write loops.
 package main
 
 import (
@@ -13,6 +15,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// Hub manages all connected WebSocket clients and provides concurrent
+// broadcast of events and collection of control messages.
 type Hub struct {
 	mu      sync.RWMutex
 	clients map[*wsClient]struct{}
@@ -51,6 +55,9 @@ func (h *Hub) Broadcast(evt EventMessage) {
 	}
 }
 
+// ServeWS returns an HTTP handler that upgrades connections to the
+// WebSocket protocol, registers them with the hub, and runs read/write
+// loops using Protobuf binary framing.
 func (h *Hub) ServeWS(dev bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		subprotocols := []string{"protobuf"}

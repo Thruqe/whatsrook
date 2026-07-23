@@ -1,3 +1,4 @@
+// Fetch command – downloads content from URLs and sends it as media.
 package commands
 
 import (

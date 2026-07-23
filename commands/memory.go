@@ -1,3 +1,4 @@
+// Memory command – displays system memory usage information.
 package commands
 
 import (

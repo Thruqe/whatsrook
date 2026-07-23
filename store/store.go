@@ -20,6 +20,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
+// IdentityStore stores and retrieves identity keys for Signal protocol trust.
 type IdentityStore interface {
 	PutIdentity(ctx context.Context, address string, key [32]byte) error
 	DeleteAllIdentities(ctx context.Context, phone string) error
@@ -27,6 +28,7 @@ type IdentityStore interface {
 	IsTrustedIdentity(ctx context.Context, address string, key [32]byte) (bool, error)
 }
 
+// SessionStore stores and retrieves end-to-end encrypted sessions.
 type SessionStore interface {
 	GetSession(ctx context.Context, address string) ([]byte, error)
 	HasSession(ctx context.Context, address string) (bool, error)
@@ -38,6 +40,7 @@ type SessionStore interface {
 	MigratePNToLID(ctx context.Context, pn, lid types.JID) error
 }
 
+// PreKeyStore manages one-time and signed pre-keys for Signal protocol.
 type PreKeyStore interface {
 	GetOrGenPreKeys(ctx context.Context, count uint32) ([]*keys.PreKey, error)
 	GenOnePreKey(ctx context.Context) (*keys.PreKey, error)
@@ -47,17 +50,20 @@ type PreKeyStore interface {
 	UploadedPreKeyCount(ctx context.Context) (int, error)
 }
 
+// SenderKeyStore manages sender key records for group messaging.
 type SenderKeyStore interface {
 	PutSenderKey(ctx context.Context, group, user string, session []byte) error
 	GetSenderKey(ctx context.Context, group, user string) ([]byte, error)
 }
 
+// AppStateSyncKey holds the data and fingerprint for an app state sync key.
 type AppStateSyncKey struct {
 	Data        []byte
 	Fingerprint []byte
 	Timestamp   int64
 }
 
+// AppStateSyncKeyStore manages app state sync keys used for device-to-device sync.
 type AppStateSyncKeyStore interface {
 	PutAppStateSyncKey(ctx context.Context, id []byte, key AppStateSyncKey) error
 	GetAppStateSyncKey(ctx context.Context, id []byte) (*AppStateSyncKey, error)
@@ -65,11 +71,15 @@ type AppStateSyncKeyStore interface {
 	GetAllAppStateSyncKeys(ctx context.Context) ([]*AppStateSyncKey, error)
 }
 
+// AppStateMutationMAC stores a mutation Message Authentication Code for
+// app state integrity verification.
 type AppStateMutationMAC struct {
 	IndexMAC []byte
 	ValueMAC []byte
 }
 
+// AppStateStore persists app state versions and mutation MACs used for
+// syncing device state (e.g. contact list, settings).
 type AppStateStore interface {
 	PutAppStateVersion(ctx context.Context, name string, version uint64, hash [128]byte) error
 	GetAppStateVersion(ctx context.Context, name string) (uint64, [128]byte, error)
@@ -80,6 +90,7 @@ type AppStateStore interface {
 	GetAppStateMutationMAC(ctx context.Context, name string, indexMAC []byte) (valueMAC []byte, err error)
 }
 
+// ContactEntry represents a single contact with first and full name.
 type ContactEntry struct {
 	JID       types.JID
 	FirstName string
@@ -90,6 +101,7 @@ func (ce ContactEntry) GetMassInsertValues() [3]any {
 	return [...]any{ce.JID.String(), ce.FirstName, ce.FullName}
 }
 
+// RedactedPhoneEntry pairs a JID with its redacted phone number for privacy.
 type RedactedPhoneEntry struct {
 	JID           types.JID
 	RedactedPhone string
@@ -99,6 +111,8 @@ func (rpe RedactedPhoneEntry) GetMassInsertValues() [2]any {
 	return [...]any{rpe.JID.String(), rpe.RedactedPhone}
 }
 
+// ContactStore manages contact information including push names, business
+// names, and redacted phone numbers.
 type ContactStore interface {
 	PutPushName(ctx context.Context, user types.JID, pushName string) (bool, string, error)
 	PutBusinessName(ctx context.Context, user types.JID, businessName string) (bool, string, error)
@@ -109,8 +123,10 @@ type ContactStore interface {
 	GetAllContacts(ctx context.Context) (map[types.JID]types.ContactInfo, error)
 }
 
+// MutedForever is a sentinel timestamp used to represent an indefinitely muted chat.
 var MutedForever = time.Date(9999, 12, 31, 23, 59, 59, 999999999, time.UTC)
 
+// ChatSettingsStore manages per-chat settings like mute, pin, and archive state.
 type ChatSettingsStore interface {
 	PutMutedUntil(ctx context.Context, chat types.JID, mutedUntil time.Time) error
 	PutPinned(ctx context.Context, chat types.JID, pinned bool) error
@@ -118,11 +134,13 @@ type ChatSettingsStore interface {
 	GetChatSettings(ctx context.Context, chat types.JID) (types.LocalChatSettings, error)
 }
 
+// DeviceContainer manages device persistence (save/delete) in a database.
 type DeviceContainer interface {
 	PutDevice(ctx context.Context, store *Device) error
 	DeleteDevice(ctx context.Context, store *Device) error
 }
 
+// MessageSecretInsert describes a message secret to be stored for later decryption.
 type MessageSecretInsert struct {
 	Chat   types.JID
 	Sender types.JID
@@ -130,12 +148,15 @@ type MessageSecretInsert struct {
 	Secret []byte
 }
 
+// MsgSecretStore stores and retrieves message secrets used for decrypting
+// history sync messages.
 type MsgSecretStore interface {
 	PutMessageSecrets(ctx context.Context, inserts []MessageSecretInsert) error
 	PutMessageSecret(ctx context.Context, chat, sender types.JID, id types.MessageID, secret []byte) error
 	GetMessageSecret(ctx context.Context, chat, sender types.JID, id types.MessageID) ([]byte, types.JID, error)
 }
 
+// PrivacyToken holds a user's privacy token and its timestamps.
 type PrivacyToken struct {
 	User            types.JID
 	Token           []byte
@@ -143,24 +164,28 @@ type PrivacyToken struct {
 	SenderTimestamp time.Time
 }
 
+// PrivacyTokenStore manages privacy tokens for contact discovery and privacy checks.
 type PrivacyTokenStore interface {
 	PutPrivacyTokens(ctx context.Context, tokens ...PrivacyToken) error
 	GetPrivacyToken(ctx context.Context, user types.JID) (*PrivacyToken, error)
 	DeleteExpiredPrivacyTokens(ctx context.Context, cutoff time.Time) (int64, error)
 }
 
+// NCTSaltStore manages noise-cancellation token salts for call privacy.
 type NCTSaltStore interface {
 	PutNCTSalt(ctx context.Context, salt []byte) error
 	GetNCTSalt(ctx context.Context) ([]byte, error)
 	DeleteNCTSalt(ctx context.Context) error
 }
 
+// BufferedEvent holds a decrypted event plaintext with timing info.
 type BufferedEvent struct {
 	Plaintext  []byte
 	InsertTime time.Time
 	ServerTime time.Time
 }
 
+// EventBuffer buffers incoming events for replay and decryption ordering.
 type EventBuffer interface {
 	GetBufferedEvent(ctx context.Context, ciphertextHash [32]byte) (*BufferedEvent, error)
 	PutBufferedEvent(ctx context.Context, ciphertextHash [32]byte, plaintext []byte, serverTimestamp time.Time) error
@@ -173,6 +198,7 @@ type EventBuffer interface {
 	DeleteOldOutgoingEvents(ctx context.Context) error
 }
 
+// LIDMapping maps a LID (long-term identity) to a phone number JID.
 type LIDMapping struct {
 	LID types.JID
 	PN  types.JID
@@ -182,6 +208,7 @@ func (lm LIDMapping) GetMassInsertValues() [2]any {
 	return [...]any{lm.LID.User, lm.PN.User}
 }
 
+// LIDStore manages LID-to-phone-number mappings for identity migration.
 type LIDStore interface {
 	PutManyLIDMappings(ctx context.Context, mappings []LIDMapping) error
 	PutLIDMapping(ctx context.Context, lid, jid types.JID) error
@@ -190,6 +217,7 @@ type LIDStore interface {
 	GetManyLIDsForPNs(ctx context.Context, pns []types.JID) (map[types.JID]types.JID, error)
 }
 
+// AllSessionSpecificStores combines all per-session store interfaces into one.
 type AllSessionSpecificStores interface {
 	IdentityStore
 	SessionStore
@@ -205,15 +233,19 @@ type AllSessionSpecificStores interface {
 	EventBuffer
 }
 
+// AllGlobalStores combines all global (cross-session) store interfaces.
 type AllGlobalStores interface {
 	LIDStore
 }
 
+// AllStores combines both session-specific and global store interfaces.
 type AllStores interface {
 	AllSessionSpecificStores
 	AllGlobalStores
 }
 
+// Device represents a WhatsApp device and holds all cryptographic keys,
+// identity, and references to the backing stores.
 type Device struct {
 	Log waLog.Logger
 
@@ -253,6 +285,7 @@ type Device struct {
 	Container     DeviceContainer
 }
 
+// GetJID returns the device's WhatsApp JID, or an empty JID if not set.
 func (device *Device) GetJID() types.JID {
 	if device == nil {
 		return types.EmptyJID
@@ -264,6 +297,7 @@ func (device *Device) GetJID() types.JID {
 	return *id
 }
 
+// GetLID returns the device's long-term identity JID.
 func (device *Device) GetLID() types.JID {
 	if device == nil {
 		return types.EmptyJID
@@ -271,8 +305,11 @@ func (device *Device) GetLID() types.JID {
 	return device.LID
 }
 
+// ErrDeviceDeleted is returned when an operation is attempted on a device
+// that has already been deleted.
 var ErrDeviceDeleted = errors.New("invalid use of deleted device")
 
+// Save persists the device to the container store.
 func (device *Device) Save(ctx context.Context) error {
 	if device.Deleted {
 		return ErrDeviceDeleted
@@ -280,6 +317,7 @@ func (device *Device) Save(ctx context.Context) error {
 	return device.Container.PutDevice(ctx, device)
 }
 
+// Delete removes the device from its container store and marks it as deleted.
 func (device *Device) Delete(ctx context.Context) error {
 	if device.Deleted {
 		return nil
@@ -295,6 +333,8 @@ func (device *Device) Delete(ctx context.Context) error {
 	return nil
 }
 
+// SetAllStores assigns the same store implementation to all session-specific
+// store fields on the device.
 func (device *Device) SetAllStores(store AllSessionSpecificStores) {
 	device.Identities = store
 	device.Sessions = store
@@ -310,6 +350,7 @@ func (device *Device) SetAllStores(store AllSessionSpecificStores) {
 	device.EventBuffer = store
 }
 
+// GetAltJID resolves a JID to its alternative form (PN-to-LID or LID-to-PN).
 func (device *Device) GetAltJID(ctx context.Context, jid types.JID) (types.JID, error) {
 	if device == nil {
 		return types.EmptyJID, nil

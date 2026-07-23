@@ -1,3 +1,5 @@
+// Event dispatcher – parses incoming messages, matches command prefixes, runs
+// moderation, and routes commands to their handlers.
 package commands
 
 import (

@@ -24,6 +24,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 )
 
+// CachedLIDMap provides in-memory caching for LID-to-PN and PN-to-LID mappings.
 type CachedLIDMap struct {
 	db *dbutil.Database
 
@@ -35,6 +36,7 @@ type CachedLIDMap struct {
 
 var _ store.LIDStore = (*CachedLIDMap)(nil)
 
+// NewCachedLIDMap creates a new CachedLIDMap backed by the given database.
 func NewCachedLIDMap(db *dbutil.Database) *CachedLIDMap {
 	return &CachedLIDMap{
 		db: db,
@@ -68,6 +70,7 @@ var convertLIDRow = dbutil.ConvertRowFn[store.LIDMapping](func(rows dbutil.Scann
 	}, nil
 })
 
+// FillCache pre-loads all LID-to-PN mappings from the database into memory.
 func (s *CachedLIDMap) FillCache(ctx context.Context) error {
 	s.lidCacheLock.Lock()
 	defer s.lidCacheLock.Unlock()
@@ -115,6 +118,7 @@ func (s *CachedLIDMap) getLIDMapping(ctx context.Context, source types.JID, targ
 	return types.JID{}, nil
 }
 
+// GetLIDForPN resolves a phone number JID to its corresponding LID.
 func (s *CachedLIDMap) GetLIDForPN(ctx context.Context, pn types.JID) (types.JID, error) {
 	if pn.Server != types.DefaultUserServer {
 		return types.JID{}, fmt.Errorf("invalid GetLIDForPN call with non-PN JID %s", pn)
@@ -125,6 +129,7 @@ func (s *CachedLIDMap) GetLIDForPN(ctx context.Context, pn types.JID) (types.JID
 	)
 }
 
+// GetPNForLID resolves a LID to its corresponding phone number JID.
 func (s *CachedLIDMap) GetPNForLID(ctx context.Context, lid types.JID) (types.JID, error) {
 	if lid.Server != types.HiddenUserServer {
 		return types.JID{}, fmt.Errorf("invalid GetPNForLID call with non-LID JID %s", lid)
@@ -135,6 +140,7 @@ func (s *CachedLIDMap) GetPNForLID(ctx context.Context, lid types.JID) (types.JI
 	)
 }
 
+// GetManyLIDsForPNs resolves multiple phone number JIDs to their LIDs in a single batch.
 func (s *CachedLIDMap) GetManyLIDsForPNs(ctx context.Context, pns []types.JID) (map[types.JID]types.JID, error) {
 	if len(pns) == 0 {
 		return nil, nil
@@ -194,6 +200,7 @@ func (s *CachedLIDMap) GetManyLIDsForPNs(ctx context.Context, pns []types.JID) (
 	return result, err
 }
 
+// PutLIDMapping stores a LID-to-PN mapping and updates the cache.
 func (s *CachedLIDMap) PutLIDMapping(ctx context.Context, lid, pn types.JID) error {
 	if lid.Server != types.HiddenUserServer || pn.Server != types.DefaultUserServer {
 		return fmt.Errorf("invalid PutLIDMapping call %s/%s", lid, pn)
@@ -209,6 +216,7 @@ func (s *CachedLIDMap) PutLIDMapping(ctx context.Context, lid, pn types.JID) err
 	})
 }
 
+// PutManyLIDMappings stores multiple LID-to-PN mappings in a single transaction.
 func (s *CachedLIDMap) PutManyLIDMappings(ctx context.Context, mappings []store.LIDMapping) error {
 	s.lidCacheLock.Lock()
 	defer s.lidCacheLock.Unlock()

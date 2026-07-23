@@ -1,3 +1,4 @@
+// JSON-based WebSocket payload type definitions and serialisation.
 package main
 
 import (
@@ -11,6 +12,7 @@ import (
 	googleProto "google.golang.org/protobuf/proto"
 )
 
+// ControlType identifies the kind of control message a WebSocket client sends.
 type ControlType string
 
 const (
@@ -25,6 +27,7 @@ const (
 	ControlRequestPairQR   ControlType = "request_pair_qr"
 )
 
+// EventType identifies the kind of event broadcast to WebSocket clients.
 type EventType string
 
 const (
@@ -135,6 +138,7 @@ type SendMessagePayload struct {
 	QuoteSender *string `json:"quote_sender,omitempty"`
 }
 
+// SendReactionPayload carries the data needed to react to a message.
 type SendReactionPayload struct {
 	To        string  `json:"to"`
 	MessageID string  `json:"message_id"`
@@ -142,22 +146,26 @@ type SendReactionPayload struct {
 	Emoji     string  `json:"emoji"`
 }
 
+// EditMessagePayload carries the data needed to edit an existing message.
 type EditMessagePayload struct {
 	To        string `json:"to"`
 	MessageID string `json:"message_id"`
 	NewText   string `json:"new_text"`
 }
 
+// RevokeMessagePayload carries the data needed to revoke (delete) a message.
 type RevokeMessagePayload struct {
 	To             string  `json:"to"`
 	MessageID      string  `json:"message_id"`
 	OriginalSender *string `json:"original_sender,omitempty"`
 }
 
+// RequestPairCodePayload carries the phone number for pairing code flow.
 type RequestPairCodePayload struct {
 	PhoneNumber string `json:"phone_number"`
 }
 
+// RequestPairQRPayload is an empty payload for QR pairing requests.
 type RequestPairQRPayload struct{}
 
 // WriteWSMessage serializes and writes an EventMessage to a WebSocket connection using Protobuf.

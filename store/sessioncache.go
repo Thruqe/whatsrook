@@ -4,6 +4,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+// In-memory session cache for pre-key and sender-key records.
 package store
 
 import (
@@ -69,6 +70,8 @@ func putCachedSession(ctx context.Context, addr string, record *record.Session) 
 	return true
 }
 
+// WithCachedSessions pre-fetches sessions for the given addresses and returns
+// a new context containing the session cache.
 func (device *Device) WithCachedSessions(ctx context.Context, addresses []string) (map[string]bool, context.Context, error) {
 	if len(addresses) == 0 {
 		return nil, ctx, nil
@@ -103,6 +106,7 @@ func (device *Device) WithCachedSessions(ctx context.Context, addresses []string
 	return existingSessions, ctx, nil
 }
 
+// PutCachedSessions flushes all dirty cached sessions back to the store.
 func (device *Device) PutCachedSessions(ctx context.Context) error {
 	cache := getSessionCache(ctx)
 	if cache == nil {

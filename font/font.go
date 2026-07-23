@@ -1,3 +1,4 @@
+// Font styling engine – converts text to various decorative Unicode/ASCII styles.
 package font
 
 import (
@@ -10,18 +11,21 @@ var (
 	mu           sync.RWMutex
 )
 
+// SetStyle sets the active font style for text conversion.
 func SetStyle(style string) {
 	mu.Lock()
 	defer mu.Unlock()
 	currentStyle = strings.ToLower(style)
 }
 
+// GetStyle returns the currently active font style name.
 func GetStyle() string {
 	mu.RLock()
 	defer mu.RUnlock()
 	return currentStyle
 }
 
+// Convert transforms the input string to the currently active font style.
 func Convert(s string) string {
 	style := GetStyle()
 	var sb strings.Builder

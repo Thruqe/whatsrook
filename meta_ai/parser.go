@@ -1,3 +1,4 @@
+// Response parsing and command-instruction generation for Meta AI requests.
 package meta_ai
 
 import (

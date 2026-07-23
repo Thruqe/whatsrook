@@ -1,3 +1,5 @@
+// Ember media download service – downloads media from supported platforms
+// (Twitter/X, Instagram, TikTok, Facebook, Threads) via a remote API.
 package ember
 
 import (
@@ -14,11 +16,13 @@ import (
 
 const baseURL string = "https://embers-0kn7.onrender.com/download"
 
+// Owner holds information about the content creator of downloaded media.
 type Owner struct {
 	Username string `json:"username"`
 	FullName string `json:"full_name"`
 }
 
+// Media represents a single downloadable media item from a platform.
 type Media struct {
 	URL       string `json:"url"`
 	Type      string `json:"type"` // "video", "image", "audio"
@@ -26,6 +30,7 @@ type Media struct {
 	IsAudio   bool   `json:"is_audio"`
 }
 
+// FormatInfo describes a single downloadable format variant (resolution, codec, etc.).
 type FormatInfo struct {
 	FormatID   *string `json:"format_id"`
 	URL        *string `json:"url"`
@@ -37,12 +42,14 @@ type FormatInfo struct {
 	FPS        any     `json:"fps"`
 }
 
+// Result wraps the API response, including error status and downloaded data.
 type Result struct {
 	Error    bool   `json:"error"`
 	ErrorMsg string `json:"message,omitempty"`
 	Data     Data   `json:"data"`
 }
 
+// Data holds the full download result including metadata, owner info, and media items.
 type Data struct {
 	ID           *string        `json:"id"`
 	RawTitle     *string        `json:"title"`
