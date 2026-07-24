@@ -4,6 +4,7 @@ package commands
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"whatsrook/utils"
@@ -113,11 +114,17 @@ func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 								case <-ctx.Ctx.Done():
 									return
 								case <-ticker.C:
+									if call.State() == meowcaller.CallPhaseEnded {
+										return
+									}
 									frame := frames[frameIdx]
 									if err := call.SendVideoWithDuration(frame, frameDur); err != nil {
-										logHandlerErr("videocall", err)
+										if !strings.Contains(err.Error(), "has no active video media") {
+											logHandlerErr("videocall", err)
+										}
+									} else {
+										frameIdx = (frameIdx + 1) % len(frames)
 									}
-									frameIdx = (frameIdx + 1) % len(frames)
 								}
 							}
 						}()
