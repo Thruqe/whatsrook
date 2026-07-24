@@ -296,16 +296,21 @@ func handleAI(ctx *Context) error {
 	})
 
 	pushName := ""
-	if ctx.Evt != nil && ctx.Evt.Info.PushName != "" {
-		pushName = ctx.Evt.Info.PushName
+	msgID := ""
+	if ctx.Evt != nil {
+		if ctx.Evt.Info.PushName != "" {
+			pushName = ctx.Evt.Info.PushName
+		}
+		msgID = ctx.Evt.Info.ID
 	}
 
 	data := meta_ai.Data{
-		ChatID:   ctx.Chat.String(),
-		Question: ctx.RawArgs,
-		User:     ctx.Sender,
-		PushName: pushName,
-		IsSudo:   ctx.IsSudo(),
+		ChatID:    ctx.Chat.String(),
+		Question:  ctx.RawArgs,
+		MessageID: msgID,
+		User:      ctx.Sender,
+		PushName:  pushName,
+		IsSudo:    ctx.IsSudo(),
 	}
 
 	isGroup := ctx.Chat.Server == "g.us"
@@ -489,6 +494,9 @@ func extractContextFromQuotedMessage(ctx *Context, data *meta_ai.Data) {
 	}
 	if ci != nil {
 		quotedParticipant = ci.GetParticipant()
+		if ci.StanzaID != nil {
+			data.QuotedMessageID = *ci.StanzaID
+		}
 	}
 
 	if quotedParticipant != "" {

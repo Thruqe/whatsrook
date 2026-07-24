@@ -8,8 +8,10 @@ import "go.mau.fi/whatsmeow/types"
 type Data struct {
 	ChatID                       string          `json:"chat_id"`
 	Question                     string          `json:"question"`
+	MessageID                    string          `json:"message_id"`
 	User                         types.JID       `json:"user"`
 	PushName                     string          `json:"push_name"`
+	QuotedMessageID              string          `json:"quoted_message_id"`
 	QuotedMessageOfQuestion      string          `json:"quoted_message_of_question"`
 	QuotedMessageType            string          `json:"quoted_message_type"`
 	QuotedImageBase64            string          `json:"quoted_image_base64"`

@@ -284,12 +284,16 @@ func handleClear(ctx *Context) error {
 }
 
 func handleDelete(ctx *Context) error {
-	ci := ctx.GetContextInfo()
-	if ci == nil || ci.StanzaID == nil {
-		return ctx.Reply("Reply to the message you want to delete.")
+	var targetID types.MessageID
+	if len(ctx.Args) > 0 && strings.TrimSpace(ctx.Args[0]) != "" {
+		targetID = types.MessageID(strings.TrimSpace(ctx.Args[0]))
+	} else {
+		ci := ctx.GetContextInfo()
+		if ci == nil || ci.StanzaID == nil {
+			return ctx.Reply("Reply to the message you want to delete, or specify a message ID.")
+		}
+		targetID = *ci.StanzaID
 	}
-
-	targetID := *ci.StanzaID
 
 	isAuthorized := ctx.IsSudo()
 	if !isAuthorized && ctx.Chat.Server == "g.us" {

@@ -40,6 +40,13 @@ func BuildRunCommandInstruction(cmds []CommandInfo) string {
 	b.WriteString("NEVER output RUN_COMMAND for 'ai', 'gpt', or conversational chatter. If the user is chatting or making small talk, answer naturally.\n")
 	b.WriteString("If the user asks ABOUT how a command works or asks for help/explanation, explain clearly and mention they can ask you to run it.\n")
 	b.WriteString("If a command is [sudo-only] and user isn't authorized, explain it is restricted.\n\n")
+	b.WriteString("[WHATSROOK_AI_BOT_TOOLS (RAW EXECUTION TOOLS)]:\n")
+	b.WriteString("You can invoke raw action tools by responding with RUN_COMMAND: !<tool> <args>:\n")
+	b.WriteString("- !send <text> : Send raw text message to the current chat.\n")
+	b.WriteString("- !edit <msg_id> <new_text> : Edit a message using its Message ID.\n")
+	b.WriteString("- !delete [msg_id] : Delete/revoke a message by Message ID (or omit msg_id when replying to a message).\n")
+	b.WriteString("- !ffmpeg <args> : Execute an ffmpeg command on media or raw arguments.\n")
+	b.WriteString("- !fetch <url> : Fetch raw HTTP content from a URL.\n\n")
 	b.WriteString("Commands list:\n")
 
 	for _, c := range cmds {
@@ -141,21 +148,24 @@ func RenderGroupContext(info types.GroupInfo) string {
 
 // RenderUserContext turns user info into a text block appended to the query sent to Meta AI.
 func RenderUserContext(d Data) string {
-	if d.PushName == "" && d.User.User == "" {
+	if d.PushName == "" && d.User.User == "" && d.MessageID == "" {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("[USER CONTEXT]\n")
+	b.WriteString("[USER & MESSAGE OBJECT CONTEXT]\n")
 	if d.PushName != "" {
 		fmt.Fprintf(&b, "User name: %s\n", d.PushName)
 	}
 	if d.User.User != "" {
 		fmt.Fprintf(&b, "User JID: %s\n", d.User.User)
 	}
+	if d.MessageID != "" {
+		fmt.Fprintf(&b, "Message ID: %s\n", d.MessageID)
+	}
 	if d.IsSudo {
 		b.WriteString("Status: Owner/Sudo\n")
 	}
-	b.WriteString("[/USER CONTEXT]\n\n")
+	b.WriteString("[/USER & MESSAGE OBJECT CONTEXT]\n\n")
 	return b.String()
 }
 
@@ -163,11 +173,14 @@ func RenderUserContext(d Data) string {
 // giving Meta AI context about what message the user is replying to, if
 // any.
 func RenderQuotedContext(d Data) string {
-	if d.QuotedMessageOfQuestion == "" && d.QuotedImageBase64 == "" && d.QuotedMessageType == "" {
+	if d.QuotedMessageOfQuestion == "" && d.QuotedImageBase64 == "" && d.QuotedMessageType == "" && d.QuotedMessageID == "" {
 		return ""
 	}
 	var b strings.Builder
 	b.WriteString("[REPLYING TO A MESSAGE — EXTRACTED CONTEXT]\n")
+	if d.QuotedMessageID != "" {
+		fmt.Fprintf(&b, "Quoted Message ID: %s\n", d.QuotedMessageID)
+	}
 	if d.UserOfQuotedMessage != "" {
 		fmt.Fprintf(&b, "From: %s", d.UserOfQuotedMessage)
 		if d.QuotedMessageParticipantRole != "" {
