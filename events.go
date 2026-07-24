@@ -86,8 +86,8 @@ func (b *Bot) handleWAEvent(evt any) {
 		slog.Info("group info update received", "jid", v.JID.String())
 		b.handleGroupGreetings(context.Background(), v)
 
-	case *events.Receipt, *events.PushName, *events.Presence, *events.ChatPresence, *events.AppState, *events.AppStateSyncComplete, *events.Contact, *events.OfflineSyncPreview, *events.OfflineSyncCompleted:
-		// Ignore common presence/receipt/keepalive/sync events to avoid debug log clutter
+	case *events.Receipt, *events.PushName, *events.Presence, *events.ChatPresence, *events.AppState, *events.AppStateSyncComplete, *events.Contact, *events.OfflineSyncPreview, *events.OfflineSyncCompleted, *events.CallAccept, *events.CallPreAccept, *events.CallRelayLatency, *events.CallTerminate, *events.UnknownCallEvent:
+		// Ignore low-level call signaling & presence/receipt events to avoid log clutter
 
 	default:
 		slog.Debug("unhandled event", "type", fmt.Sprintf("%T", evt))
