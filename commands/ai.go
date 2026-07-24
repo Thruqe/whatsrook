@@ -4,6 +4,7 @@ package commands
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -294,10 +295,16 @@ func handleAI(ctx *Context) error {
 		return meta_ai.BuildRunCommandInstruction(metaCmds)
 	})
 
+	pushName := ""
+	if ctx.Evt != nil && ctx.Evt.Info.PushName != "" {
+		pushName = ctx.Evt.Info.PushName
+	}
+
 	data := meta_ai.Data{
 		ChatID:   ctx.Chat.String(),
 		Question: ctx.RawArgs,
 		User:     ctx.Sender,
+		PushName: pushName,
 		IsSudo:   ctx.IsSudo(),
 	}
 
@@ -319,59 +326,15 @@ func handleAI(ctx *Context) error {
 		data.ChatType = "direct"
 	}
 
-	// Populate quoted-message context, if this message is a reply.
-	if quotedMsg := getQuotedMessageFromEvent(ctx.Evt); quotedMsg != nil {
-		if quotedText := extractTextFromProto(quotedMsg); quotedText != "" {
-			data.QuotedMessageOfQuestion = quotedText
-
-			var quotedParticipant string
-			msg := ctx.Evt.Message
-			var ci *waE2E.ContextInfo
-			switch {
-			case msg.GetExtendedTextMessage() != nil:
-				ci = msg.GetExtendedTextMessage().GetContextInfo()
-			case msg.GetImageMessage() != nil:
-				ci = msg.GetImageMessage().GetContextInfo()
-			case msg.GetVideoMessage() != nil:
-				ci = msg.GetVideoMessage().GetContextInfo()
-			case msg.GetAudioMessage() != nil:
-				ci = msg.GetAudioMessage().GetContextInfo()
-			case msg.GetDocumentMessage() != nil:
-				ci = msg.GetDocumentMessage().GetContextInfo()
-			}
-			if ci != nil {
-				quotedParticipant = ci.GetParticipant()
-			}
-
-			if quotedParticipant != "" {
-				if quotedJID, err := types.ParseJID(quotedParticipant); err == nil {
-					data.UserOfQuotedMessage = quotedJID.User
-
-					if isGroup {
-						for _, p := range data.GroupMetaData.Participants {
-							if p.JID.User == quotedJID.User {
-								switch {
-								case p.IsSuperAdmin:
-									data.QuotedMessageParticipantRole = "Super Admin"
-								case p.IsAdmin:
-									data.QuotedMessageParticipantRole = "Admin"
-								default:
-									data.QuotedMessageParticipantRole = "Member"
-								}
-								break
-							}
-						}
-					}
-				}
-			}
-		}
-	}
+	// Populate quoted-message context (extract context), if this message is a reply.
+	extractContextFromQuotedMessage(ctx, &data)
 
 	// Assemble the full query sent to Meta AI.
 	query := instruction
 	if isGroup {
 		query += meta_ai.RenderGroupContext(data.GroupMetaData)
 	}
+	query += meta_ai.RenderUserContext(data)
 	query += meta_ai.RenderQuotedContext(data)
 	query += data.Question
 
@@ -495,4 +458,147 @@ func handleAI(ctx *Context) error {
 
 	slog.Info("handleAI: completed successfully", "chat", ctx.Chat.String())
 	return nil
+}
+
+func extractContextFromQuotedMessage(ctx *Context, data *meta_ai.Data) {
+	if ctx.Evt == nil {
+		return
+	}
+	quotedMsg := getQuotedMessageFromEvent(ctx.Evt)
+	if quotedMsg == nil {
+		return
+	}
+
+	// Extract Quoted Sender / Participant
+	var quotedParticipant string
+	msg := ctx.Evt.Message
+	var ci *waE2E.ContextInfo
+	switch {
+	case msg.GetExtendedTextMessage() != nil:
+		ci = msg.GetExtendedTextMessage().GetContextInfo()
+	case msg.GetImageMessage() != nil:
+		ci = msg.GetImageMessage().GetContextInfo()
+	case msg.GetVideoMessage() != nil:
+		ci = msg.GetVideoMessage().GetContextInfo()
+	case msg.GetAudioMessage() != nil:
+		ci = msg.GetAudioMessage().GetContextInfo()
+	case msg.GetDocumentMessage() != nil:
+		ci = msg.GetDocumentMessage().GetContextInfo()
+	case msg.GetStickerMessage() != nil:
+		ci = msg.GetStickerMessage().GetContextInfo()
+	}
+	if ci != nil {
+		quotedParticipant = ci.GetParticipant()
+	}
+
+	if quotedParticipant != "" {
+		if quotedJID, err := types.ParseJID(quotedParticipant); err == nil {
+			data.UserOfQuotedMessage = quotedJID.User
+			if data.ChatType == "group" {
+				for _, p := range data.GroupMetaData.Participants {
+					if p.JID.User == quotedJID.User {
+						switch {
+						case p.IsSuperAdmin:
+							data.QuotedMessageParticipantRole = "Super Admin"
+						case p.IsAdmin:
+							data.QuotedMessageParticipantRole = "Admin"
+						default:
+							data.QuotedMessageParticipantRole = "Member"
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+
+	switch {
+	case quotedMsg.GetConversation() != "":
+		data.QuotedMessageType = "Text"
+		data.QuotedMessageOfQuestion = quotedMsg.GetConversation()
+
+	case quotedMsg.GetExtendedTextMessage() != nil:
+		data.QuotedMessageType = "Text"
+		data.QuotedMessageOfQuestion = quotedMsg.GetExtendedTextMessage().GetText()
+
+	case quotedMsg.GetImageMessage() != nil:
+		imgMsg := quotedMsg.GetImageMessage()
+		data.QuotedMessageType = "Image"
+		data.QuotedMessageOfQuestion = imgMsg.GetCaption()
+		mimetype := imgMsg.GetMimetype()
+		if mimetype == "" {
+			mimetype = "image/jpeg"
+		}
+		data.QuotedImageMimeType = mimetype
+
+		imgData, err := ctx.Client.Download(ctx.Ctx, imgMsg)
+		if err == nil && len(imgData) > 0 {
+			data.QuotedImageBase64 = base64.StdEncoding.EncodeToString(imgData)
+			slog.Debug("extractContextFromQuotedMessage: extracted image base64", "len", len(data.QuotedImageBase64))
+		} else {
+			slog.Warn("extractContextFromQuotedMessage: failed to download quoted image", "err", err)
+		}
+
+	case quotedMsg.GetVideoMessage() != nil:
+		vidMsg := quotedMsg.GetVideoMessage()
+		data.QuotedMessageType = "Video"
+		data.QuotedMessageOfQuestion = vidMsg.GetCaption()
+
+	case quotedMsg.GetAudioMessage() != nil:
+		data.QuotedMessageType = "Audio"
+		data.QuotedMessageOfQuestion = "[Voice/Audio message]"
+
+	case quotedMsg.GetDocumentMessage() != nil:
+		docMsg := quotedMsg.GetDocumentMessage()
+		data.QuotedMessageType = "Document"
+		caption := docMsg.GetCaption()
+		filename := docMsg.GetFileName()
+		if filename != "" {
+			data.QuotedMessageOfQuestion = fmt.Sprintf("File: %s. Caption: %s", filename, caption)
+		} else {
+			data.QuotedMessageOfQuestion = caption
+		}
+
+	case quotedMsg.GetStickerMessage() != nil:
+		data.QuotedMessageType = "Sticker"
+		data.QuotedMessageOfQuestion = "[Sticker message]"
+
+	case quotedMsg.GetPollCreationMessage() != nil || quotedMsg.GetPollCreationMessageV2() != nil || quotedMsg.GetPollCreationMessageV3() != nil:
+		data.QuotedMessageType = "Poll"
+		var pollName string
+		var options []string
+		if p := quotedMsg.GetPollCreationMessage(); p != nil {
+			pollName = p.GetName()
+			for _, opt := range p.GetOptions() {
+				options = append(options, opt.GetOptionName())
+			}
+		} else if p := quotedMsg.GetPollCreationMessageV2(); p != nil {
+			pollName = p.GetName()
+			for _, opt := range p.GetOptions() {
+				options = append(options, opt.GetOptionName())
+			}
+		} else if p := quotedMsg.GetPollCreationMessageV3(); p != nil {
+			pollName = p.GetName()
+			for _, opt := range p.GetOptions() {
+				options = append(options, opt.GetOptionName())
+			}
+		}
+		data.QuotedMessageOfQuestion = fmt.Sprintf("Poll Question: %s. Options: %s", pollName, strings.Join(options, ", "))
+
+	case quotedMsg.GetLocationMessage() != nil:
+		locMsg := quotedMsg.GetLocationMessage()
+		data.QuotedMessageType = "Location"
+		data.QuotedMessageOfQuestion = fmt.Sprintf("Location: %f, %f (%s)", locMsg.GetDegreesLatitude(), locMsg.GetDegreesLongitude(), locMsg.GetName())
+
+	case quotedMsg.GetContactMessage() != nil:
+		contMsg := quotedMsg.GetContactMessage()
+		data.QuotedMessageType = "Contact"
+		data.QuotedMessageOfQuestion = fmt.Sprintf("Contact: %s", contMsg.GetDisplayName())
+
+	default:
+		if txt := extractTextFromProto(quotedMsg); txt != "" {
+			data.QuotedMessageType = "Other"
+			data.QuotedMessageOfQuestion = txt
+		}
+	}
 }
