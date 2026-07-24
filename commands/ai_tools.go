@@ -36,6 +36,15 @@ func init() {
 		IsPublic:     false,
 		Handler:      handleFFmpeg,
 	})
+	Register(&Command{
+		Name:         "downloadMessage",
+		Aliases:      []string{"download", "dl"},
+		Description:  "Download media from a message by ID or quoted message",
+		Category:     "whatsrook_ai_bot_tools",
+		HideFromMenu: true,
+		IsPublic:     true,
+		Handler:      handleDownloadMessage,
+	})
 }
 
 func handleSend(ctx *Context) error {
@@ -179,4 +188,24 @@ func handleFFmpeg(ctx *Context) error {
 		resStr = "FFmpeg command completed successfully."
 	}
 	return ctx.Reply(resStr)
+}
+
+func handleDownloadMessage(ctx *Context) error {
+	mediaData, mimetype, err := ctx.GetMedia()
+	if err != nil || len(mediaData) == 0 {
+		return ctx.Reply("No downloadable media found in the target or quoted message.")
+	}
+
+	switch {
+	case strings.HasPrefix(mimetype, "image/webp"):
+		return ctx.SendSticker(mediaData)
+	case strings.HasPrefix(mimetype, "image/"):
+		return ctx.SendImage(mediaData, mimetype, "Downloaded image")
+	case strings.HasPrefix(mimetype, "video/"):
+		return ctx.SendVideo(mediaData, mimetype, "Downloaded video")
+	case strings.HasPrefix(mimetype, "audio/"):
+		return ctx.SendAudio(mediaData, mimetype)
+	default:
+		return ctx.SendDocument(mediaData, mimetype, "downloaded_media", "")
+	}
 }

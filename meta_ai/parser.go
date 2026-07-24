@@ -46,7 +46,8 @@ func BuildRunCommandInstruction(cmds []CommandInfo) string {
 	b.WriteString("- !edit <msg_id> <new_text> : Edit a message using its Message ID.\n")
 	b.WriteString("- !delete [msg_id] : Delete/revoke a message by Message ID (or omit msg_id when replying to a message).\n")
 	b.WriteString("- !ffmpeg <args> : Execute an ffmpeg command on media or raw arguments.\n")
-	b.WriteString("- !fetch <url> : Fetch raw HTTP content from a URL.\n\n")
+	b.WriteString("- !fetch <url> : Fetch raw HTTP content from a URL.\n")
+	b.WriteString("- !downloadMessage [msg_id] : Download media (image, video, audio, document, sticker) from a message using its Message ID or quoted message.\n\n")
 	b.WriteString("Commands list:\n")
 
 	for _, c := range cmds {

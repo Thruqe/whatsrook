@@ -42,10 +42,10 @@ var order []string // preserves registration order for help text
 
 // Register adds a command. Call from each command file's init().
 func Register(c *Command) {
-	registry[c.Name] = c
+	registry[strings.ToLower(c.Name)] = c
 	order = append(order, c.Name)
 	for _, a := range c.Aliases {
-		registry[a] = c
+		registry[strings.ToLower(a)] = c
 	}
 }
 
