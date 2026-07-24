@@ -85,6 +85,9 @@ func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 				duration = 30 * time.Second
 			}
 
+			// Ensure local video transmission is active
+			_ = call.SetVideoEnabled(true)
+
 			// 1. Play audio track if available
 			audioFile := mp3Path
 			if audioFile == "" {
@@ -104,15 +107,17 @@ func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 							ticker := time.NewTicker(frameDur)
 							defer ticker.Stop()
 
-							for _, frame := range frames {
+							frameIdx := 0
+							for {
 								select {
 								case <-ctx.Ctx.Done():
 									return
 								case <-ticker.C:
+									frame := frames[frameIdx]
 									if err := call.SendVideoWithDuration(frame, frameDur); err != nil {
 										logHandlerErr("videocall", err)
-										return
 									}
+									frameIdx = (frameIdx + 1) % len(frames)
 								}
 							}
 						}()
