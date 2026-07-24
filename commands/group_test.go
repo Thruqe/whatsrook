@@ -114,3 +114,19 @@ func TestIsAdminRaw(t *testing.T) {
 		t.Error("expected unknown JID to not be admin")
 	}
 }
+
+func TestLockPollCommandRegistration(t *testing.T) {
+	cmd, ok := Get("lockpoll")
+	if !ok {
+		t.Fatal("expected 'lockpoll' command to be registered")
+	}
+	if cmd.Name != "lockpoll" {
+		t.Errorf("expected command name 'lockpoll', got %q", cmd.Name)
+	}
+	if cmd.Category != "group" {
+		t.Errorf("expected category 'group', got %q", cmd.Category)
+	}
+	if !cmd.GroupOnly {
+		t.Error("expected GroupOnly to be true")
+	}
+}

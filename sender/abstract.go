@@ -61,6 +61,61 @@ func (ctx *Context) SendText(text string) error {
 	return err
 }
 
+// Send sends unified content (string or *waE2E.Message) with optional SendRequestExtra parameters.
+func (ctx *Context) Send(content any, extra ...whatsmeow.SendRequestExtra) (whatsmeow.SendResponse, error) {
+	var msg *waE2E.Message
+	switch v := content.(type) {
+	case string:
+		formatted := ctx.formatTextResponse(v)
+		msg = &waE2E.Message{
+			Conversation: &formatted,
+		}
+	case *waE2E.Message:
+		msg = v
+	default:
+		return whatsmeow.SendResponse{}, fmt.Errorf("unsupported content type: %T", content)
+	}
+
+	var reqExtra whatsmeow.SendRequestExtra
+	if len(extra) > 0 {
+		reqExtra = extra[0]
+	}
+	return ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, reqExtra)
+}
+
+// Edit edits an existing message in the current chat by message ID.
+func (ctx *Context) Edit(msgID types.MessageID, content any, extra ...whatsmeow.SendRequestExtra) (whatsmeow.SendResponse, error) {
+	var msg *waE2E.Message
+	switch v := content.(type) {
+	case string:
+		formatted := ctx.formatTextResponse(v)
+		msg = &waE2E.Message{
+			Conversation: &formatted,
+		}
+	case *waE2E.Message:
+		msg = v
+	default:
+		return whatsmeow.SendResponse{}, fmt.Errorf("unsupported content type: %T", content)
+	}
+
+	editMsg := ctx.Client.BuildEdit(ctx.Chat, msgID, msg)
+	var reqExtra whatsmeow.SendRequestExtra
+	if len(extra) > 0 {
+		reqExtra = extra[0]
+	}
+	return ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg, reqExtra)
+}
+
+// Delete revokes/deletes a message in the current chat by message ID.
+func (ctx *Context) Delete(msgID types.MessageID, senderJID ...types.JID) (whatsmeow.SendResponse, error) {
+	sJID := types.EmptyJID
+	if len(senderJID) > 0 {
+		sJID = senderJID[0]
+	}
+	revokeMsg := ctx.Client.BuildRevoke(ctx.Chat, sJID, msgID)
+	return ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, revokeMsg)
+}
+
 // Reply sends a text message replying to the current message (with typing simulation and monospace format).
 func (ctx *Context) Reply(text string) error {
 	ctx.simulateTyping()

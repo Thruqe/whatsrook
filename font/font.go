@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	currentStyle = "monospace"
+	currentStyle = "small-caps"
 	mu           sync.RWMutex
 )
 
@@ -229,59 +229,62 @@ func Convert(s string) string {
 				sb.WriteRune(r)
 			}
 		case "small-caps":
+			if r >= 'A' && r <= 'Z' {
+				r += 'a' - 'A'
+			}
 			switch r {
 			case 'a':
-				sb.WriteRune(0x1D00)
+				sb.WriteRune('ᴀ')
 			case 'b':
-				sb.WriteRune(0x0299)
+				sb.WriteRune('ʙ')
 			case 'c':
-				sb.WriteRune(0x1D04)
+				sb.WriteRune('ᴄ')
 			case 'd':
-				sb.WriteRune(0x1D05)
+				sb.WriteRune('ᴅ')
 			case 'e':
-				sb.WriteRune(0x1D07)
+				sb.WriteRune('ᴇ')
 			case 'f':
-				sb.WriteRune(0xA730)
+				sb.WriteRune('ғ')
 			case 'g':
-				sb.WriteRune(0x0262)
+				sb.WriteRune('ɢ')
 			case 'h':
-				sb.WriteRune(0x029C)
+				sb.WriteRune('ʜ')
 			case 'i':
-				sb.WriteRune(0x026A)
+				sb.WriteRune('ɪ')
 			case 'j':
-				sb.WriteRune(0x1D0A)
+				sb.WriteRune('ᴊ')
 			case 'k':
-				sb.WriteRune(0x1D0B)
+				sb.WriteRune('ᴋ')
 			case 'l':
-				sb.WriteRune(0x029F)
+				sb.WriteRune('ʟ')
 			case 'm':
-				sb.WriteRune(0x1D0D)
+				sb.WriteRune('ᴍ')
 			case 'n':
-				sb.WriteRune(0x0274)
+				sb.WriteRune('ɴ')
 			case 'o':
-				sb.WriteRune(0x1D0F)
+				sb.WriteRune('ᴏ')
 			case 'p':
-				sb.WriteRune(0x1D18)
+				sb.WriteRune('ᴘ')
 			case 'q':
-				sb.WriteRune(0x01AA)
+				sb.WriteRune('ǫ')
 			case 'r':
-				sb.WriteRune(0x0280)
+				sb.WriteRune('ʀ')
 			case 's':
-				sb.WriteRune(0x01A1)
+				sb.WriteRune('s')
 			case 't':
-				sb.WriteRune(0x1D1B)
+				sb.WriteRune('ᴛ')
 			case 'u':
-				sb.WriteRune(0x1D1C)
+				sb.WriteRune('ᴜ')
 			case 'v':
-				sb.WriteRune(0x1D20)
+				sb.WriteRune('ᴠ')
 			case 'w':
-				sb.WriteRune(0x1D21)
+				sb.WriteRune('ᴡ')
 			case 'x':
 				sb.WriteRune('x')
 			case 'y':
-				sb.WriteRune(0x028F)
+				sb.WriteRune('ʏ')
 			case 'z':
-				sb.WriteRune(0x1D22)
+				sb.WriteRune('ᴢ')
 			default:
 				sb.WriteRune(r)
 			}

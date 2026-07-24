@@ -13,7 +13,7 @@ func init() {
 		Name:        "sh",
 		Aliases:     []string{"exec", "run", "shell"},
 		Description: "Execute a shell command (sudoers only).",
-		Category:    "system",
+		Category:    "tools",
 		IsPublic:    false,
 		Handler:     handleSh,
 	})

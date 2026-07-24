@@ -547,6 +547,24 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 	chatStr := evt.Info.Chat.String()
 	sender := evt.Info.Sender.ToNonAD()
 
+	// Check if antimsg is enabled and sender is in target list
+	rawAntiMsgStatus, _ := s.GetSetting(ctx, "antimsg_status:"+chatStr)
+	if rawAntiMsgStatus == "on" {
+		rawAntiMsgUsers, _ := s.GetSetting(ctx, "antimsg_users:"+chatStr)
+		if rawAntiMsgUsers != "" {
+			targetUsers := strings.Split(rawAntiMsgUsers, ",")
+			senderStr := sender.String()
+			for _, u := range targetUsers {
+				u = strings.TrimSpace(u)
+				if u != "" && (u == senderStr || u == sender.User+"@s.whatsapp.net") {
+					slog.Info("antimsg: deleting message from targeted participant", "chat", chatStr, "sender", senderStr)
+					_, _ = client.SendMessage(ctx, evt.Info.Chat, client.BuildRevoke(evt.Info.Chat, evt.Info.Sender, evt.Info.ID))
+					return true
+				}
+			}
+		}
+	}
+
 	// Check if antilink is enabled
 	antiLinkEnabled := false
 	rawLink, _ := s.GetSetting(ctx, "antilink:"+chatStr)
