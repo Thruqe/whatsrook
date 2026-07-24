@@ -75,3 +75,23 @@ func saveAudio(ctx *Context, sender types.JID, path string) error {
 	}
 	return s.PutCallMediaConfig(ctx.Ctx, sender, sqlstore.CallMediaAudio, path)
 }
+
+func getSavedVideo(ctx *Context, sender types.JID) (string, bool) {
+	s, err := mediaStore(ctx)
+	if err != nil {
+		return "", false
+	}
+	path, err := s.GetCallMediaConfig(ctx.Ctx, sender, sqlstore.CallMediaVideo)
+	if err != nil || path == "" {
+		return "", false
+	}
+	return path, true
+}
+
+func saveVideo(ctx *Context, sender types.JID, path string) error {
+	s, err := mediaStore(ctx)
+	if err != nil {
+		return err
+	}
+	return s.PutCallMediaConfig(ctx.Ctx, sender, sqlstore.CallMediaVideo, path)
+}
