@@ -13,28 +13,21 @@ import (
 
 func init() {
 	Register(&Command{
-		Name:        "sh",
-		Aliases:     []string{"exec", "run"},
-		Description: "Execute a shell command (Sudo only)",
-		Category:    "settings",
-		Handler:     handleSh,
-	})
-	Register(&Command{
 		Name:        "setsudo",
 		Description: "Add a user to the sudo list (replied user or numbers)",
-		Category:    "settings",
+		Category:    "user",
 		Handler:     handleSetSudo,
 	})
 	Register(&Command{
 		Name:        "delsudo",
 		Description: "Remove a user from the sudo list (replied user or numbers)",
-		Category:    "settings",
+		Category:    "user",
 		Handler:     handleDelSudo,
 	})
 	Register(&Command{
 		Name:        "listsudo",
 		Description: "List all sudo users",
-		Category:    "settings",
+		Category:    "user",
 		Handler:     handleListSudo,
 	})
 	Register(&Command{
@@ -64,13 +57,13 @@ func init() {
 	Register(&Command{
 		Name:        "ban",
 		Description: "Block a user from using the bot commands (replied user or numbers)",
-		Category:    "settings",
+		Category:    "user",
 		Handler:     handleBan,
 	})
 	Register(&Command{
 		Name:        "unban",
 		Description: "Unblock a user (replied user or numbers)",
-		Category:    "settings",
+		Category:    "user",
 		Handler:     handleUnban,
 	})
 	Register(&Command{

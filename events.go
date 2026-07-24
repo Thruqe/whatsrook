@@ -7,9 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strconv"
+	"strings"
 
 	"whatsrook/commands"
+	"whatsrook/ember"
 	"whatsrook/sender"
+	"whatsrook/store/sqlstore"
 	"whatsrook/updater"
 	"whatsrook/utils"
 
@@ -67,7 +71,8 @@ func (b *Bot) handleWAEvent(evt any) {
 		})
 
 	case *events.CallOffer:
-		slog.Info("call offer received")
+		slog.Info("call offer received", "from", v.CallCreator.String())
+		b.handleAntiCall(context.Background(), v)
 		b.hub.Broadcast(EventMessage{
 			Kind: EventIncomingCall,
 			Payload: IncomingCallPayload{
@@ -76,6 +81,10 @@ func (b *Bot) handleWAEvent(evt any) {
 				Timestamp: v.Timestamp,
 			},
 		})
+
+	case *events.GroupInfo:
+		slog.Info("group info update received", "jid", v.JID.String())
+		b.handleGroupGreetings(context.Background(), v)
 
 	case *events.Receipt, *events.PushName, *events.Presence, *events.ChatPresence, *events.AppState, *events.AppStateSyncComplete, *events.Contact, *events.OfflineSyncPreview, *events.OfflineSyncCompleted:
 		// Ignore common presence/receipt/keepalive/sync events to avoid debug log clutter
@@ -217,5 +226,222 @@ func (b *Bot) notifyOwnerConnected() {
 		slog.Error("failed to send connection metadata notification to owner DM", "err", err)
 	} else {
 		slog.Info("sent connection metadata notification to owner DM", "owner", ownerJID.String())
+	}
+}
+
+func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
+	if b.client == nil || v == nil {
+		return
+	}
+	s, ok := b.client.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return
+	}
+
+	status, _ := s.GetSetting(ctx, "anticall_status")
+	if status != "on" {
+		return
+	}
+
+	callerJID := v.CallCreator
+	callerNum := callerJID.User
+
+	contactsOnly, _ := s.GetSetting(ctx, "anticall_contacts_only")
+	allowedCC, _ := s.GetSetting(ctx, "anticall_allowed_cc")
+
+	reject := false
+
+	if contactsOnly == "true" {
+		contact, err := b.client.Store.Contacts.GetContact(ctx, callerJID)
+		if err != nil || (!contact.Found || (contact.FirstName == "" && contact.FullName == "")) {
+			reject = true
+		}
+	}
+
+	if !reject && allowedCC != "" {
+		codes := strings.Split(allowedCC, ",")
+		matched := false
+		for _, cc := range codes {
+			cc = strings.TrimSpace(strings.TrimPrefix(cc, "+"))
+			if cc != "" && strings.HasPrefix(callerNum, cc) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			reject = true
+		}
+	}
+
+	if !reject && contactsOnly != "true" && allowedCC == "" {
+		reject = true
+	}
+
+	if reject {
+		slog.Warn("anticall: rejecting call offer", "from", callerJID.String(), "call_id", v.CallID)
+		_ = b.client.RejectCall(ctx, callerJID, v.CallID)
+
+		warnKey := "anticall_warn:" + callerJID.String()
+		rawWarn, _ := s.GetSetting(ctx, warnKey)
+		warnCount, _ := strconv.Atoi(rawWarn)
+		warnCount++
+		_ = s.PutSetting(ctx, warnKey, strconv.Itoa(warnCount))
+
+		rawMax, _ := s.GetSetting(ctx, "anticall_max_warn")
+		maxWarn, _ := strconv.Atoi(rawMax)
+		if maxWarn <= 0 {
+			maxWarn = 3
+		}
+
+		if warnCount >= maxWarn {
+			_, _ = b.client.UpdateBlocklist(ctx, callerJID, events.BlocklistChangeActionBlock)
+			slog.Warn("anticall: caller blocked after reaching max warnings", "from", callerJID.String(), "warn_count", warnCount)
+			warnText := fmt.Sprintf("Call rejected. You have reached the maximum warning threshold (%d/%d) and have been blocked.", warnCount, maxWarn)
+			formatted := sender.FormatTextResponseRaw(warnText)
+			_, _ = b.client.SendMessage(ctx, callerJID, &waE2E.Message{Conversation: &formatted})
+		} else {
+			warnText := fmt.Sprintf("Call rejected. Warning %d/%d. Continued calls will result in being blocked.", warnCount, maxWarn)
+			formatted := sender.FormatTextResponseRaw(warnText)
+			_, _ = b.client.SendMessage(ctx, callerJID, &waE2E.Message{Conversation: &formatted})
+		}
+	}
+}
+
+func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
+	if b.client == nil || g == nil {
+		return
+	}
+	s, ok := b.client.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return
+	}
+
+	chatKey := g.JID.String()
+
+	// Process joins (Welcome)
+	if len(g.Join) > 0 {
+		status, _ := s.GetSetting(ctx, "welcome_status:"+chatKey)
+		if status == "on" {
+			tag, _ := s.GetSetting(ctx, "welcome_tag:"+chatKey)
+			descOpt, _ := s.GetSetting(ctx, "welcome_desc:"+chatKey)
+			customMsg, _ := s.GetSetting(ctx, "welcome_msg:"+chatKey)
+			mediaURL, _ := s.GetSetting(ctx, "welcome_media:"+chatKey)
+
+			info, err := b.client.GetGroupInfo(ctx, g.JID)
+			groupName := "the group"
+			groupDesc := ""
+			memberCount := 0
+			if err == nil && info != nil {
+				groupName = info.Name
+				groupDesc = info.Topic
+				memberCount = len(info.Participants)
+			}
+
+			for _, participant := range g.Join {
+				userTag := "@" + participant.User
+				body := customMsg
+				if body == "" {
+					body = "Welcome " + userTag + " to " + groupName
+				} else {
+					body = strings.ReplaceAll(body, "{user}", userTag)
+					body = strings.ReplaceAll(body, "{group}", groupName)
+					body = strings.ReplaceAll(body, "{desc}", groupDesc)
+					body = strings.ReplaceAll(body, "{members}", strconv.Itoa(memberCount))
+				}
+
+				if descOpt == "on" && groupDesc != "" && !strings.Contains(customMsg, "{desc}") {
+					body += "\n\nGroup Description:\n" + groupDesc
+				}
+
+				formatted := sender.FormatTextResponseRaw(body)
+				var mentions []string
+				if tag == "on" {
+					mentions = append(mentions, participant.String())
+				}
+
+				msg := &waE2E.Message{
+					ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+						Text: &formatted,
+						ContextInfo: &waE2E.ContextInfo{
+							MentionedJID: mentions,
+						},
+					},
+				}
+
+				if mediaURL != "" {
+					_ = sender.SendResult(ctx, b.client, g.JID, &ember.Data{
+						Medias: []ember.Media{{URL: mediaURL, Type: "video"}},
+					})
+				} else {
+					_, _ = b.client.SendMessage(ctx, g.JID, msg)
+				}
+			}
+		}
+	}
+
+	// Process leaves (Goodbye)
+	if len(g.Leave) > 0 {
+		status, _ := s.GetSetting(ctx, "goodbye_status:"+chatKey)
+		if status == "on" {
+			tag, _ := s.GetSetting(ctx, "goodbye_tag:"+chatKey)
+			descOpt, _ := s.GetSetting(ctx, "goodbye_desc:"+chatKey)
+			customMsg, _ := s.GetSetting(ctx, "goodbye_msg:"+chatKey)
+			mediaURL, _ := s.GetSetting(ctx, "goodbye_media:"+chatKey)
+
+			info, err := b.client.GetGroupInfo(ctx, g.JID)
+			groupName := "the group"
+			groupDesc := ""
+			memberCount := 0
+			if err == nil && info != nil {
+				groupName = info.Name
+				groupDesc = info.Topic
+				memberCount = len(info.Participants)
+			}
+
+			for _, participant := range g.Leave {
+				// Check if participant left voluntarily vs kicked out by another admin
+				if g.Sender != nil && !g.Sender.IsEmpty() && *g.Sender != participant {
+					continue
+				}
+
+				userTag := "@" + participant.User
+				body := customMsg
+				if body == "" {
+					body = "Goodbye " + userTag + " from " + groupName
+				} else {
+					body = strings.ReplaceAll(body, "{user}", userTag)
+					body = strings.ReplaceAll(body, "{group}", groupName)
+					body = strings.ReplaceAll(body, "{desc}", groupDesc)
+					body = strings.ReplaceAll(body, "{members}", strconv.Itoa(memberCount))
+				}
+
+				if descOpt == "on" && groupDesc != "" && !strings.Contains(customMsg, "{desc}") {
+					body += "\n\nGroup Description:\n" + groupDesc
+				}
+
+				formatted := sender.FormatTextResponseRaw(body)
+				var mentions []string
+				if tag == "on" {
+					mentions = append(mentions, participant.String())
+				}
+
+				msg := &waE2E.Message{
+					ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+						Text: &formatted,
+						ContextInfo: &waE2E.ContextInfo{
+							MentionedJID: mentions,
+						},
+					},
+				}
+
+				if mediaURL != "" {
+					_ = sender.SendResult(ctx, b.client, g.JID, &ember.Data{
+						Medias: []ember.Media{{URL: mediaURL, Type: "video"}},
+					})
+				} else {
+					_, _ = b.client.SendMessage(ctx, g.JID, msg)
+				}
+			}
+		}
 	}
 }

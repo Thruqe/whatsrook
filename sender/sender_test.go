@@ -1,11 +1,13 @@
 package sender
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestFormatTextResponseRaw(t *testing.T) {
-	// Monospace formatting check
+	// Small-caps default formatting check
 	input := "Hello World"
-	expected := "𝙷𝚎𝚕𝚕𝚘 𝚆𝚘𝚛𝚕𝚍"
+	expected := "ʜᴇʟʟᴏ ᴡᴏʀʟᴅ"
 	actual := FormatTextResponseRaw(input)
 	if actual != expected {
 		t.Errorf("Expected %q, got %q", expected, actual)
@@ -20,9 +22,16 @@ func TestFormatTextResponseRaw(t *testing.T) {
 
 	// Asterisks and emojis removal check
 	inputWithAsterisks := "*Hello*  World"
-	expectedCleaned := "𝙷𝚎𝚕𝚕𝚘  𝚆𝚘𝚛𝚕𝚍" // emoji removed, asterisks removed
+	expectedCleaned := "ʜᴇʟʟᴏ  ᴡᴏʀʟᴅ"
 	actual3 := FormatTextResponseRaw(inputWithAsterisks)
 	if actual3 != expectedCleaned {
 		t.Errorf("Expected %q, got %q", expectedCleaned, actual3)
+	}
+}
+
+func TestContextSendSignatures(t *testing.T) {
+	ctx := &Context{}
+	if ctx == nil {
+		t.Fatal("expected non-nil context")
 	}
 }

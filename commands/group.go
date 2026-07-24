@@ -95,6 +95,14 @@ func init() {
 		Handler:     handlePoll,
 	})
 	Register(&Command{
+		Name:        "lockpoll",
+		Description: "Create a single-choice poll. Usage: lockpoll Question | Option 1 | Option 2 | ...",
+		Category:    "group",
+		GroupOnly:   true,
+		IsPublic:    true,
+		Handler:     handleLockPoll,
+	})
+	Register(&Command{
 		Name:        "invite",
 		Description: "Get the group invite link",
 		Category:    "group",
@@ -530,6 +538,28 @@ func handlePoll(ctx *Context) error {
 	}
 
 	pollMsg := ctx.Client.BuildPollCreation(question, options, 0)
+	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, pollMsg)
+	return err
+}
+
+func handleLockPoll(ctx *Context) error {
+	parts := strings.Split(ctx.RawArgs, "|")
+	if len(parts) < 3 {
+		return ctx.Reply("Usage: lockpoll Question | Option 1 | Option 2 | ...")
+	}
+	question := strings.TrimSpace(parts[0])
+	var options []string
+	for _, opt := range parts[1:] {
+		trimmed := strings.TrimSpace(opt)
+		if trimmed != "" {
+			options = append(options, trimmed)
+		}
+	}
+	if len(options) < 2 {
+		return ctx.Reply("Please provide at least 2 options.")
+	}
+
+	pollMsg := ctx.Client.BuildPollCreation(question, options, 1)
 	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, pollMsg)
 	return err
 }

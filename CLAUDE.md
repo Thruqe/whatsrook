@@ -11,8 +11,4 @@ At the beginning of every session, you MUST read and follow these files to under
 
 ## Command Reference
 
-- Format: `go fmt ./...`
-- Vet: `go vet ./...`
-- Lint: `golangci-lint run`
-- Test: `go test ./...`
-- Build: `go build -o whatsrook .`
+Run the the [Makefile](./Makefile)
