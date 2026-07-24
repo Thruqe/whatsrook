@@ -59,6 +59,11 @@ func placeCallWithAudio(ctx *Context, target, audioPath string) error {
 
 // placeVideoCall places an outbound video call to target.
 func placeVideoCall(ctx *Context, target string) error {
+	return placeVideoCallWithMedia(ctx, target, "")
+}
+
+// placeVideoCallWithMedia places an outbound video call to target, playing videoPath media if provided.
+func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 	logger := zerolog.Nop()
 	client := meowcaller.NewClient(ctx.Client, meowcaller.WithLogger(logger))
 
@@ -68,7 +73,21 @@ func placeVideoCall(ctx *Context, target string) error {
 	}
 
 	call.OnReady(func() {
-		// Video stream media is active and ready
+		if videoPath != "" {
+			if src, err := openAudioSource(videoPath); err == nil {
+				call.Play(src)
+			}
+			duration, durErr := utils.AudioDuration(videoPath)
+			if durErr != nil {
+				duration = 30 * time.Second
+			}
+			go func() {
+				time.Sleep(duration + 2*time.Second)
+				if hErr := call.Hangup(); hErr != nil {
+					logHandlerErr("videocall", hErr)
+				}
+			}()
+		}
 	})
 
 	call.OnEnd(func(reason string) {

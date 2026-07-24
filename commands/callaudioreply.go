@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"whatsrook/store/sqlstore"
 	"whatsrook/utils"
 
 	"go.mau.fi/whatsmeow"
@@ -16,17 +17,57 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-const audioDir = "./media/call-audio"
+const (
+	audioDir = "./media/call-audio"
+	videoDir = "./media/call-video"
+)
 
-// HandlePendingAudioReply handles the audio call-setup flow. It supports:
-//   - Sending an audio file directly.
-//   - Replying "save" to a message that quotes an audio file.
+// HandlePendingAudioReply handles the audio and video call-setup flow. It supports:
+//   - Sending an audio or video file directly.
+//   - Replying "save" to a message that quotes an audio or video file.
 func HandlePendingAudioReply(ctx context.Context, client *whatsmeow.Client, evt *events.Message) bool {
 	sender := evt.Info.Sender
 
 	p, ok := peekPending(sender)
 	if !ok {
 		return false
+	}
+
+	if p.Kind == sqlstore.CallMediaVideo {
+		var videoMsg *waE2E.VideoMessage
+		saveRequested := false
+
+		if msg := evt.Message.GetVideoMessage(); msg != nil {
+			log.Printf("[DEBUG] Detected direct video message from %s", sender.String())
+			videoMsg = msg
+			saveRequested = utils.IsSaveText(utils.GetDirectMessageText(evt.Message))
+		} else if extText := evt.Message.GetExtendedTextMessage(); extText != nil && utils.IsSaveText(extText.GetText()) {
+			if ctxInfo := extText.GetContextInfo(); ctxInfo != nil && ctxInfo.QuotedMessage != nil {
+				if quotedVideo := ctxInfo.QuotedMessage.GetVideoMessage(); quotedVideo != nil {
+					videoMsg = quotedVideo
+					saveRequested = true
+				}
+			}
+		}
+
+		if videoMsg == nil {
+			return false
+		}
+
+		popPending(sender)
+
+		go func() {
+			cctx := &Context{
+				Ctx:    ctx,
+				Client: client,
+				Evt:    evt,
+				Chat:   evt.Info.Chat,
+				Sender: sender,
+			}
+			handleVideoDownload(ctx, client, cctx, sender, evt, videoMsg, p, saveRequested)
+		}()
+
+		return true
 	}
 
 	var audioMsg *waE2E.AudioMessage
@@ -120,5 +161,51 @@ func handleAudioDownload(ctx context.Context, client *whatsmeow.Client, cctx *Co
 	if err := placeCallWithAudio(cctx, p.Target, path); err != nil {
 		log.Printf("[ERROR] placeCallWithAudio failed: %v", err)
 		logHandlerErr("call", err)
+	}
+}
+
+func handleVideoDownload(ctx context.Context, client *whatsmeow.Client, cctx *Context, sender types.JID, evt *events.Message, videoMsg *waE2E.VideoMessage, p *pendingCall, saveRequested bool) {
+	log.Printf("[DEBUG] Downloading video payload for %s...", sender.String())
+	data, err := client.Download(ctx, videoMsg)
+	if err != nil {
+		log.Printf("[ERROR] Download failed: %v", err)
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to download video: %v", err)); sendErr != nil {
+			log.Printf("[ERROR] failed to notify user: %v", sendErr)
+		}
+		return
+	}
+
+	if err := os.MkdirAll(videoDir, 0755); err != nil {
+		log.Printf("[ERROR] Failed creating directory: %v", err)
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to prepare storage: %v", err)); sendErr != nil {
+			log.Printf("[ERROR] failed to notify user: %v", sendErr)
+		}
+		return
+	}
+
+	ext := utils.ExtensionFor(videoMsg.GetMimetype())
+	if ext == "" {
+		ext = ".mp4"
+	}
+	path := filepath.Join(videoDir, utils.SanitizeJID(sender.String())+ext)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		log.Printf("[ERROR] File save failed: %v", err)
+		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to save video: %v", err)); sendErr != nil {
+			log.Printf("[ERROR] failed to notify user: %v", sendErr)
+		}
+		return
+	}
+
+	if saveRequested {
+		if err := saveVideo(cctx, sender, path); err != nil {
+			log.Printf("[ERROR] saveVideo failed: %v", err)
+			logHandlerErr("call-video-save", err)
+		}
+	}
+
+	log.Printf("[DEBUG] Triggering outgoing video call to target: %s with media: %s", p.Target, path)
+	if err := placeVideoCallWithMedia(cctx, p.Target, path); err != nil {
+		log.Printf("[ERROR] placeVideoCallWithMedia failed: %v", err)
+		logHandlerErr("videocall", err)
 	}
 }
