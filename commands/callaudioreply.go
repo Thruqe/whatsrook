@@ -196,6 +196,9 @@ func handleVideoDownload(ctx context.Context, client *whatsmeow.Client, cctx *Co
 		return
 	}
 
+	// Pre-transcode video to WhatsApp-compatible H.264 and MP3 audio
+	_, _, _ = utils.PrepareCallVideo(path)
+
 	if saveRequested {
 		if err := saveVideo(cctx, sender, path); err != nil {
 			log.Printf("[ERROR] saveVideo failed: %v", err)

@@ -3,6 +3,7 @@ package commands
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"whatsrook/utils"
@@ -74,13 +75,52 @@ func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 
 	call.OnReady(func() {
 		if videoPath != "" {
-			if src, err := openAudioSource(videoPath); err == nil {
-				call.Play(src)
+			mp3Path, h264Path, prepErr := utils.PrepareCallVideo(videoPath)
+			if prepErr != nil {
+				logHandlerErr("videocall", fmt.Errorf("failed to prepare call video: %w", prepErr))
 			}
+
 			duration, durErr := utils.AudioDuration(videoPath)
 			if durErr != nil {
 				duration = 30 * time.Second
 			}
+
+			// 1. Play audio track if available
+			audioFile := mp3Path
+			if audioFile == "" {
+				audioFile = videoPath
+			}
+			if src, err := openAudioSource(audioFile); err == nil {
+				call.Play(src)
+			}
+
+			// 2. Stream H.264 video frames if available
+			if h264Path != "" {
+				if h264Data, err := os.ReadFile(h264Path); err == nil && len(h264Data) > 0 {
+					frames := utils.SplitAnnexB(h264Data)
+					if len(frames) > 0 {
+						go func() {
+							frameDur := 66 * time.Millisecond // ~15 FPS
+							ticker := time.NewTicker(frameDur)
+							defer ticker.Stop()
+
+							for _, frame := range frames {
+								select {
+								case <-ctx.Ctx.Done():
+									return
+								case <-ticker.C:
+									if err := call.SendVideoWithDuration(frame, frameDur); err != nil {
+										logHandlerErr("videocall", err)
+										return
+									}
+								}
+							}
+						}()
+					}
+				}
+			}
+
+			// 3. Auto-hangup timer
 			go func() {
 				time.Sleep(duration + 2*time.Second)
 				if hErr := call.Hangup(); hErr != nil {

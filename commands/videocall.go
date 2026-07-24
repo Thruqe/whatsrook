@@ -81,6 +81,9 @@ func handleSetVideoCall(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("Failed to save video: %v", err))
 	}
 
+	// Pre-transcode video to WhatsApp-compatible H.264 and MP3 audio
+	_, _, _ = utils.PrepareCallVideo(path)
+
 	if err := saveVideo(ctx, ctx.Sender, path); err != nil {
 		return ctx.Reply(fmt.Sprintf("Failed to save video call config: %v", err))
 	}
