@@ -53,6 +53,30 @@ func TestSanitizeJID(t *testing.T) {
 	}
 }
 
+func TestSplitAnnexBAccessUnits(t *testing.T) {
+	// Keyframe AU: AUD(9), SPS(7), PPS(8), IDR(5)
+	// Delta AU: AUD(9), Slice(1)
+	stream := []byte{
+		0, 0, 0, 1, 9, 0x10, // AUD
+		0, 0, 0, 1, 7, 0x42, 0x00, // SPS
+		0, 0, 0, 1, 8, 0xce, // PPS
+		0, 0, 0, 1, 5, 0x01, 0x02, // IDR
+		0, 0, 0, 1, 9, 0x10, // AUD
+		0, 0, 0, 1, 1, 0x03, 0x04, // Slice
+	}
+
+	units := utils.SplitAnnexBAccessUnits(stream)
+	if len(units) != 2 {
+		t.Fatalf("got %d units, want 2", len(units))
+	}
+	if !utils.AnnexBHasIDR(units[0]) {
+		t.Errorf("unit 0 should have IDR keyframe")
+	}
+	if utils.AnnexBHasIDR(units[1]) {
+		t.Errorf("unit 1 should be delta frame")
+	}
+}
+
 func TestExtensionFor(t *testing.T) {
 	if ext := utils.ExtensionFor("audio/ogg"); ext != ".ogg" {
 		t.Errorf("expected .ogg, got %s", ext)

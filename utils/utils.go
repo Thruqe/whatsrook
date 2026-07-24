@@ -57,14 +57,19 @@ func PrepareCallVideo(inputPath string) (string, string, error) {
 		log.Printf("[WARN] ffmpeg audio extraction failed for %s: %v (%s)", inputPath, err, string(out))
 	}
 
-	// 2. Transcode Video to Annex-B H.264 (yuv420p baseline 15 FPS with repeat-headers=1 so every keyframe has SPS+PPS+IDR)
+	// 2. Transcode Video to Annex-B H.264 (yuv420p baseline 15 FPS).
+	// - keyint=15:min-keyint=15 forces IDR every 15 frames.
+	// - repeat-headers=1 prepends SPS+PPS to every IDR NAL.
+	// - aud=1 inserts an Access Unit Delimiter (NAL type 9) before every frame;
+	//   this gives SplitAnnexBAccessUnits a reliable frame boundary marker.
+	// - bsf h264_mp4toannexb converts from AVCC length-prefixed to start-code format.
 	videoCmd := exec.Command("ffmpeg", "-y", "-i", inputPath, "-an",
 		"-c:v", "libx264",
 		"-pix_fmt", "yuv420p",
 		"-profile:v", "baseline",
 		"-level", "3.0",
 		"-preset", "ultrafast",
-		"-x264opts", "keyint=15:min-keyint=15:no-scenecut=1:repeat-headers=1",
+		"-x264opts", "keyint=15:min-keyint=15:no-scenecut=1:repeat-headers=1:aud=1",
 		"-bsf:v", "h264_mp4toannexb",
 		"-r", "15",
 		h264Path,
@@ -76,33 +81,114 @@ func PrepareCallVideo(inputPath string) (string, string, error) {
 	return mp3Path, h264Path, nil
 }
 
-// SplitAnnexB splits raw H.264 Annex-B stream data into individual access units (frames).
-func SplitAnnexB(data []byte) [][]byte {
-	var frames [][]byte
-	start := -1
+// annexBStartCodeLen returns the length of an Annex-B start code (3 or 4), or 0.
+func annexBStartCodeLen(data []byte, i int) int {
+	if i+3 < len(data) && data[i] == 0 && data[i+1] == 0 && data[i+2] == 0 && data[i+3] == 1 {
+		return 4
+	}
+	if i+2 < len(data) && data[i] == 0 && data[i+1] == 0 && data[i+2] == 1 {
+		return 3
+	}
+	return 0
+}
 
-	for i := 0; i < len(data); {
-		var codeLen int
-		if i+3 < len(data) && data[i] == 0 && data[i+1] == 0 && data[i+2] == 0 && data[i+3] == 1 {
-			codeLen = 4
-		} else if i+2 < len(data) && data[i] == 0 && data[i+1] == 0 && data[i+2] == 1 {
-			codeLen = 3
-		}
-
-		if codeLen > 0 {
-			if start != -1 && i > start {
-				frames = append(frames, data[start:i])
-			}
-			start = i
-			i += codeLen
-		} else {
+// SplitAnnexBAccessUnits groups a raw H.264 Annex-B byte stream into per-frame
+// access units. A new access unit boundary is detected when an AUD (NAL type 9)
+// or SPS (type 7) is encountered, or when a slice NAL (type 1 or 5) begins after
+// a slice NAL has already been included in the current unit. Each returned slice
+// is a complete Annex-B access unit (keyframe access units include SPS+PPS+IDR).
+func SplitAnnexBAccessUnits(data []byte) [][]byte {
+	var units [][]byte
+	auStart := -1
+	hasSliceInAU := false
+	i := 0
+	for i < len(data) {
+		sc := annexBStartCodeLen(data, i)
+		if sc == 0 {
 			i++
+			continue
+		}
+		naluStart := i + sc
+		if naluStart >= len(data) {
+			break
+		}
+		naluType := data[naluStart] & 0x1f
+
+		// An access unit boundary occurs at AUD (9), SPS (7), or when a new slice (1 or 5)
+		// begins after we already saw a slice in the current access unit.
+		isSlice := naluType == 1 || naluType == 5
+		isAUBoundary := naluType == 9 || naluType == 7 || (isSlice && hasSliceInAU)
+
+		if isAUBoundary && auStart >= 0 && i > auStart {
+			unit := data[auStart:i]
+			if hasVideoPayload(unit) {
+				units = append(units, unit)
+			}
+			auStart = i
+			hasSliceInAU = isSlice
+		} else {
+			if auStart < 0 {
+				auStart = i
+			}
+			if isSlice {
+				hasSliceInAU = true
+			}
+		}
+		i = naluStart + 1
+	}
+	if auStart >= 0 && auStart < len(data) {
+		unit := data[auStart:]
+		if hasVideoPayload(unit) {
+			units = append(units, unit)
 		}
 	}
-	if start != -1 && start < len(data) {
-		frames = append(frames, data[start:])
+	return units
+}
+
+// hasVideoPayload reports whether an Annex-B chunk contains at least one slice NAL
+// (IDR type 5 or non-IDR type 1), indicating a real video frame rather than just
+// parameter sets or delimiters.
+func hasVideoPayload(data []byte) bool {
+	i := 0
+	for i < len(data) {
+		sc := annexBStartCodeLen(data, i)
+		if sc == 0 {
+			i++
+			continue
+		}
+		naluStart := i + sc
+		if naluStart >= len(data) {
+			break
+		}
+		naluType := data[naluStart] & 0x1f
+		if naluType == 5 || naluType == 1 {
+			return true
+		}
+		i = naluStart + 1
 	}
-	return frames
+	return false
+}
+
+// AnnexBHasIDR reports whether a raw Annex-B access unit contains an IDR NAL (type 5).
+// Used for diagnostic logging in the video call sender.
+func AnnexBHasIDR(data []byte) bool {
+	i := 0
+	for i < len(data) {
+		sc := annexBStartCodeLen(data, i)
+		if sc == 0 {
+			i++
+			continue
+		}
+		naluStart := i + sc
+		if naluStart >= len(data) {
+			break
+		}
+		if data[naluStart]&0x1f == 5 {
+			return true
+		}
+		i = naluStart + 1
+	}
+	return false
 }
 
 // IsSaveText checks if a text string matches our save trigger word.

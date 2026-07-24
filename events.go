@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -52,10 +51,6 @@ func (b *Bot) handleWAEvent(evt any) {
 		go b.notifyOwnerConnected()
 
 	case *events.Message:
-		if pretty, err := json.MarshalIndent(v, "", "  "); err == nil {
-			slog.Info("Incoming message event payload (pretty JSON)", "json", string(pretty))
-		}
-
 		if commands.HandlePendingAudioReply(context.Background(), b.client, v) {
 			return
 		}
