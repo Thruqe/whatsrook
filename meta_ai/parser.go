@@ -139,15 +139,35 @@ func RenderGroupContext(info types.GroupInfo) string {
 	return b.String()
 }
 
+// RenderUserContext turns user info into a text block appended to the query sent to Meta AI.
+func RenderUserContext(d Data) string {
+	if d.PushName == "" && d.User.User == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("[USER CONTEXT]\n")
+	if d.PushName != "" {
+		fmt.Fprintf(&b, "User name: %s\n", d.PushName)
+	}
+	if d.User.User != "" {
+		fmt.Fprintf(&b, "User JID: %s\n", d.User.User)
+	}
+	if d.IsSudo {
+		b.WriteString("Status: Owner/Sudo\n")
+	}
+	b.WriteString("[/USER CONTEXT]\n\n")
+	return b.String()
+}
+
 // RenderQuotedContext turns quoted-message info on Data into a text block
 // giving Meta AI context about what message the user is replying to, if
 // any.
 func RenderQuotedContext(d Data) string {
-	if d.QuotedMessageOfQuestion == "" {
+	if d.QuotedMessageOfQuestion == "" && d.QuotedImageBase64 == "" && d.QuotedMessageType == "" {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("[REPLYING TO A MESSAGE]\n")
+	b.WriteString("[REPLYING TO A MESSAGE — EXTRACTED CONTEXT]\n")
 	if d.UserOfQuotedMessage != "" {
 		fmt.Fprintf(&b, "From: %s", d.UserOfQuotedMessage)
 		if d.QuotedMessageParticipantRole != "" {
@@ -155,7 +175,15 @@ func RenderQuotedContext(d Data) string {
 		}
 		b.WriteString("\n")
 	}
-	fmt.Fprintf(&b, "Message: %s\n", d.QuotedMessageOfQuestion)
-	b.WriteString("[/REPLYING TO A MESSAGE]\n\n")
+	if d.QuotedMessageType != "" {
+		fmt.Fprintf(&b, "Message Type: %s\n", d.QuotedMessageType)
+	}
+	if d.QuotedMessageOfQuestion != "" {
+		fmt.Fprintf(&b, "Message Content: %s\n", d.QuotedMessageOfQuestion)
+	}
+	if d.QuotedImageBase64 != "" {
+		fmt.Fprintf(&b, "Image Base64: data:%s;base64,%s\n", d.QuotedImageMimeType, d.QuotedImageBase64)
+	}
+	b.WriteString("[/REPLYING TO A MESSAGE — EXTRACTED CONTEXT]\n\n")
 	return b.String()
 }

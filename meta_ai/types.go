@@ -9,7 +9,11 @@ type Data struct {
 	ChatID                       string          `json:"chat_id"`
 	Question                     string          `json:"question"`
 	User                         types.JID       `json:"user"`
+	PushName                     string          `json:"push_name"`
 	QuotedMessageOfQuestion      string          `json:"quoted_message_of_question"`
+	QuotedMessageType            string          `json:"quoted_message_type"`
+	QuotedImageBase64            string          `json:"quoted_image_base64"`
+	QuotedImageMimeType          string          `json:"quoted_image_mime_type"`
 	UserOfQuotedMessage          string          `json:"user_of_quoted_message"`
 	QuotedMessageParticipantRole string          `json:"quoted_message_participant_role"`
 	Role                         string          `json:"role"`
