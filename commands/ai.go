@@ -542,7 +542,12 @@ func extractContextFromQuotedMessage(ctx *Context, data *meta_ai.Data) {
 	case quotedMsg.GetVideoMessage() != nil:
 		vidMsg := quotedMsg.GetVideoMessage()
 		data.QuotedMessageType = "Video"
-		data.QuotedMessageOfQuestion = vidMsg.GetCaption()
+		caption := vidMsg.GetCaption()
+		if caption != "" {
+			data.QuotedMessageOfQuestion = fmt.Sprintf("[Video message. Note: Video file reading is not supported yet. Caption: %s]", caption)
+		} else {
+			data.QuotedMessageOfQuestion = "[Video message. Note: Video file reading is not supported yet.]"
+		}
 
 	case quotedMsg.GetAudioMessage() != nil:
 		data.QuotedMessageType = "Audio"
@@ -560,8 +565,27 @@ func extractContextFromQuotedMessage(ctx *Context, data *meta_ai.Data) {
 		}
 
 	case quotedMsg.GetStickerMessage() != nil:
-		data.QuotedMessageType = "Sticker"
-		data.QuotedMessageOfQuestion = "[Sticker message]"
+		stkMsg := quotedMsg.GetStickerMessage()
+		if stkMsg.GetIsAnimated() {
+			data.QuotedMessageType = "Animated Sticker"
+			data.QuotedMessageOfQuestion = "[Animated/Video sticker message. Note: Animated or video stickers are not supported yet.]"
+		} else {
+			data.QuotedMessageType = "Sticker"
+			data.QuotedMessageOfQuestion = "[Sticker image]"
+			mimetype := stkMsg.GetMimetype()
+			if mimetype == "" {
+				mimetype = "image/webp"
+			}
+			data.QuotedImageMimeType = mimetype
+
+			stkData, err := ctx.Client.Download(ctx.Ctx, stkMsg)
+			if err == nil && len(stkData) > 0 {
+				data.QuotedImageBase64 = base64.StdEncoding.EncodeToString(stkData)
+				slog.Debug("extractContextFromQuotedMessage: extracted sticker image base64", "len", len(data.QuotedImageBase64))
+			} else {
+				slog.Warn("extractContextFromQuotedMessage: failed to download quoted sticker image", "err", err)
+			}
+		}
 
 	case quotedMsg.GetPollCreationMessage() != nil || quotedMsg.GetPollCreationMessageV2() != nil || quotedMsg.GetPollCreationMessageV3() != nil:
 		data.QuotedMessageType = "Poll"
