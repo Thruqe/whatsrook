@@ -40,6 +40,31 @@ func handleVideoCall(ctx *Context) error {
 	}
 	target := targets[0].String()
 
+	var videoMsg *waE2E.VideoMessage
+	if msg := ctx.Evt.Message.GetVideoMessage(); msg != nil {
+		videoMsg = msg
+	} else if ext := ctx.Evt.Message.GetExtendedTextMessage(); ext != nil {
+		if ci := ext.GetContextInfo(); ci != nil && ci.QuotedMessage != nil {
+			videoMsg = ci.QuotedMessage.GetVideoMessage()
+		}
+	}
+
+	if videoMsg != nil {
+		data, err := ctx.Client.Download(ctx.Ctx, videoMsg)
+		if err == nil && len(data) > 0 {
+			_ = os.MkdirAll("./media/call-video", 0755)
+			ext := utils.ExtensionFor(videoMsg.GetMimetype())
+			if ext == "" {
+				ext = ".mp4"
+			}
+			path := filepath.Join("./media/call-video", utils.SanitizeJID(ctx.Sender.String())+ext)
+			if err := os.WriteFile(path, data, 0644); err == nil {
+				_, _, _ = utils.PrepareCallVideo(path)
+				return placeVideoCallWithMedia(ctx, target, path)
+			}
+		}
+	}
+
 	if path, ok := getSavedVideo(ctx, ctx.Sender); ok {
 		return placeVideoCallWithMedia(ctx, target, path)
 	}

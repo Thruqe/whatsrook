@@ -51,14 +51,24 @@ func PrepareCallVideo(inputPath string) (string, string, error) {
 	mp3Path := basePath + ".mp3"
 	h264Path := basePath + ".h264"
 
-	// 1. Extract/Transcode Audio to MP3 (16kHz mono)
+	// 1. Extract/Transcode Audio to MP3 (16kHz mono 64k)
 	audioCmd := exec.Command("ffmpeg", "-y", "-i", inputPath, "-vn", "-ar", "16000", "-ac", "1", "-b:a", "64k", mp3Path)
 	if out, err := audioCmd.CombinedOutput(); err != nil {
 		log.Printf("[WARN] ffmpeg audio extraction failed for %s: %v (%s)", inputPath, err, string(out))
 	}
 
-	// 2. Transcode Video to Annex-B H.264 (yuv420p baseline 15 FPS)
-	videoCmd := exec.Command("ffmpeg", "-y", "-i", inputPath, "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-profile:v", "baseline", "-level", "3.0", "-bsf:v", "h264_mp4toannexb", "-r", "15", "-g", "30", h264Path)
+	// 2. Transcode Video to Annex-B H.264 (yuv420p baseline 15 FPS with repeat-headers=1 so every keyframe has SPS+PPS+IDR)
+	videoCmd := exec.Command("ffmpeg", "-y", "-i", inputPath, "-an",
+		"-c:v", "libx264",
+		"-pix_fmt", "yuv420p",
+		"-profile:v", "baseline",
+		"-level", "3.0",
+		"-preset", "ultrafast",
+		"-x264opts", "keyint=15:min-keyint=15:no-scenecut=1:repeat-headers=1",
+		"-bsf:v", "h264_mp4toannexb",
+		"-r", "15",
+		h264Path,
+	)
 	if out, err := videoCmd.CombinedOutput(); err != nil {
 		return "", "", fmt.Errorf("ffmpeg video transcode failed: %w (%s)", err, string(out))
 	}
