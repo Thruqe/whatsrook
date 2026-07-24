@@ -5,8 +5,11 @@ package commands
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"strings"
 	"sync"
 
@@ -95,12 +98,76 @@ func extractMetaAiText(msg *waE2E.Message) string {
 //
 // onUpdate is called synchronously for every partial and the final
 // update; pass nil to skip streaming and just get the final text back.
-func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, request string, onUpdate func(text string) error) (string, error) {
+type MetaAiResult struct {
+	Text         string
+	GeneratedImg []byte
+	ImgMimeType  string
+	ImgCaption   string
+}
+
+type metaAiUnifiedData struct {
+	ResponseID string `json:"response_id"`
+	Sections   []struct {
+		ViewModel struct {
+			Primitive struct {
+				Typename string `json:"__typename"`
+				Media    struct {
+					URL      string `json:"url"`
+					MimeType string `json:"mime_type"`
+				} `json:"media"`
+				Status struct {
+					Status string `json:"status"`
+				} `json:"status"`
+				Text string `json:"text"`
+			} `json:"primitive"`
+		} `json:"view_model"`
+	} `json:"sections"`
+}
+
+func extractMetaAiGeneratedImage(msg *waE2E.Message) (mediaURL string, mimeType string, text string) {
+	if msg == nil {
+		return "", "", ""
+	}
+
+	var rawB64 []byte
+	if rich := msg.GetRichResponseMessage(); rich != nil && rich.GetUnifiedResponse() != nil {
+		rawB64 = rich.GetUnifiedResponse().GetData()
+	} else if pm := msg.GetProtocolMessage(); pm != nil && pm.GetEditedMessage() != nil {
+		if rich := pm.GetEditedMessage().GetRichResponseMessage(); rich != nil && rich.GetUnifiedResponse() != nil {
+			rawB64 = rich.GetUnifiedResponse().GetData()
+		}
+	}
+
+	if len(rawB64) > 0 {
+		decoded := make([]byte, base64.StdEncoding.DecodedLen(len(rawB64)))
+		n, err := base64.StdEncoding.Decode(decoded, rawB64)
+		if err == nil {
+			var uData metaAiUnifiedData
+			if err := json.Unmarshal(decoded[:n], &uData); err == nil {
+				for _, sec := range uData.Sections {
+					p := sec.ViewModel.Primitive
+					if p.Media.URL != "" {
+						mediaURL = strings.ReplaceAll(p.Media.URL, `\/`, `/`)
+						mimeType = p.Media.MimeType
+					}
+					if p.Text != "" {
+						text = p.Text
+					}
+				}
+			}
+		}
+	}
+	return mediaURL, mimeType, text
+}
+
+// queryMetaAi sends request to Meta AI's bot JID and streams Meta AI's
+// response back to the caller as it arrives.
+func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, request string, onUpdate func(text string) error) (MetaAiResult, error) {
 	chatKey := chat.String()
 
 	if !tryLockMetaAi(chatKey) {
 		slog.Warn("queryMetaAi: rejected, already in progress for chat", "chat", chatKey)
-		return "", ErrMetaAiBusy
+		return MetaAiResult{}, ErrMetaAiBusy
 	}
 	defer unlockMetaAi(chatKey)
 
@@ -110,17 +177,20 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 		Conversation: new(request),
 	}); err != nil {
 		slog.Error("queryMetaAi: failed to send request", "chat", chatKey, "err", err)
-		return "", fmt.Errorf("failed to send request to meta ai: %w", err)
+		return MetaAiResult{}, fmt.Errorf("failed to send request to meta ai: %w", err)
 	}
 
 	var (
-		mu        sync.Mutex
-		metaMsgID string
-		seen      bool
-		finished  bool
-		final     string
-		done      = make(chan struct{})
-		closeOnce sync.Once
+		mu         sync.Mutex
+		metaMsgID  string
+		seen       bool
+		finished   bool
+		final      string
+		genImgData []byte
+		genImgMime string
+		genImgCap  string
+		done       = make(chan struct{})
+		closeOnce  sync.Once
 	)
 
 	handlerID := client.AddEventHandler(func(evt any) {
@@ -151,6 +221,31 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 			return
 		} else {
 			mu.Unlock()
+		}
+
+		// Extract generated image media URL if present
+		mediaURL, mimeType, imgCap := extractMetaAiGeneratedImage(msgEvt.Message)
+		if mediaURL == "" && pm != nil {
+			mediaURL, mimeType, imgCap = extractMetaAiGeneratedImage(pm.GetEditedMessage())
+		}
+		if mediaURL != "" {
+			req, err := http.NewRequestWithContext(ctx, "GET", mediaURL, nil)
+			if err == nil {
+				req.Header.Set("User-Agent", "WhatsApp/2.24.1.76 A")
+				resp, err := http.DefaultClient.Do(req)
+				if err == nil && resp.StatusCode == 200 {
+					imgBytes, err := io.ReadAll(resp.Body)
+					_ = resp.Body.Close()
+					if err == nil && len(imgBytes) > 0 {
+						mu.Lock()
+						genImgData = imgBytes
+						genImgMime = mimeType
+						genImgCap = imgCap
+						mu.Unlock()
+						slog.Info("queryMetaAi: downloaded generated image", "len", len(imgBytes), "mime", mimeType)
+					}
+				}
+			}
 		}
 
 		var text string
@@ -202,12 +297,17 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 	select {
 	case <-ctx.Done():
 		slog.Warn("queryMetaAi: context cancelled/timed out before completion", "chat", chatKey, "err", ctx.Err())
-		return "", ctx.Err()
+		return MetaAiResult{}, ctx.Err()
 	case <-done:
 		mu.Lock()
 		defer mu.Unlock()
 		slog.Info("queryMetaAi: completed", "chat", chatKey, "final_text_len", len(final))
-		return final, nil
+		return MetaAiResult{
+			Text:         final,
+			GeneratedImg: genImgData,
+			ImgMimeType:  genImgMime,
+			ImgCaption:   genImgCap,
+		}, nil
 	}
 }
 
@@ -371,7 +471,7 @@ func handleAI(ctx *Context) error {
 		return err
 	}
 
-	reply, err := queryMetaAi(ctx.Ctx, ctx.Client, ctx.Chat, query, onUpdate)
+	res, err := queryMetaAi(ctx.Ctx, ctx.Client, ctx.Chat, query, onUpdate)
 	if err != nil {
 		if err == ErrMetaAiBusy {
 			slog.Warn("handleAI: meta ai busy for chat", "chat", ctx.Chat.String())
@@ -383,6 +483,17 @@ func handleAI(ctx *Context) error {
 		})
 		_, _ = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
 		return err
+	}
+
+	reply := res.Text
+
+	if len(res.GeneratedImg) > 0 {
+		mType := res.ImgMimeType
+		if mType == "" {
+			mType = "image/jpeg"
+		}
+		slog.Info("handleAI: forwarding generated image to chat", "chat", ctx.Chat.String(), "img_len", len(res.GeneratedImg))
+		_ = ctx.SendImage(res.GeneratedImg, mType, res.ImgCaption)
 	}
 
 	// Check whether the final reply is a RUN_COMMAND request.

@@ -54,6 +54,8 @@ func handleEditMsg(ctx *Context) error {
 	var newText string
 
 	ci := ctx.GetContextInfo()
+	quotedSender, hasQuoted := ctx.GetQuotedSender()
+
 	if len(ctx.Args) >= 2 && len(ctx.Args[0]) > 6 {
 		targetID = types.MessageID(ctx.Args[0])
 		newText = strings.TrimSpace(ctx.RawArgs[len(ctx.Args[0]):])
@@ -63,6 +65,12 @@ func handleEditMsg(ctx *Context) error {
 	} else {
 		targetID = types.MessageID(ctx.Args[0])
 		newText = strings.TrimSpace(ctx.RawArgs[len(ctx.Args[0]):])
+	}
+
+	if hasQuoted {
+		if ctx.Client.Store.ID != nil && !ctx.IsSameUser(quotedSender, *ctx.Client.Store.ID) {
+			return ctx.Reply("You can only edit messages sent by the bot (fromMe=true).")
+		}
 	}
 
 	if newText == "" {
