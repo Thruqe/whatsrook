@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"whatsrook/meta_ai"
 	"whatsrook/store/sqlstore"
@@ -203,8 +204,39 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 
 		mu.Lock()
 		if finished {
+			if imgMsg := msgEvt.Message.GetImageMessage(); imgMsg != nil {
+				slog.Info("queryMetaAi: captured follow-up imageMessage after finished", "chat", chatKey)
+				imgBytes, err := client.Download(ctx, imgMsg)
+				if err == nil && len(imgBytes) > 0 {
+					genImgData = imgBytes
+					genImgMime = imgMsg.GetMimetype()
+					if genImgMime == "" {
+						genImgMime = "image/jpeg"
+					}
+					genImgCap = imgMsg.GetCaption()
+					slog.Info("queryMetaAi: successfully downloaded follow-up imageMessage", "len", len(imgBytes))
+					closeOnce.Do(func() { close(done) })
+				}
+			}
 			mu.Unlock()
 			return
+		}
+
+		if imgMsg := msgEvt.Message.GetImageMessage(); imgMsg != nil {
+			slog.Info("queryMetaAi: captured direct imageMessage from Meta AI", "chat", chatKey)
+			imgBytes, err := client.Download(ctx, imgMsg)
+			if err == nil && len(imgBytes) > 0 {
+				genImgData = imgBytes
+				genImgMime = imgMsg.GetMimetype()
+				if genImgMime == "" {
+					genImgMime = "image/jpeg"
+				}
+				genImgCap = imgMsg.GetCaption()
+				slog.Info("queryMetaAi: successfully downloaded direct imageMessage", "len", len(imgBytes))
+				mu.Unlock()
+				closeOnce.Do(func() { close(done) })
+				return
+			}
 		}
 
 		if !seen {
@@ -288,8 +320,19 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 				final = text
 			}
 			finished = true
+			hasImgData := len(genImgData) > 0
 			mu.Unlock()
-			closeOnce.Do(func() { close(done) })
+
+			lower := strings.ToLower(text)
+			if !hasImgData && (strings.Contains(lower, "image") || strings.Contains(lower, "creating") || strings.Contains(lower, "ready")) {
+				slog.Info("queryMetaAi: text indicates image generation, waiting briefly for follow-up imageMessage", "chat", chatKey)
+				go func() {
+					time.Sleep(4 * time.Second)
+					closeOnce.Do(func() { close(done) })
+				}()
+			} else {
+				closeOnce.Do(func() { close(done) })
+			}
 		}
 	})
 	defer client.RemoveEventHandler(handlerID)

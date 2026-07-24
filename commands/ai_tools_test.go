@@ -5,7 +5,7 @@ import (
 )
 
 func TestAiBotToolsRegistration(t *testing.T) {
-	tools := []string{"send", "edit", "delete", "ffmpeg", "fetch"}
+	tools := []string{"send", "edit", "delete", "ffmpeg", "fetch", "downloadMessage"}
 
 	for _, toolName := range tools {
 		cmd, ok := Get(toolName)
