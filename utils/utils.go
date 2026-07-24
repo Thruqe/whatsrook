@@ -44,6 +44,57 @@ func TranscodeToMP3(inputPath string) (string, error) {
 	return outputPath, nil
 }
 
+// PrepareCallVideo converts any input video file to both a WhatsApp-compatible
+// audio track (.mp3) and an Annex-B H.264 video stream (.h264) via ffmpeg.
+func PrepareCallVideo(inputPath string) (string, string, error) {
+	basePath := strings.TrimSuffix(inputPath, filepath.Ext(inputPath))
+	mp3Path := basePath + ".mp3"
+	h264Path := basePath + ".h264"
+
+	// 1. Extract/Transcode Audio to MP3 (16kHz mono)
+	audioCmd := exec.Command("ffmpeg", "-y", "-i", inputPath, "-vn", "-ar", "16000", "-ac", "1", "-b:a", "64k", mp3Path)
+	if out, err := audioCmd.CombinedOutput(); err != nil {
+		log.Printf("[WARN] ffmpeg audio extraction failed for %s: %v (%s)", inputPath, err, string(out))
+	}
+
+	// 2. Transcode Video to Annex-B H.264 (yuv420p baseline 15 FPS)
+	videoCmd := exec.Command("ffmpeg", "-y", "-i", inputPath, "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-profile:v", "baseline", "-level", "3.0", "-bsf:v", "h264_mp4toannexb", "-r", "15", "-g", "30", h264Path)
+	if out, err := videoCmd.CombinedOutput(); err != nil {
+		return "", "", fmt.Errorf("ffmpeg video transcode failed: %w (%s)", err, string(out))
+	}
+
+	return mp3Path, h264Path, nil
+}
+
+// SplitAnnexB splits raw H.264 Annex-B stream data into individual access units (frames).
+func SplitAnnexB(data []byte) [][]byte {
+	var frames [][]byte
+	start := -1
+
+	for i := 0; i < len(data); {
+		var codeLen int
+		if i+3 < len(data) && data[i] == 0 && data[i+1] == 0 && data[i+2] == 0 && data[i+3] == 1 {
+			codeLen = 4
+		} else if i+2 < len(data) && data[i] == 0 && data[i+1] == 0 && data[i+2] == 1 {
+			codeLen = 3
+		}
+
+		if codeLen > 0 {
+			if start != -1 && i > start {
+				frames = append(frames, data[start:i])
+			}
+			start = i
+			i += codeLen
+		} else {
+			i++
+		}
+	}
+	if start != -1 && start < len(data) {
+		frames = append(frames, data[start:])
+	}
+	return frames
+}
+
 // IsSaveText checks if a text string matches our save trigger word.
 func IsSaveText(text string) bool {
 	return strings.Contains(strings.ToLower(strings.TrimSpace(text)), "save")
