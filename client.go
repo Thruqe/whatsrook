@@ -16,6 +16,7 @@ import (
 	"whatsrook/logger"
 	"whatsrook/store/sqlstore"
 	"whatsrook/updater"
+	"whatsrook/utils"
 
 	_ "github.com/mattn/go-sqlite3"
 	"go.mau.fi/whatsmeow"
@@ -65,6 +66,9 @@ func runDaemon() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Start background network health guard & auto-pause manager.
+	utils.StartNetworkGuard(ctx, 10*time.Second)
 
 	// Graceful shutdown on Ctrl+C / SIGTERM.
 	sigCh := make(chan os.Signal, 1)

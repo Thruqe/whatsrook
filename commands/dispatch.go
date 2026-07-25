@@ -14,6 +14,7 @@ import (
 	"whatsrook/font"
 	waSender "whatsrook/sender"
 	"whatsrook/store/sqlstore"
+	"whatsrook/utils"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -74,6 +75,12 @@ func initTables(ctx context.Context, s *sqlstore.SQLStore) {
 // Dispatch checks if the message text is a recognised command and runs it.
 // Returns true if a command matched (and was handled), false otherwise.
 func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message) bool {
+	if utils.IsNetworkPaused() {
+		_, reason, _ := utils.GetNetworkStatus()
+		slog.Warn("Process is paused due to network issues, skipping command dispatch", "reason", reason)
+		return false
+	}
+
 	chatStr := evt.Info.Chat.String()
 	senderStr := evt.Info.Sender.String()
 	text := extractText(evt)

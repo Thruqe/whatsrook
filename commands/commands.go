@@ -4,6 +4,7 @@ package commands
 
 import (
 	"strings"
+	"sync"
 
 	"whatsrook/sender"
 )
@@ -37,29 +38,52 @@ type CommandInfo struct {
 	IsPublic    bool     `json:"is_public"`
 }
 
-var registry = map[string]*Command{}
-var order []string // preserves registration order for help text
+var (
+	registryMu sync.RWMutex
+	registry   = map[string]*Command{}
+	order      = []string{} // preserves registration order for help text
+)
 
 // Register adds a command. Call from each command file's init().
 func Register(c *Command) {
-	registry[strings.ToLower(c.Name)] = c
-	order = append(order, c.Name)
+	if c == nil || c.Name == "" {
+		return
+	}
+	registryMu.Lock()
+	defer registryMu.Unlock()
+
+	key := strings.ToLower(c.Name)
+	if _, exists := registry[key]; !exists {
+		order = append(order, c.Name)
+	}
+	registry[key] = c
 	for _, a := range c.Aliases {
-		registry[strings.ToLower(a)] = c
+		if a != "" {
+			registry[strings.ToLower(a)] = c
+		}
 	}
 }
 
 // Get looks up a command by name or alias.
 func Get(name string) (*Command, bool) {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+
 	c, ok := registry[strings.ToLower(name)]
 	return c, ok
 }
 
 // All returns commands in registration order (for a help command).
 func All() []*Command {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+
 	out := make([]*Command, 0, len(order))
 	for _, name := range order {
-		out = append(out, registry[name])
+		c := registry[strings.ToLower(name)]
+		if c != nil {
+			out = append(out, c)
+		}
 	}
 	return out
 }
@@ -67,11 +91,14 @@ func All() []*Command {
 // Visible returns only commands that should appear in the menu,
 // deduplicated (aliases share the same *Command pointer).
 func Visible() []*Command {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+
 	seen := map[*Command]bool{}
 	var out []*Command
 	for _, name := range order {
-		c := registry[name]
-		if c.HideFromMenu || seen[c] {
+		c := registry[strings.ToLower(name)]
+		if c == nil || c.HideFromMenu || seen[c] {
 			continue
 		}
 		seen[c] = true
