@@ -754,8 +754,8 @@ func handleListOnline(ctx *Context) error {
 		return ctx.Reply("No participants found in this group.")
 	}
 
-	// 1. Send chat presence typing indicator to signal activity in the group
-	_ = ctx.Client.SendChatPresence(ctx.Ctx, ctx.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaText)
+	// 1. Send status message to prompt WhatsApp servers to trigger group-wide delivery receipts
+	_ = ctx.Reply("Fetching online participants...")
 
 	// 2. Query SQLite database for stored receipt/presence activity for this group
 	if s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore); ok {
