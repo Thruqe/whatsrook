@@ -696,8 +696,8 @@ func IsUserOnline(jid types.JID, client *whatsmeow.Client) bool {
 	info, exists := presenceMap[targetKey]
 	presenceMu.RUnlock()
 
-	if exists && info.IsOnline {
-		slog.Debug("IsUserOnline check: direct match online", "jid", targetKey)
+	if exists && (info.IsOnline || time.Since(info.LastSeen) < 15*time.Minute) {
+		slog.Debug("IsUserOnline check: direct match online", "jid", targetKey, "lastSeen", info.LastSeen)
 		return true
 	}
 
@@ -710,7 +710,7 @@ func IsUserOnline(jid types.JID, client *whatsmeow.Client) bool {
 				presenceMu.RLock()
 				pnInfo, pnExists := presenceMap[pnKey]
 				presenceMu.RUnlock()
-				if pnExists && pnInfo.IsOnline {
+				if pnExists && (pnInfo.IsOnline || time.Since(pnInfo.LastSeen) < 15*time.Minute) {
 					slog.Debug("IsUserOnline check: PN match online for LID", "lid", targetKey, "pn", pnKey)
 					return true
 				}
@@ -722,7 +722,7 @@ func IsUserOnline(jid types.JID, client *whatsmeow.Client) bool {
 				presenceMu.RLock()
 				lidInfo, lidExists := presenceMap[lidKey]
 				presenceMu.RUnlock()
-				if lidExists && lidInfo.IsOnline {
+				if lidExists && (lidInfo.IsOnline || time.Since(lidInfo.LastSeen) < 15*time.Minute) {
 					slog.Debug("IsUserOnline check: LID match online for PN", "pn", targetKey, "lid", lidKey)
 					return true
 				}
@@ -753,6 +753,9 @@ func handleListOnline(ctx *Context) error {
 	if total == 0 {
 		return ctx.Reply("No participants found in this group.")
 	}
+
+	// 1. Send chat presence typing indicator to signal activity in the group
+	_ = ctx.Client.SendChatPresence(ctx.Ctx, ctx.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaText)
 
 	// Build set of expected participant JID keys (LID & PN formats)
 	expectedJIDs := make(map[string]types.JID)
@@ -825,12 +828,22 @@ func handleListOnline(ctx *Context) error {
 		_ = ctx.Client.SubscribePresence(ctx.Ctx, p.JID)
 	}
 
-	// Wait for WhatsApp to return presence events for all participants (or 4s max timeout)
-	select {
-	case <-doneChan:
-		slog.Info("handleListOnline: WhatsApp returned presence results for all participants", "count", receivedCount)
-	case <-time.After(4 * time.Second):
-		slog.Info("handleListOnline: presence wait timeout reached", "received", receivedCount, "total", total)
+	// Check if presenceMap already has cached online presence for group members
+	cachedOnlineCount := 0
+	for _, p := range info.Participants {
+		if IsUserOnline(p.JID, ctx.Client) {
+			cachedOnlineCount++
+		}
+	}
+
+	// If cached online records are small, wait up to 2s for live presence/receipt stanzas
+	if cachedOnlineCount < 2 {
+		select {
+		case <-doneChan:
+			slog.Info("handleListOnline: presence/receipt stanzas collected", "count", receivedCount)
+		case <-time.After(2000 * time.Millisecond):
+			slog.Info("handleListOnline: presence wait window ended", "received", receivedCount, "total", total)
+		}
 	}
 
 	// Collect online participants
