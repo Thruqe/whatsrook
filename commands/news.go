@@ -9,6 +9,10 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"go.mau.fi/whatsmeow"
+	waBinary "go.mau.fi/whatsmeow/binary"
+	"go.mau.fi/whatsmeow/proto/waE2E"
 )
 
 func init() {
@@ -43,7 +47,7 @@ var (
 func handleNews(ctx *Context) error {
 	p := ctx.GetPrefix()
 	if len(ctx.Args) == 0 {
-		return ctx.Reply(fmt.Sprintf("Usage:\n- %snews <country_name>\n\nExamples:\n- %snews nigeria\n- %snews japan\n- %snews united-states\n- %snews kenya", p, p, p, p, p))
+		return sendNewsCountryMenu(ctx)
 	}
 
 	country := strings.ToLower(strings.TrimSpace(strings.Join(ctx.Args, "-")))
@@ -180,4 +184,68 @@ func cleanHTMLText(input string) string {
 	cleaned := stripTagsRegex.ReplaceAllString(input, "")
 	cleaned = html.UnescapeString(cleaned)
 	return strings.TrimSpace(cleaned)
+}
+
+func sendNewsCountryMenu(ctx *Context) error {
+	p := ctx.GetPrefix()
+	bodyText := "AP News Country Selector\n\nPlease select a country below to view top news headlines, or type a country name:\n\nExamples:\n- " + p + "news nigeria\n- " + p + "news japan\n- " + p + "news united-states\n- " + p + "news kenya"
+
+	msg := &waE2E.Message{
+		DocumentWithCaptionMessage: &waE2E.FutureProofMessage{
+			Message: &waE2E.Message{
+				ButtonsMessage: &waE2E.ButtonsMessage{
+					ContentText: new(bodyText),
+					FooterText:  new("WhatsRook AP News"),
+					HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
+					Buttons: []*waE2E.ButtonsMessage_Button{
+						{
+							ButtonID: new(p + "news nigeria"),
+							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
+								DisplayText: new("NIGERIA"),
+							},
+							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
+						},
+						{
+							ButtonID: new(p + "news united-states"),
+							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
+								DisplayText: new("USA"),
+							},
+							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
+						},
+						{
+							ButtonID: new(p + "news japan"),
+							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
+								DisplayText: new("JAPAN"),
+							},
+							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	bizNode := waBinary.Node{
+		Tag:   "biz",
+		Attrs: waBinary.Attrs{},
+		Content: []waBinary.Node{
+			{
+				Tag:   "interactive",
+				Attrs: waBinary.Attrs{"type": "native_flow", "v": "1"},
+				Content: []waBinary.Node{
+					{
+						Tag:   "native_flow",
+						Attrs: waBinary.Attrs{"name": "quick_reply"},
+					},
+				},
+			},
+		},
+	}
+
+	extra := whatsmeow.SendRequestExtra{
+		AdditionalNodes: &[]waBinary.Node{bizNode},
+	}
+
+	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
+	return err
 }
