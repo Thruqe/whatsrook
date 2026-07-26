@@ -158,10 +158,7 @@ func handleTicTacToe(ctx *Context) error {
 		msg := fmt.Sprintf("Tic-Tac-Toe Started!\n\nPlayer X: %s\nPlayer O: %s\n\nTurn: %s (X)%s\n\n%s\n\nMake a move by sending a number 1-9",
 			userTag, oTag, firstTag, botFirstMsg, renderTTTGrid(&newGame.Board))
 
-		mentions := []types.JID{userMentionJID}
-		if !isBotGame {
-			mentions = append(mentions, playerOMention)
-		}
+		mentions := []types.JID{userMentionJID, playerOMention}
 		return ctx.ReplyWithMentions(msg, mentions)
 	}
 
@@ -242,7 +239,7 @@ func handleTicTacToe(ctx *Context) error {
 			delete(tttGames, chatKey)
 			addXP(ctx, game.PlayerXMention, 10, "loss")
 			msg := fmt.Sprintf("Game Over!\n\nWinner: %s (O)\nBetter luck next time (+10 XP)!\n\n%s", game.PlayerOTag, renderTTTGrid(&game.Board))
-			return ctx.ReplyWithMentions(msg, []types.JID{game.PlayerXMention})
+			return ctx.ReplyWithMentions(msg, []types.JID{game.PlayerXMention, game.PlayerOMention})
 		}
 
 		if isTTTFull(&game.Board) {
@@ -255,7 +252,7 @@ func handleTicTacToe(ctx *Context) error {
 		game.Turn = game.PlayerX // PlayerX is the raw LID — correct for turn tracking
 		msg := fmt.Sprintf("Move placed!\n\nAI played position %d.\nTurn: %s (X)\n\n%s\n\nSend 1-9 to make your next move",
 			botMove+1, game.PlayerXTag, renderTTTGrid(&game.Board))
-		return ctx.ReplyWithMentions(msg, []types.JID{game.PlayerXMention})
+		return ctx.ReplyWithMentions(msg, []types.JID{game.PlayerXMention, game.PlayerOMention})
 	}
 
 	// 2P game turn switch (both stored as LID)
