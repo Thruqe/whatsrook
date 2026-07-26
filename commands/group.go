@@ -3,6 +3,7 @@ package commands
 
 import (
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -673,12 +674,14 @@ func TrackPresence(jid types.JID, isOnline bool) {
 	if jid.IsEmpty() {
 		return
 	}
+	key := jid.ToNonAD().String()
 	presenceMu.Lock()
-	defer presenceMu.Unlock()
-	presenceMap[jid.ToNonAD().String()] = PresenceInfo{
+	presenceMap[key] = PresenceInfo{
 		LastSeen: time.Now(),
 		IsOnline: isOnline,
 	}
+	presenceMu.Unlock()
+	slog.Debug("TrackPresence update", "jid", key, "isOnline", isOnline)
 }
 
 func IsUserOnline(jid types.JID, client *whatsmeow.Client) bool {
@@ -691,30 +694,47 @@ func IsUserOnline(jid types.JID, client *whatsmeow.Client) bool {
 	info, exists := presenceMap[targetKey]
 	presenceMu.RUnlock()
 
+	slog.Debug("IsUserOnline check", "jid", targetKey, "exists", exists, "isOnline", info.IsOnline)
 	return exists && info.IsOnline
 }
 
 func handleListOnline(ctx *Context) error {
 	if ctx.Chat.Server != "g.us" {
+		slog.Debug("handleListOnline: not a group chat", "chat", ctx.Chat.String())
 		return ctx.Reply("This command can only be used in a group.")
 	}
 
+	slog.Info("handleListOnline executing", "group", ctx.Chat.String())
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
+		slog.Error("handleListOnline: failed to get group info", "group", ctx.Chat.String(), "err", err)
 		return ctx.Reply(fmt.Sprintf("Failed to get group info: %v", err))
 	}
+
+	slog.Debug("handleListOnline retrieved group info", "group", ctx.Chat.String(), "participant_count", len(info.Participants))
 
 	var onlineJIDs []types.JID
 	var displayNames []string
 
 	for _, p := range info.Participants {
-		_ = ctx.Client.SubscribePresence(ctx.Ctx, p.JID)
+		subErr := ctx.Client.SubscribePresence(ctx.Ctx, p.JID)
+		if subErr != nil {
+			slog.Debug("handleListOnline: SubscribePresence failed", "participant", p.JID.String(), "err", subErr)
+		} else {
+			slog.Debug("handleListOnline: SubscribePresence sent", "participant", p.JID.String())
+		}
+
 		if IsUserOnline(p.JID, ctx.Client) {
 			resolvedJID, username := ctx.ResolveMention(p.JID)
 			onlineJIDs = append(onlineJIDs, resolvedJID)
 			displayNames = append(displayNames, "@"+username)
+			slog.Debug("handleListOnline: participant online", "participant", p.JID.String(), "username", username)
+		} else {
+			slog.Debug("handleListOnline: participant offline or pending presence response", "participant", p.JID.String())
 		}
 	}
+
+	slog.Info("handleListOnline complete", "group", ctx.Chat.String(), "total_participants", len(info.Participants), "online_count", len(onlineJIDs))
 
 	if len(onlineJIDs) == 0 {
 		return ctx.Reply("No online participants detected in this group.")

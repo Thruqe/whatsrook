@@ -66,9 +66,11 @@ func (b *Bot) handleWAEvent(evt any) {
 		})
 
 	case *events.Presence:
+		slog.Debug("events: received Presence event", "from", v.From.String(), "unavailable", v.Unavailable, "lastSeen", v.LastSeen)
 		commands.TrackPresence(v.From, !v.Unavailable)
 
 	case *events.ChatPresence:
+		slog.Debug("events: received ChatPresence event", "sender", v.Sender.String(), "state", v.State, "media", v.Media)
 		commands.TrackPresence(v.Sender, true)
 
 	case *events.CallOffer:
