@@ -51,7 +51,6 @@ func (b *Bot) handleWAEvent(evt any) {
 		go b.notifyOwnerConnected()
 
 	case *events.Message:
-		commands.TrackPresence(v.Info.Sender, true)
 		if commands.HandlePendingAudioReply(context.Background(), b.client, v) {
 			return
 		}

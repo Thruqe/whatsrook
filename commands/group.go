@@ -691,13 +691,7 @@ func IsUserOnline(jid types.JID, client *whatsmeow.Client) bool {
 	info, exists := presenceMap[targetKey]
 	presenceMu.RUnlock()
 
-	if exists {
-		if info.IsOnline || time.Since(info.LastSeen) < 5*time.Minute {
-			return true
-		}
-	}
-
-	return false
+	return exists && info.IsOnline
 }
 
 func handleListOnline(ctx *Context) error {
