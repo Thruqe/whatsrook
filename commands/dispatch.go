@@ -78,8 +78,14 @@ func initTables(ctx context.Context, s *sqlstore.SQLStore) {
 			xp INTEGER DEFAULT 0,
 			ttt_wins INTEGER DEFAULT 0,
 			ttt_losses INTEGER DEFAULT 0,
-			ttt_draws INTEGER DEFAULT 0
+			ttt_draws INTEGER DEFAULT 0,
+			wcg_wins INTEGER DEFAULT 0,
+			wcg_games INTEGER DEFAULT 0,
+			wcg_rating INTEGER DEFAULT 1000
 		)`)
+		_, _ = db.Exec(ctx, `ALTER TABLE bot_user_xp ADD COLUMN wcg_wins INTEGER DEFAULT 0`)
+		_, _ = db.Exec(ctx, `ALTER TABLE bot_user_xp ADD COLUMN wcg_games INTEGER DEFAULT 0`)
+		_, _ = db.Exec(ctx, `ALTER TABLE bot_user_xp ADD COLUMN wcg_rating INTEGER DEFAULT 1000`)
 	})
 }
 
@@ -213,6 +219,20 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	if IsTTTGameActive(chatStr) && len(trimmedText) == 1 && trimmedText >= "1" && trimmedText <= "9" {
 		slog.Info("Direct move matched active Tic-Tac-Toe game", "chat", chatStr, "move", trimmedText)
 		return runCommand(ctx, client, evt, "ttt "+trimmedText)
+	}
+
+	// Active Word Guessing Game (WCG) listener
+	if IsWCGGameActive(chatStr) {
+		cctx := &Context{
+			Ctx:    ctx,
+			Client: client,
+			Evt:    evt,
+			Chat:   evt.Info.Chat,
+			Sender: evt.Info.Sender,
+		}
+		if HandleWCGInput(cctx, text) {
+			return true
+		}
 	}
 
 	// Empty prefix: treat the whole message as a potential command.
