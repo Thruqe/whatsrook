@@ -111,18 +111,18 @@ func handleFilter(ctx *Context) error {
 
 		res, err := db.Exec(ctx.Ctx, `DELETE FROM bot_filters WHERE our_jid=$1 AND trigger_word=$2`, ourJID, trigger)
 		if err != nil {
-			return err
+			return ctx.Reply("Failed to delete filter.")
 		}
 		rows, _ := res.RowsAffected()
 		if rows == 0 {
-			return ctx.Reply(fmt.Sprintf("ℹ Filter for word %q not found.", trigger))
+			return ctx.Reply(fmt.Sprintf("Filter for word %q not found.", trigger))
 		}
-		return ctx.Reply(fmt.Sprintf(" Filter for word %q removed.", trigger))
+		return ctx.Reply(fmt.Sprintf("Filter for word %q removed.", trigger))
 
 	case "list":
 		rows, err := db.Query(ctx.Ctx, `SELECT trigger_word FROM bot_filters WHERE our_jid=$1`, ourJID)
 		if err != nil {
-			return err
+			return ctx.Reply("Failed to query filters.")
 		}
 		defer rows.Close()
 
@@ -135,9 +135,9 @@ func handleFilter(ctx *Context) error {
 		}
 
 		if len(triggers) == 0 {
-			return ctx.Reply("ℹ No filters configured.")
+			return ctx.Reply("No filters configured.")
 		}
-		return ctx.Reply(fmt.Sprintf(" Active Filters:\n- %s", strings.Join(triggers, "\n- ")))
+		return ctx.Reply(fmt.Sprintf("Active Filters:\n- %s", strings.Join(triggers, "\n- ")))
 
 	default:
 		// Shorthand: filter [trigger] [response_text...] or filter [trigger] (replying to a message)
@@ -159,7 +159,7 @@ func handleFilter(ctx *Context) error {
 	if responseProtoMsg != nil {
 		encoded, err := sender.EncodeProtoMessage(responseProtoMsg)
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf(" Failed to encode filter message: %v", err))
+			return ctx.Reply(fmt.Sprintf("Failed to encode filter message: %v", err))
 		}
 
 		_, err = db.Exec(ctx.Ctx, `
@@ -168,10 +168,10 @@ func handleFilter(ctx *Context) error {
 			ON CONFLICT(our_jid, trigger_word) DO UPDATE SET message_proto=excluded.message_proto
 		`, ourJID, trigger, encoded)
 		if err != nil {
-			return err
+			return ctx.Reply("Failed to save filter.")
 		}
 
-		return ctx.Reply(fmt.Sprintf(" Filter added for word %q.", trigger))
+		return ctx.Reply(fmt.Sprintf("Filter added for word %q.", trigger))
 	}
 
 	return nil
@@ -221,18 +221,18 @@ func handleBGM(ctx *Context) error {
 
 		res, err := db.Exec(ctx.Ctx, `DELETE FROM bot_bgm WHERE our_jid=$1 AND trigger_word=$2`, ourJID, trigger)
 		if err != nil {
-			return err
+			return ctx.Reply("Failed to delete BGM.")
 		}
 		rows, _ := res.RowsAffected()
 		if rows == 0 {
-			return ctx.Reply(fmt.Sprintf("ℹ BGM for word %q not found.", trigger))
+			return ctx.Reply(fmt.Sprintf("BGM for word %q not found.", trigger))
 		}
-		return ctx.Reply(fmt.Sprintf(" BGM for word %q removed.", trigger))
+		return ctx.Reply(fmt.Sprintf("BGM for word %q removed.", trigger))
 
 	case "list":
 		rows, err := db.Query(ctx.Ctx, `SELECT trigger_word FROM bot_bgm WHERE our_jid=$1`, ourJID)
 		if err != nil {
-			return err
+			return ctx.Reply("Failed to query BGMs.")
 		}
 		defer rows.Close()
 
@@ -245,9 +245,9 @@ func handleBGM(ctx *Context) error {
 		}
 
 		if len(triggers) == 0 {
-			return ctx.Reply("ℹ No BGMs configured.")
+			return ctx.Reply("No BGMs configured.")
 		}
-		return ctx.Reply(fmt.Sprintf(" Active BGMs:\n- %s", strings.Join(triggers, "\n- ")))
+		return ctx.Reply(fmt.Sprintf("Active BGMs:\n- %s", strings.Join(triggers, "\n- ")))
 
 	default:
 		// Shorthand: bgm [trigger] (replying to audio)
@@ -265,7 +265,7 @@ func handleBGM(ctx *Context) error {
 	if responseProtoMsg != nil {
 		encoded, err := sender.EncodeProtoMessage(responseProtoMsg)
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf(" Failed to encode BGM message: %v", err))
+			return ctx.Reply(fmt.Sprintf("Failed to encode BGM message: %v", err))
 		}
 
 		_, err = db.Exec(ctx.Ctx, `
@@ -274,10 +274,10 @@ func handleBGM(ctx *Context) error {
 			ON CONFLICT(our_jid, trigger_word) DO UPDATE SET message_proto=excluded.message_proto
 		`, ourJID, trigger, encoded)
 		if err != nil {
-			return err
+			return ctx.Reply("Failed to save BGM.")
 		}
 
-		return ctx.Reply(fmt.Sprintf(" BGM added for word %q.", trigger))
+		return ctx.Reply(fmt.Sprintf("BGM added for word %q.", trigger))
 	}
 
 	return nil
@@ -315,7 +315,7 @@ func handleMention(ctx *Context) error {
 
 		encoded, err := sender.EncodeProtoMessage(quoted)
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf(" Failed to encode mention message: %v", err))
+			return ctx.Reply(fmt.Sprintf("Failed to encode mention message: %v", err))
 		}
 
 		_, err = db.Exec(ctx.Ctx, `
@@ -323,7 +323,7 @@ func handleMention(ctx *Context) error {
 			ON CONFLICT(our_jid, key) DO UPDATE SET value=excluded.value
 		`, ourJID, encoded)
 		if err != nil {
-			return err
+			return ctx.Reply("Failed to save mention setting.")
 		}
 
 		return ctx.Reply("Tag auto-response configured.")
@@ -331,7 +331,7 @@ func handleMention(ctx *Context) error {
 	case "del", "remove":
 		_, err := db.Exec(ctx.Ctx, `DELETE FROM bot_settings WHERE our_jid=$1 AND key='mention_proto'`, ourJID)
 		if err != nil {
-			return err
+			return ctx.Reply("Failed to delete mention setting.")
 		}
 		return ctx.Reply("Tag auto-response removed.")
 
@@ -339,7 +339,7 @@ func handleMention(ctx *Context) error {
 		var mentionProto string
 		err := db.QueryRow(ctx.Ctx, `SELECT value FROM bot_settings WHERE our_jid=$1 AND key='mention_proto'`, ourJID).Scan(&mentionProto)
 		if err != nil || mentionProto == "" {
-			return ctx.Reply("ℹ No tag auto-response configured.")
+			return ctx.Reply("No tag auto-response configured.")
 		}
 		return ctx.Reply("Tag auto-response is currently configured.")
 
@@ -401,7 +401,7 @@ func handleAddFilter(ctx *Context) error {
 
 	encoded, err := sender.EncodeProtoMessage(responseProtoMsg)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to encode filter message: %v", err))
+		return ctx.Reply(fmt.Sprintf("Failed to encode filter message: %v", err))
 	}
 
 	_, err = db.Exec(ctx.Ctx, `
@@ -410,10 +410,10 @@ func handleAddFilter(ctx *Context) error {
 		ON CONFLICT(our_jid, trigger_word) DO UPDATE SET message_proto=excluded.message_proto
 	`, ourJID, trigger, encoded)
 	if err != nil {
-		return err
+		return ctx.Reply("Failed to save filter.")
 	}
 
-	return ctx.Reply(fmt.Sprintf(" Filter added for word %q.", trigger))
+	return ctx.Reply(fmt.Sprintf("Filter added for word %q.", trigger))
 }
 
 func handleGetFilter(ctx *Context) error {
@@ -437,12 +437,12 @@ func handleGetFilter(ctx *Context) error {
 	var filterProto string
 	err := db.QueryRow(ctx.Ctx, `SELECT message_proto FROM bot_filters WHERE our_jid=$1 AND trigger_word=$2`, ourJID, trigger).Scan(&filterProto)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf(" Filter for word %q not found.", trigger))
+		return ctx.Reply(fmt.Sprintf("Filter for word %q not found.", trigger))
 	}
 
 	msg, err := sender.DecodeProtoMessage(filterProto)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to decode filter: %v", err))
+		return ctx.Reply(fmt.Sprintf("Failed to decode filter: %v", err))
 	}
 
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
@@ -463,7 +463,7 @@ func handleListFilters(ctx *Context) error {
 
 	rows, err := db.Query(ctx.Ctx, `SELECT trigger_word FROM bot_filters WHERE our_jid=$1`, ourJID)
 	if err != nil {
-		return err
+		return ctx.Reply("Failed to query filters.")
 	}
 	defer rows.Close()
 
@@ -476,9 +476,9 @@ func handleListFilters(ctx *Context) error {
 	}
 
 	if len(triggers) == 0 {
-		return ctx.Reply("ℹ No filters configured.")
+		return ctx.Reply("No filters configured.")
 	}
-	return ctx.Reply(fmt.Sprintf(" Active Filters:\n- %s", strings.Join(triggers, "\n- ")))
+	return ctx.Reply(fmt.Sprintf("Active Filters:\n- %s", strings.Join(triggers, "\n- ")))
 }
 
 func handleDelFilter(ctx *Context) error {
@@ -501,11 +501,11 @@ func handleDelFilter(ctx *Context) error {
 
 	res, err := db.Exec(ctx.Ctx, `DELETE FROM bot_filters WHERE our_jid=$1 AND trigger_word=$2`, ourJID, trigger)
 	if err != nil {
-		return err
+		return ctx.Reply("Failed to delete filter.")
 	}
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		return ctx.Reply(fmt.Sprintf("ℹ Filter for word %q not found.", trigger))
+		return ctx.Reply(fmt.Sprintf("Filter for word %q not found.", trigger))
 	}
-	return ctx.Reply(fmt.Sprintf(" Filter for word %q removed.", trigger))
+	return ctx.Reply(fmt.Sprintf("Filter for word %q removed.", trigger))
 }

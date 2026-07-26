@@ -248,7 +248,7 @@ func handleBlock(ctx *Context) error {
 		return ctx.Reply("Failed to block user: " + err.Error())
 	}
 	resolvedJID, username := ctx.ResolveMention(target)
-	return ctx.ReplyWithMentions(fmt.Sprintf(" Blocked @%s.", username), []types.JID{resolvedJID})
+	return ctx.ReplyWithMentions(fmt.Sprintf("Blocked @%s.", username), []types.JID{resolvedJID})
 }
 
 func handleUnblock(ctx *Context) error {
@@ -270,7 +270,7 @@ func handleUnblock(ctx *Context) error {
 		return ctx.Reply("Failed to unblock user: " + err.Error())
 	}
 	resolvedJID, username := ctx.ResolveMention(target)
-	return ctx.ReplyWithMentions(fmt.Sprintf(" Unblocked @%s.", username), []types.JID{resolvedJID})
+	return ctx.ReplyWithMentions(fmt.Sprintf("Unblocked @%s.", username), []types.JID{resolvedJID})
 }
 
 func handleClear(ctx *Context) error {
@@ -452,7 +452,7 @@ func handleReport(ctx *Context) error {
 		//nolint:staticcheck
 		_, err := ctx.Client.DangerousInternals().SendNodeAndGetData(ctx.Ctx, iqNode)
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf(" Failed to submit spam report on iteration %d: %s", i+1, err.Error()))
+			return ctx.Reply(fmt.Sprintf("Failed to submit spam report on iteration %d: %s", i+1, err.Error()))
 		}
 
 		if count > 1 && i < count-1 {
@@ -468,14 +468,14 @@ func handleReport(ctx *Context) error {
 			groupName = info.GroupName.Name
 		}
 		if count > 1 {
-			return ctx.Reply(fmt.Sprintf(" Reported %s for spam to whatsapp %dx.", groupName, count))
+			return ctx.Reply(fmt.Sprintf("Reported %s for spam to whatsapp %dx.", groupName, count))
 		}
-		return ctx.Reply(fmt.Sprintf(" Reported %s for spam to whatsapp.", groupName))
+		return ctx.Reply(fmt.Sprintf("Reported %s for spam to whatsapp.", groupName))
 	}
 
 	resolvedJID, username := ctx.ResolveMention(targetJID)
 	if count > 1 {
-		return ctx.ReplyWithMentions(fmt.Sprintf(" Reported @%s for spam to whatsapp %dx.", username, count), []types.JID{resolvedJID})
+		return ctx.ReplyWithMentions(fmt.Sprintf("Reported @%s for spam to whatsapp %dx.", username, count), []types.JID{resolvedJID})
 	}
-	return ctx.ReplyWithMentions(fmt.Sprintf(" Reported @%s for spam to whatsapp.", username), []types.JID{resolvedJID})
+	return ctx.ReplyWithMentions(fmt.Sprintf("Reported @%s for spam to whatsapp.", username), []types.JID{resolvedJID})
 }

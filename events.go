@@ -333,7 +333,8 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 			}
 
 			for _, participant := range g.Join {
-				userTag := "@" + participant.User
+				resolvedJID, username := sender.ResolveMentionRaw(ctx, b.client, participant)
+				userTag := "@" + username
 				body := customMsg
 				if body == "" {
 					body = "Welcome " + userTag + " to " + groupName
@@ -351,7 +352,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 				formatted := sender.FormatTextResponseRaw(body)
 				var mentions []string
 				if tag == "on" {
-					mentions = append(mentions, participant.String())
+					mentions = append(mentions, resolvedJID.ToNonAD().String())
 				}
 
 				msg := &waE2E.Message{
@@ -399,7 +400,8 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 					continue
 				}
 
-				userTag := "@" + participant.User
+				resolvedJID, username := sender.ResolveMentionRaw(ctx, b.client, participant)
+				userTag := "@" + username
 				body := customMsg
 				if body == "" {
 					body = "Goodbye " + userTag + " from " + groupName
@@ -417,7 +419,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 				formatted := sender.FormatTextResponseRaw(body)
 				var mentions []string
 				if tag == "on" {
-					mentions = append(mentions, participant.String())
+					mentions = append(mentions, resolvedJID.ToNonAD().String())
 				}
 
 				msg := &waE2E.Message{

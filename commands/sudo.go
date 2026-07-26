@@ -110,14 +110,14 @@ func handleSetSudo(ctx *Context) error {
 	}
 
 	if len(addedJIDs) == 0 {
-		return ctx.Reply("ℹ Target(s) already in the sudo list.")
+		return ctx.Reply("Target(s) already in the sudo list.")
 	}
 
 	if err := s.PutSetting(ctx.Ctx, "sudoers", strings.Join(sudoers, " ")); err != nil {
-		return err
+		return ctx.Reply("Failed to update sudoers list.")
 	}
 
-	return ctx.ReplyWithMentions(fmt.Sprintf(" Added to sudo: %s", strings.Join(displayNames, ", ")), addedJIDs)
+	return ctx.ReplyWithMentions(fmt.Sprintf("Added to sudo: %s", strings.Join(displayNames, ", ")), addedJIDs)
 }
 
 func handleDelSudo(ctx *Context) error {
@@ -165,14 +165,14 @@ func handleDelSudo(ctx *Context) error {
 	}
 
 	if len(removedJIDs) == 0 {
-		return ctx.Reply("ℹ Target(s) not found in the sudo list.")
+		return ctx.Reply("Target(s) not found in the sudo list.")
 	}
 
 	if err := s.PutSetting(ctx.Ctx, "sudoers", strings.Join(newSudoers, " ")); err != nil {
-		return err
+		return ctx.Reply("Failed to update sudoers list.")
 	}
 
-	return ctx.ReplyWithMentions(fmt.Sprintf(" Removed from sudo: %s", strings.Join(displayNames, ", ")), removedJIDs)
+	return ctx.ReplyWithMentions(fmt.Sprintf("Removed from sudo: %s", strings.Join(displayNames, ", ")), removedJIDs)
 }
 
 func handleListSudo(ctx *Context) error {
@@ -234,7 +234,7 @@ func handleDisableCmd(ctx *Context) error {
 
 	_, exists := Get(cmdName)
 	if !exists {
-		return ctx.Reply(fmt.Sprintf(" Command %q does not exist.", cmdName))
+		return ctx.Reply(fmt.Sprintf("Command %q does not exist.", cmdName))
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
@@ -244,22 +244,22 @@ func handleDisableCmd(ctx *Context) error {
 
 	raw, err := s.GetSetting(ctx.Ctx, "disabled_commands")
 	if err != nil {
-		return err
+		return ctx.Reply("Failed to retrieve disabled commands setting.")
 	}
 
 	disabled := strings.Fields(raw)
 	for _, d := range disabled {
 		if strings.EqualFold(d, cmdName) {
-			return ctx.Reply(fmt.Sprintf("ℹ Command %q is already disabled.", cmdName))
+			return ctx.Reply(fmt.Sprintf("Command %q is already disabled.", cmdName))
 		}
 	}
 
 	disabled = append(disabled, cmdName)
 	if err := s.PutSetting(ctx.Ctx, "disabled_commands", strings.Join(disabled, " ")); err != nil {
-		return err
+		return ctx.Reply("Failed to disable command.")
 	}
 
-	return ctx.Reply(fmt.Sprintf(" Command %q has been disabled.", cmdName))
+	return ctx.Reply(fmt.Sprintf("Command %q has been disabled.", cmdName))
 }
 
 func handleEnableCmd(ctx *Context) error {
@@ -295,14 +295,14 @@ func handleEnableCmd(ctx *Context) error {
 	}
 
 	if !found {
-		return ctx.Reply(fmt.Sprintf("ℹ Command %q is not currently disabled.", cmdName))
+		return ctx.Reply(fmt.Sprintf("Command %q is not currently disabled.", cmdName))
 	}
 
 	if err := s.PutSetting(ctx.Ctx, "disabled_commands", strings.Join(newDisabled, " ")); err != nil {
-		return err
+		return ctx.Reply("Failed to enable command.")
 	}
 
-	return ctx.Reply(fmt.Sprintf(" Command %q has been enabled.", cmdName))
+	return ctx.Reply(fmt.Sprintf("Command %q has been enabled.", cmdName))
 }
 
 func handleAutoVV(ctx *Context) error {
@@ -429,14 +429,14 @@ func handleBan(ctx *Context) error {
 	}
 
 	if len(bannedJIDs) == 0 {
-		return ctx.Reply("ℹ Target(s) could not be banned (already banned, owner, or sudo).")
+		return ctx.Reply("Target(s) could not be banned (already banned, owner, or sudo).")
 	}
 
 	if err := s.PutSetting(ctx.Ctx, "banned_users", strings.Join(bannedUsers, " ")); err != nil {
-		return err
+		return ctx.Reply("Failed to update banned users list.")
 	}
 
-	return ctx.ReplyWithMentions(fmt.Sprintf(" Banned from commands: %s", strings.Join(displayNames, ", ")), bannedJIDs)
+	return ctx.ReplyWithMentions(fmt.Sprintf("Banned from commands: %s", strings.Join(displayNames, ", ")), bannedJIDs)
 }
 
 func handleUnban(ctx *Context) error {
@@ -482,14 +482,14 @@ func handleUnban(ctx *Context) error {
 	}
 
 	if len(unbannedJIDs) == 0 {
-		return ctx.Reply("ℹ Target(s) not found in the banned list.")
+		return ctx.Reply("Target(s) not found in the banned list.")
 	}
 
 	if err := s.PutSetting(ctx.Ctx, "banned_users", strings.Join(newBanned, " ")); err != nil {
-		return err
+		return ctx.Reply("Failed to update banned users list.")
 	}
 
-	return ctx.ReplyWithMentions(fmt.Sprintf(" Unbanned from commands: %s", strings.Join(displayNames, ", ")), unbannedJIDs)
+	return ctx.ReplyWithMentions(fmt.Sprintf("Unbanned from commands: %s", strings.Join(displayNames, ", ")), unbannedJIDs)
 }
 
 func handleMode(ctx *Context) error {
@@ -505,12 +505,12 @@ func handleMode(ctx *Context) error {
 	if len(ctx.Args) == 0 {
 		current, err := s.GetSetting(ctx.Ctx, "mode")
 		if err != nil {
-			return err
+			return ctx.Reply("Failed to retrieve bot mode.")
 		}
 		if current == "" {
 			current = "public"
 		}
-		return ctx.Reply(fmt.Sprintf("ℹ The bot is currently in %s mode.", current))
+		return ctx.Reply(fmt.Sprintf("The bot is currently in %s mode.", current))
 	}
 
 	mode := strings.ToLower(ctx.Args[0])
@@ -520,8 +520,8 @@ func handleMode(ctx *Context) error {
 
 	err := s.PutSetting(ctx.Ctx, "mode", mode)
 	if err != nil {
-		return err
+		return ctx.Reply("Failed to update bot mode.")
 	}
 
-	return ctx.Reply(fmt.Sprintf(" Bot mode set to %s.", mode))
+	return ctx.Reply(fmt.Sprintf("Bot mode set to %s.", mode))
 }

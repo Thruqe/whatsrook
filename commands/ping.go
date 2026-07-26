@@ -21,7 +21,7 @@ func init() {
 func handlePing(ctx *Context) error {
 	start := time.Now()
 
-	pongText := new("🏓 Ponging...")
+	pongText := new("Ponging...")
 
 	resp, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
 		Conversation: pongText,

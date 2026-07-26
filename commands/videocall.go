@@ -36,7 +36,8 @@ func init() {
 func handleVideoCall(ctx *Context) error {
 	targets := ctx.GetTargets()
 	if len(targets) < 1 {
-		return sendText(ctx, "usage: !videocall <number>")
+		p := ctx.GetPrefix()
+		return ctx.Reply("Usage: " + p + "videocall <number or reply>")
 	}
 	target := targets[0].String()
 
@@ -70,7 +71,7 @@ func handleVideoCall(ctx *Context) error {
 	}
 
 	setPending(ctx.Sender, &pendingCall{Target: target, Kind: sqlstore.CallMediaVideo})
-	return sendText(ctx, "Reply to a video file to use for the video call.\n"+
+	return ctx.Reply("Reply to a video file to use for the video call.\n" +
 		"Reply \"save\" to that video to make it your default for future video calls.")
 }
 

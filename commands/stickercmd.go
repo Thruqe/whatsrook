@@ -74,10 +74,10 @@ func handleSetCmd(ctx *Context) error {
 		ON CONFLICT(our_jid, sticker_sha256) DO UPDATE SET command_name=excluded.command_name
 	`, ourJID, shaHex, cmdName)
 	if err != nil {
-		return err
+		return ctx.Reply("Failed to link sticker command.")
 	}
 
-	return ctx.Reply(fmt.Sprintf(" Sticker linked to command %q.", cmdName))
+	return ctx.Reply(fmt.Sprintf("Sticker linked to command %q.", cmdName))
 }
 
 func handleDelCmd(ctx *Context) error {
@@ -106,11 +106,11 @@ func handleDelCmd(ctx *Context) error {
 
 		res, err := db.Exec(ctx.Ctx, `DELETE FROM bot_sticker_cmds WHERE our_jid=$1 AND sticker_sha256=$2`, ourJID, shaHex)
 		if err != nil {
-			return err
+			return ctx.Reply("Failed to remove sticker command.")
 		}
 		rows, _ := res.RowsAffected()
 		if rows == 0 {
-			return ctx.Reply("ℹ Mapped sticker not found.")
+			return ctx.Reply("Mapped sticker not found.")
 		}
 		return ctx.Reply("Sticker link removed.")
 	}
@@ -122,14 +122,14 @@ func handleDelCmd(ctx *Context) error {
 	cmdName := strings.ToLower(ctx.Args[0])
 	res, err := db.Exec(ctx.Ctx, `DELETE FROM bot_sticker_cmds WHERE our_jid=$1 AND command_name=$2`, ourJID, cmdName)
 	if err != nil {
-		return err
+		return ctx.Reply("Failed to remove sticker command.")
 	}
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		return ctx.Reply(fmt.Sprintf("ℹ No sticker linked to command %q.", cmdName))
+		return ctx.Reply(fmt.Sprintf("No sticker linked to command %q.", cmdName))
 	}
 
-	return ctx.Reply(fmt.Sprintf(" Mapped sticker(s) for command %q removed.", cmdName))
+	return ctx.Reply(fmt.Sprintf("Mapped sticker(s) for command %q removed.", cmdName))
 }
 
 func handleGetCmd(ctx *Context) error {
@@ -146,12 +146,12 @@ func handleGetCmd(ctx *Context) error {
 
 	rows, err := db.Query(ctx.Ctx, `SELECT sticker_sha256, command_name FROM bot_sticker_cmds WHERE our_jid=$1`, ourJID)
 	if err != nil {
-		return err
+		return ctx.Reply("Failed to query sticker commands.")
 	}
 	defer rows.Close()
 
 	var sb strings.Builder
-	sb.WriteString(" *Sticker Command Mappings:*\n\n")
+	sb.WriteString("Sticker Command Mappings:\n\n")
 
 	count := 0
 	for rows.Next() {
@@ -163,7 +163,7 @@ func handleGetCmd(ctx *Context) error {
 	}
 
 	if count == 0 {
-		return ctx.Reply("ℹ No sticker commands configured.")
+		return ctx.Reply("No sticker commands configured.")
 	}
 
 	return ctx.Reply(sb.String())

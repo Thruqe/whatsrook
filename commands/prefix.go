@@ -27,7 +27,7 @@ func handlePrefix(ctx *Context) error {
 	if ctx.RawArgs == "" {
 		raw, err := s.GetSetting(ctx.Ctx, PrefixSettingKey)
 		if err != nil {
-			return err
+			return sendText(ctx, "Failed to retrieve prefix configuration.")
 		}
 		if raw == "" {
 			return sendText(ctx, fmt.Sprintf("Prefix: %q (default)", DefaultPrefix))
@@ -53,7 +53,7 @@ func handlePrefix(ctx *Context) error {
 
 	stored := strings.Join(parsedParts, " ")
 	if err := s.PutSetting(ctx.Ctx, PrefixSettingKey, stored); err != nil {
-		return err
+		return sendText(ctx, "Failed to update prefix configuration.")
 	}
 
 	// Build a human-readable confirmation.

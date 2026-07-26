@@ -39,6 +39,7 @@ func handleUpdateCommand(ctx *Context) error {
 		return showUpdateStatus(ctx, channel)
 	}
 
+	p := ctx.GetPrefix()
 	sub := strings.ToLower(ctx.Args[0])
 	switch sub {
 	case "check":
@@ -47,12 +48,12 @@ func handleUpdateCommand(ctx *Context) error {
 		if s != nil {
 			_ = updater.SetChannel(ctx.Ctx, s, "stable")
 		}
-		return ctx.Reply("Update channel set to stable. Run !update check to verify available releases.")
+		return ctx.Reply(fmt.Sprintf("Update channel set to stable. Run %supdate check to verify available releases.", p))
 	case "beta":
 		if s != nil {
 			_ = updater.SetChannel(ctx.Ctx, s, "beta")
 		}
-		return ctx.Reply("Update channel set to beta. Run !update check to verify available releases.")
+		return ctx.Reply(fmt.Sprintf("Update channel set to beta. Run %supdate check to verify available releases.", p))
 	case "channel":
 		if len(ctx.Args) > 1 {
 			ch := strings.ToLower(ctx.Args[1])
@@ -63,7 +64,7 @@ func handleUpdateCommand(ctx *Context) error {
 				return ctx.Reply(fmt.Sprintf("Update channel set to %s.", ch))
 			}
 		}
-		return ctx.Reply("Usage: !update channel stable | beta")
+		return ctx.Reply(fmt.Sprintf("Usage: %supdate channel stable | beta", p))
 	case "now", "confirm", "apply":
 		return performUpgrade(ctx, channel == "beta")
 	default:

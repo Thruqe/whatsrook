@@ -161,6 +161,11 @@ func handleGroupGreetingConfig(ctx *Context, kind string) error {
 
 func sendGreetingMenu(ctx *Context, s *sqlstore.SQLStore, kind string) error {
 	chatKey := ctx.Chat.String()
+	groupName := chatKey
+	if info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat); err == nil && info != nil && info.GroupName.Name != "" {
+		groupName = info.GroupName.Name
+	}
+
 	status, _ := s.GetSetting(ctx.Ctx, kind+"_status:"+chatKey)
 	if status == "" {
 		status = "off"
@@ -191,7 +196,7 @@ Include Group Description: %s
 Media URL: %s
 Custom Message: %s
 
-Select an action below to toggle settings.`, strings.ToUpper(kind), chatKey, strings.ToUpper(status), strings.ToUpper(tag), strings.ToUpper(desc), media, msgText)
+Select an action below to toggle settings.`, strings.ToUpper(kind), groupName, strings.ToUpper(status), strings.ToUpper(tag), strings.ToUpper(desc), media, msgText)
 
 	cmdPrefix := "." + kind
 	msg := &waE2E.Message{

@@ -32,7 +32,8 @@ func init() {
 func handleCall(ctx *Context) error {
 	targets := ctx.GetTargets()
 	if len(targets) < 1 {
-		return sendText(ctx, "usage: !call <number>")
+		p := ctx.GetPrefix()
+		return ctx.Reply("Usage: " + p + "call <number or reply>")
 	}
 	target := targets[0].String()
 
@@ -41,7 +42,7 @@ func handleCall(ctx *Context) error {
 	}
 
 	setPending(ctx.Sender, &pendingCall{Target: target, Kind: sqlstore.CallMediaAudio})
-	return sendText(ctx, "Reply to an audio file to use for the call.\n"+
+	return ctx.Reply("Reply to an audio file to use for the call.\n" +
 		"Reply \"save\" to that audio to make it your default for future calls.")
 }
 
@@ -59,27 +60,27 @@ func handleSetCallAudio(ctx *Context) error {
 
 	data, err := ctx.Client.Download(ctx.Ctx, audioMsg)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to download audio: %v", err))
+		return ctx.Reply(fmt.Sprintf("Failed to download audio: %v", err))
 	}
 
 	if err := os.MkdirAll("media", 0755); err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to create media directory: %v", err))
+		return ctx.Reply(fmt.Sprintf("Failed to create media directory: %v", err))
 	}
 
 	ext := utils.ExtensionFor(audioMsg.GetMimetype())
 	path := filepath.Join("media", utils.SanitizeJID(ctx.Sender.String())+ext)
 	if err := os.WriteFile(path, data, 0644); err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to save audio: %v", err))
+		return ctx.Reply(fmt.Sprintf("Failed to save audio: %v", err))
 	}
 
 	// Transcode to MP3
 	path, err = utils.TranscodeToMP3(path)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to transcode audio: %v", err))
+		return ctx.Reply(fmt.Sprintf("Failed to transcode audio: %v", err))
 	}
 
 	if err := saveAudio(ctx, ctx.Sender, path); err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to save call audio: %v", err))
+		return ctx.Reply(fmt.Sprintf("Failed to save call audio: %v", err))
 	}
 
 	return ctx.Reply("Default call audio set successfully.")

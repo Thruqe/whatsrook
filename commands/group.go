@@ -118,7 +118,7 @@ func handleTagAll(ctx *Context) error {
 	}
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to get group info: %v", err))
+		return ctx.Reply(fmt.Sprintf("Failed to get group info: %v", err))
 	}
 	if !ctx.IsSenderAdmin(info) {
 		return ctx.Reply("Only group admins can tag everyone.")
@@ -168,7 +168,7 @@ func handleKick(ctx *Context) error {
 		_, err := ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, []types.JID{target}, whatsmeow.ParticipantChangeRemove)
 		resolvedJID, username := ctx.ResolveMention(target)
 		if err != nil {
-			_ = ctx.ReplyWithMentions(fmt.Sprintf(" Failed to kick @%s: %v", username, err), []types.JID{resolvedJID})
+			_ = ctx.ReplyWithMentions(fmt.Sprintf("Failed to kick @%s: %v", username, err), []types.JID{resolvedJID})
 		} else {
 			kicked = append(kicked, "@"+username)
 			kickedJIDs = append(kickedJIDs, resolvedJID)
@@ -176,7 +176,7 @@ func handleKick(ctx *Context) error {
 	}
 
 	if len(kicked) > 0 {
-		return ctx.ReplyWithMentions(fmt.Sprintf(" Kicked: %s", strings.Join(kicked, ", ")), kickedJIDs)
+		return ctx.ReplyWithMentions(fmt.Sprintf("Kicked: %s", strings.Join(kicked, ", ")), kickedJIDs)
 	}
 	return nil
 }
@@ -207,7 +207,7 @@ func handleAdd(ctx *Context) error {
 		_, err := ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, []types.JID{target}, whatsmeow.ParticipantChangeAdd)
 		resolvedJID, username := ctx.ResolveMention(target)
 		if err != nil {
-			_ = ctx.ReplyWithMentions(fmt.Sprintf(" Failed to add @%s: %v", username, err), []types.JID{resolvedJID})
+			_ = ctx.ReplyWithMentions(fmt.Sprintf("Failed to add @%s: %v", username, err), []types.JID{resolvedJID})
 		} else {
 			added = append(added, "@"+username)
 			addedJIDs = append(addedJIDs, resolvedJID)
@@ -215,7 +215,7 @@ func handleAdd(ctx *Context) error {
 	}
 
 	if len(added) > 0 {
-		return ctx.ReplyWithMentions(fmt.Sprintf(" Added: %s", strings.Join(added, ", ")), addedJIDs)
+		return ctx.ReplyWithMentions(fmt.Sprintf("Added: %s", strings.Join(added, ", ")), addedJIDs)
 	}
 	return nil
 }
@@ -246,7 +246,7 @@ func handlePromote(ctx *Context) error {
 		_, err := ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, []types.JID{target}, whatsmeow.ParticipantChangePromote)
 		resolvedJID, username := ctx.ResolveMention(target)
 		if err != nil {
-			_ = ctx.ReplyWithMentions(fmt.Sprintf(" Failed to promote @%s: %v", username, err), []types.JID{resolvedJID})
+			_ = ctx.ReplyWithMentions(fmt.Sprintf("Failed to promote @%s: %v", username, err), []types.JID{resolvedJID})
 		} else {
 			promoted = append(promoted, "@"+username)
 			promotedJIDs = append(promotedJIDs, resolvedJID)
@@ -254,7 +254,7 @@ func handlePromote(ctx *Context) error {
 	}
 
 	if len(promoted) > 0 {
-		return ctx.ReplyWithMentions(fmt.Sprintf(" Promoted: %s", strings.Join(promoted, ", ")), promotedJIDs)
+		return ctx.ReplyWithMentions(fmt.Sprintf("Promoted: %s", strings.Join(promoted, ", ")), promotedJIDs)
 	}
 	return nil
 }
@@ -285,7 +285,7 @@ func handleDemote(ctx *Context) error {
 		_, err := ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, []types.JID{target}, whatsmeow.ParticipantChangeDemote)
 		resolvedJID, username := ctx.ResolveMention(target)
 		if err != nil {
-			_ = ctx.ReplyWithMentions(fmt.Sprintf(" Failed to demote @%s: %v", username, err), []types.JID{resolvedJID})
+			_ = ctx.ReplyWithMentions(fmt.Sprintf("Failed to demote @%s: %v", username, err), []types.JID{resolvedJID})
 		} else {
 			demoted = append(demoted, "@"+username)
 			demotedJIDs = append(demotedJIDs, resolvedJID)
@@ -293,7 +293,7 @@ func handleDemote(ctx *Context) error {
 	}
 
 	if len(demoted) > 0 {
-		return ctx.ReplyWithMentions(fmt.Sprintf(" Demoted: %s", strings.Join(demoted, ", ")), demotedJIDs)
+		return ctx.ReplyWithMentions(fmt.Sprintf("Demoted: %s", strings.Join(demoted, ", ")), demotedJIDs)
 	}
 	return nil
 }
@@ -322,25 +322,25 @@ func handleGroup(ctx *Context) error {
 	case "open":
 		err = ctx.Client.SetGroupAnnounce(ctx.Ctx, ctx.Chat, false)
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf(" Failed to open group: %v", err))
+			return ctx.Reply(fmt.Sprintf("Failed to open group: %v", err))
 		}
 		return ctx.Reply("Group opened. Everyone can send messages.")
 	case "close":
 		err = ctx.Client.SetGroupAnnounce(ctx.Ctx, ctx.Chat, true)
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf(" Failed to close group: %v", err))
+			return ctx.Reply(fmt.Sprintf("Failed to close group: %v", err))
 		}
 		return ctx.Reply("Group closed. Only admins can send messages.")
 	case "lock":
 		err = ctx.Client.SetGroupLocked(ctx.Ctx, ctx.Chat, true)
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf(" Failed to lock group: %v", err))
+			return ctx.Reply(fmt.Sprintf("Failed to lock group: %v", err))
 		}
 		return ctx.Reply("Group locked. Only admins can edit group settings.")
 	case "unlock":
 		err = ctx.Client.SetGroupLocked(ctx.Ctx, ctx.Chat, false)
 		if err != nil {
-			return ctx.Reply(fmt.Sprintf(" Failed to unlock group: %v", err))
+			return ctx.Reply(fmt.Sprintf("Failed to unlock group: %v", err))
 		}
 		return ctx.Reply("Group unlocked. Everyone can edit group settings.")
 	default:
@@ -373,10 +373,10 @@ func handleAntiLink(ctx *Context) error {
 
 	err = s.PutSetting(ctx.Ctx, "antilink:"+ctx.Chat.String(), state)
 	if err != nil {
-		return err
+		return ctx.Reply("Failed to save anti-link setting.")
 	}
 
-	return ctx.Reply(fmt.Sprintf(" Anti-link protection turned %s.", state))
+	return ctx.Reply(fmt.Sprintf("Anti-link protection turned %s.", state))
 }
 
 func handleAntiWord(ctx *Context) error {
@@ -410,14 +410,14 @@ func handleAntiWord(ctx *Context) error {
 		wordToAdd := strings.ToLower(ctx.Args[1])
 		exists := slices.Contains(words, wordToAdd)
 		if exists {
-			return ctx.Reply(fmt.Sprintf("ℹ Word %q is already banned.", wordToAdd))
+			return ctx.Reply(fmt.Sprintf("Word %q is already banned.", wordToAdd))
 		}
 		words = append(words, wordToAdd)
 		err = s.PutSetting(ctx.Ctx, settingKey, strings.Join(words, " "))
 		if err != nil {
-			return err
+			return ctx.Reply("Failed to save anti-word setting.")
 		}
-		return ctx.Reply(fmt.Sprintf(" Banned word %q added.", wordToAdd))
+		return ctx.Reply(fmt.Sprintf("Banned word %q added.", wordToAdd))
 
 	case "del", "remove":
 		if len(ctx.Args) < 2 {
@@ -434,19 +434,19 @@ func handleAntiWord(ctx *Context) error {
 			}
 		}
 		if !found {
-			return ctx.Reply(fmt.Sprintf("ℹ Word %q was not banned.", wordToDel))
+			return ctx.Reply(fmt.Sprintf("Word %q was not banned.", wordToDel))
 		}
 		err = s.PutSetting(ctx.Ctx, settingKey, strings.Join(newWords, " "))
 		if err != nil {
-			return err
+			return ctx.Reply("Failed to save anti-word setting.")
 		}
-		return ctx.Reply(fmt.Sprintf(" Banned word %q removed.", wordToDel))
+		return ctx.Reply(fmt.Sprintf("Banned word %q removed.", wordToDel))
 
 	case "list":
 		if len(words) == 0 {
-			return ctx.Reply("ℹ No banned words configured in this group.")
+			return ctx.Reply("No banned words configured in this group.")
 		}
-		return ctx.Reply(fmt.Sprintf(" *Banned Words list:*\n- %s", strings.Join(words, "\n- ")))
+		return ctx.Reply(fmt.Sprintf("Banned Words list:\n- %s", strings.Join(words, "\n- ")))
 
 	default:
 		return ctx.Reply("Invalid action. Usage: antiword <add|del|list>")
@@ -567,7 +567,7 @@ func handleLockPoll(ctx *Context) error {
 func handleInvite(ctx *Context) error {
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to get group info: %v", err))
+		return ctx.Reply(fmt.Sprintf("Failed to get group info: %v", err))
 	}
 	if !ctx.IsSenderAdmin(info) {
 		return ctx.Reply("Only group admins can retrieve the invite link.")
@@ -575,7 +575,7 @@ func handleInvite(ctx *Context) error {
 
 	link, err := ctx.Client.GetGroupInviteLink(ctx.Ctx, ctx.Chat, false)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to get invite link: %v", err))
+		return ctx.Reply(fmt.Sprintf("Failed to get invite link: %v", err))
 	}
 	return ctx.Reply(link)
 }
