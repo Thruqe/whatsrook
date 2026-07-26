@@ -130,14 +130,14 @@ var BaseClientPayload = &waWa6.ClientPayload{
 var DeviceProps = &waCompanionReg.DeviceProps{
 	Os: new("whatsrook"),
 	Version: &waCompanionReg.DeviceProps_AppVersion{
-		Primary:   proto.Uint32(0),
-		Secondary: proto.Uint32(1),
-		Tertiary:  proto.Uint32(0),
+		Primary:   new(uint32),
+		Secondary: new(uint32(1)),
+		Tertiary:  new(uint32),
 	},
 	HistorySyncConfig: &waCompanionReg.DeviceProps_HistorySyncConfig{
 		FullSyncDaysLimit:                        nil,
 		FullSyncSizeMbLimit:                      nil,
-		StorageQuotaMb:                           proto.Uint32(10240),
+		StorageQuotaMb:                           new(uint32(10240)),
 		InlineInitialPayloadInE2EeMsg:            new(true),
 		RecentSyncDaysLimit:                      nil,
 		SupportCallLogHistory:                    new(false),
@@ -153,7 +153,7 @@ var DeviceProps = &waCompanionReg.DeviceProps{
 		OnDemandReady:                            nil,
 		SupportGuestChat:                         nil,
 		CompleteOnDemandReady:                    nil,
-		ThumbnailSyncDaysLimit:                   proto.Uint32(60),
+		ThumbnailSyncDaysLimit:                   new(uint32(60)),
 		InitialSyncMaxMessagesPerChat:            nil,
 		SupportManusHistory:                      new(true),
 		SupportHatchHistory:                      new(true),
@@ -202,7 +202,7 @@ func (device *Device) getLoginPayload() *waWa6.ClientPayload {
 	payload.Pull = new(true)
 	payload.LidDbMigrated = new(true)
 	if payload.Lc == nil {
-		payload.Lc = proto.Int32(1)
+		payload.Lc = new(int32(1))
 	}
 	return payload
 }

@@ -5,7 +5,6 @@ import (
 	"go.mau.fi/whatsmeow"
 	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/proto/waE2E"
-	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -44,8 +43,8 @@ func handleStatusMenu(ctx *Context) error {
 				ButtonsMessage: &waE2E.ButtonsMessage{
 					Header: &waE2E.ButtonsMessage_LocationMessage{
 						LocationMessage: &waE2E.LocationMessage{
-							DegreesLatitude:  proto.Float64(0),
-							DegreesLongitude: proto.Float64(0),
+							DegreesLatitude:  new(float64),
+							DegreesLongitude: new(float64),
 							Name:             new("Thruqe"),
 							Address:          new("Thruqe Multidevice"),
 						},
