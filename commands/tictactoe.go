@@ -100,9 +100,15 @@ func handleTicTacToe(ctx *Context) error {
 
 		var playerOMention types.JID
 		if arg0 == "bot" || arg0 == "ai" || arg0 == "me" || arg0 == "solo" {
-			playerO = botJID
-			playerOMention = botJID
-			oTag = "@WhatsRook AI"
+			// Use the bot's own JID so WhatsApp renders it as a real interactive mention.
+			if ctx.Client.Store.ID != nil {
+				playerO = ctx.Client.Store.ID.ToNonAD()
+				playerOMention = playerO
+			} else {
+				playerO = botJID
+				playerOMention = botJID
+			}
+			oTag, _ = ctx.FormatMention(playerOMention)
 			isBotGame = true
 		} else if len(ctx.Evt.Message.GetExtendedTextMessage().GetContextInfo().GetMentionedJID()) > 0 {
 			mentionedRaw := ctx.Evt.Message.GetExtendedTextMessage().GetContextInfo().GetMentionedJID()[0]
