@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"time"
 
 	"whatsrook/commands"
 	"whatsrook/ember"
@@ -51,6 +52,11 @@ func (b *Bot) handleWAEvent(evt any) {
 		go b.notifyOwnerConnected()
 
 	case *events.Message:
+		if v.Info.IsGroup {
+			if s, ok := b.client.Store.Identities.(*sqlstore.SQLStore); ok {
+				_ = s.RecordParticipantActivity(context.Background(), v.Info.Chat, v.Info.Sender, v.Info.Timestamp)
+			}
+		}
 		if commands.HandlePendingAudioReply(context.Background(), b.client, v) {
 			return
 		}
@@ -71,11 +77,21 @@ func (b *Bot) handleWAEvent(evt any) {
 
 	case *events.ChatPresence:
 		slog.Debug("events: received ChatPresence event", "sender", v.Sender.String(), "state", v.State, "media", v.Media)
+		if v.Chat.Server == "g.us" && !v.Sender.IsEmpty() {
+			if s, ok := b.client.Store.Identities.(*sqlstore.SQLStore); ok {
+				_ = s.RecordParticipantActivity(context.Background(), v.Chat, v.Sender, time.Now())
+			}
+		}
 		commands.TrackPresence(v.Sender, true)
 
 	case *events.Receipt:
 		slog.Debug("events: received Receipt event", "sender", v.Sender.String(), "type", v.Type)
 		if !v.Sender.IsEmpty() {
+			if v.Chat.Server == "g.us" {
+				if s, ok := b.client.Store.Identities.(*sqlstore.SQLStore); ok {
+					_ = s.RecordParticipantActivity(context.Background(), v.Chat, v.Sender, v.Timestamp)
+				}
+			}
 			commands.TrackPresence(v.Sender, true)
 		}
 

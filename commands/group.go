@@ -757,6 +757,17 @@ func handleListOnline(ctx *Context) error {
 	// 1. Send chat presence typing indicator to signal activity in the group
 	_ = ctx.Client.SendChatPresence(ctx.Ctx, ctx.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaText)
 
+	// 2. Query SQLite database for stored receipt/presence activity for this group
+	if s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore); ok {
+		dbActive, err := s.GetActiveGroupParticipants(ctx.Ctx, ctx.Chat, 24*time.Hour)
+		if err == nil && len(dbActive) > 0 {
+			slog.Debug("handleListOnline: loaded stored active participants from SQLite", "count", len(dbActive))
+			for _, userJID := range dbActive {
+				TrackPresence(userJID, true)
+			}
+		}
+	}
+
 	// Build set of expected participant JID keys (LID & PN formats)
 	expectedJIDs := make(map[string]types.JID)
 	var mu sync.Mutex

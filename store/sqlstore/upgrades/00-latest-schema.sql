@@ -178,3 +178,14 @@ CREATE TABLE retry_buffer (
 );
 
 CREATE INDEX retry_buffer_timestamp_idx ON retry_buffer (our_jid, timestamp);
+
+CREATE TABLE participant_activity (
+	our_jid     TEXT   NOT NULL,
+	chat_jid    TEXT   NOT NULL,
+	user_jid    TEXT   NOT NULL,
+	last_active BIGINT NOT NULL,
+
+	PRIMARY KEY (our_jid, chat_jid, user_jid),
+	FOREIGN KEY (our_jid) REFERENCES device(jid) ON DELETE CASCADE ON UPDATE CASCADE
+);
+

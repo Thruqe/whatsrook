@@ -1110,3 +1110,51 @@ func (s *SQLStore) DeleteOldOutgoingEvents(ctx context.Context) error {
 	_, err := s.db.Exec(ctx, deleteOldOutgoingEventsQuery, s.JID, time.Now().Add(-7*24*time.Hour).UnixMilli())
 	return err
 }
+
+const (
+	recordParticipantActivityQuery = `
+		INSERT INTO participant_activity (our_jid, chat_jid, user_jid, last_active)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (our_jid, chat_jid, user_jid) DO UPDATE SET last_active = excluded.last_active
+	`
+	getActiveGroupParticipantsQuery = `
+		SELECT user_jid FROM participant_activity WHERE our_jid = $1 AND chat_jid = $2 AND last_active >= $3
+	`
+)
+
+func (s *SQLStore) RecordParticipantActivity(ctx context.Context, chatJID, userJID types.JID, ts time.Time) error {
+	if s.JID == "" || chatJID.IsEmpty() || userJID.IsEmpty() {
+		return nil
+	}
+	chatStr := chatJID.ToNonAD().String()
+	userStr := userJID.ToNonAD().String()
+	unix := ts.Unix()
+
+	_, err := s.db.Exec(ctx, recordParticipantActivityQuery, s.JID, chatStr, userStr, unix)
+	return err
+}
+
+func (s *SQLStore) GetActiveGroupParticipants(ctx context.Context, chatJID types.JID, since time.Duration) ([]types.JID, error) {
+	if s.JID == "" || chatJID.IsEmpty() {
+		return nil, nil
+	}
+	chatStr := chatJID.ToNonAD().String()
+	minTimestamp := time.Now().Add(-since).Unix()
+
+	rows, err := s.db.Query(ctx, getActiveGroupParticipantsQuery, s.JID, chatStr, minTimestamp)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var activeJIDs []types.JID
+	for rows.Next() {
+		var uStr string
+		if err := rows.Scan(&uStr); err == nil {
+			if jid, err := types.ParseJID(uStr); err == nil {
+				activeJIDs = append(activeJIDs, jid)
+			}
+		}
+	}
+	return activeJIDs, nil
+}
