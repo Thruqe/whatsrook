@@ -111,8 +111,38 @@ func handleMarkets(ctx *Context) error {
 		queryArg = "Gold/USD"
 	case "SILVER", "XAGUSD", "SILVER/USD":
 		queryArg = "Silver/USD"
-	case "DOW", "DOW/USD", "DOWJONES":
+	case "OIL", "WTI", "WTI/USD", "CRUDE":
+		queryArg = "WTI/USD"
+	case "BRENT", "BRENT/USD":
+		queryArg = "Brent/USD"
+	case "NATGAS", "NATGAS/USD", "GAS":
+		queryArg = "NatGas/USD"
+	case "HEATOIL", "HEATOIL/USD":
+		queryArg = "HeatOil/USD"
+	case "DOW", "DOW/USD", "DOWJONES", "US30", "DJIA":
 		queryArg = "Dow/USD"
+	case "SPX", "SPX/USD", "SP500", "US500", "S&P500":
+		queryArg = "SPX/USD"
+	case "NDX", "NDX/USD", "NASDAQ", "US100", "NAS100":
+		queryArg = "NDX/USD"
+	case "NIKKEI", "NIKKEI225", "NIKKEI225/USD", "JP225":
+		queryArg = "Nikkei225/USD"
+	case "DAX", "DAX/USD", "GER30", "DE30", "GER40":
+		queryArg = "DAX/USD"
+	case "FTSE", "FTSE100", "FTSE100/USD", "UK100":
+		queryArg = "FTSE100/USD"
+	case "STOXX50", "STOXX50/USD", "EU50":
+		queryArg = "STOXX50/USD"
+	case "US2000", "US2000/USD", "RUSSELL2000", "RUSSELL":
+		queryArg = "US2000/USD"
+	case "VIX", "VIX/USD":
+		queryArg = "VIX/USD"
+	case "DXY", "DXY/USD", "USDX":
+		queryArg = "DXY/USD"
+	case "CAC", "CAC40", "CAC/USD", "FRA40":
+		queryArg = "CAC/USD"
+	case "ASX", "ASX200", "ASX/USD", "AUS200":
+		queryArg = "ASX/USD"
 	case "EURUSD":
 		queryArg = "EUR/USD"
 	case "GBPUSD":
@@ -131,6 +161,8 @@ func handleMarkets(ctx *Context) error {
 		queryArg = "BTC/USD"
 	case "ETHUSD", "ETH":
 		queryArg = "ETH/USD"
+	case "DOGEUSD", "DOGE":
+		queryArg = "DOGE/USD"
 	}
 
 	slog.Info("handleMarkets: querying single instrument", "pair", queryArg)
@@ -572,20 +604,29 @@ func sendMarketsSelectListMenu(ctx *Context) error {
 		className := strings.ToUpper(strings.TrimSpace(item.InstrumentClassName))
 		upperName := strings.ToUpper(name)
 
-		if className == "CRYPTO" || strings.HasPrefix(upperName, "BTC") || strings.HasPrefix(upperName, "ETH") {
+		if className == "CRYPTO" || strings.HasPrefix(upperName, "BTC") || strings.HasPrefix(upperName, "ETH") || strings.HasPrefix(upperName, "DOGE") {
 			if len(cryptoRows) < 10 {
 				cryptoRows = append(cryptoRows, row)
 			}
-		} else if strings.Contains(upperName, "GOLD") || strings.Contains(upperName, "SILVER") || strings.Contains(upperName, "OIL") {
+		} else if className == "METALS" || className == "COMMODITIES" || className == "ENERGY" ||
+			strings.Contains(upperName, "GOLD") || strings.Contains(upperName, "SILVER") ||
+			strings.Contains(upperName, "OIL") || strings.Contains(upperName, "GAS") {
 			if len(commodityRows) < 10 {
 				commodityRows = append(commodityRows, row)
 			}
-		} else if className == "FOREX" || strings.Contains(upperName, "/") {
+		} else if className == "EQUITIES" || className == "INDICES" || className == "INDEX" ||
+			upperName == "DOW" || upperName == "SPX" || upperName == "NDX" || upperName == "NIKKEI225" ||
+			upperName == "DAX" || upperName == "FTSE100" || upperName == "STOXX50" || upperName == "US2000" ||
+			upperName == "VIX" || upperName == "DXY" || upperName == "CAC" || upperName == "ASX" {
+			if len(otherRows) < 10 {
+				otherRows = append(otherRows, row)
+			}
+		} else if className == "FOREX" || (strings.Contains(upperName, "/") && len(upperName) == 7) {
 			if len(forexRows) < 10 {
 				forexRows = append(forexRows, row)
 			}
 		} else {
-			if len(otherRows) < 5 {
+			if len(otherRows) < 10 {
 				otherRows = append(otherRows, row)
 			}
 		}

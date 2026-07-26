@@ -4,7 +4,6 @@ package commands
 import (
 	"fmt"
 	"math"
-	"os"
 	"runtime"
 	"strings"
 	"time"
@@ -42,8 +41,10 @@ func handleMenu(ctx *Context) error {
 	}
 
 	uptime := menuRuntime(time.Since(startTime).Seconds())
-	totalRAM, freeRAM := memStats()
-	usedRAM := totalRAM - freeRAM
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+	usedRAM := ms.Alloc
+	totalRAM := ms.Sys
 	platform := runtime.GOOS
 	total := len(Visible())
 
@@ -136,41 +137,6 @@ func formatBytes(b uint64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
-}
-
-// memStats returns (totalRAM, freeRAM) in bytes by reading /proc/meminfo on
-// Linux. Falls back to runtime.MemStats (heap only) on other platforms.
-func memStats() (total, free uint64) {
-	if runtime.GOOS == "linux" {
-		if t, f, err := parseProcMeminfo(); err == nil {
-			return t, f
-		}
-	}
-	var ms runtime.MemStats
-	runtime.ReadMemStats(&ms)
-	return ms.Sys, ms.Sys - ms.HeapInuse
-}
-
-func parseProcMeminfo() (total, free uint64, err error) {
-	data, err := os.ReadFile("/proc/meminfo")
-	if err != nil {
-		return 0, 0, err
-	}
-	for line := range strings.SplitSeq(string(data), "\n") {
-		var key string
-		var val uint64
-		if _, scanErr := fmt.Sscanf(line, "%s %d", &key, &val); scanErr != nil {
-			continue
-		}
-		val *= 1024 // /proc/meminfo is in kB
-		switch key {
-		case "MemTotal:":
-			total = val
-		case "MemAvailable:":
-			free = val
-		}
-	}
-	return total, free, nil
 }
 
 func toFancy(s string) string {
