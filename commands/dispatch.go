@@ -5,6 +5,7 @@ package commands
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -85,6 +86,15 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	chatStr := evt.Info.Chat.String()
 	senderStr := evt.Info.Sender.String()
 	text := extractText(evt)
+	if strings.HasPrefix(strings.TrimSpace(text), "{") {
+		var respJSON struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal([]byte(text), &respJSON); err == nil && respJSON.ID != "" {
+			slog.Debug("Parsed JSON interactive response ID", "original", text, "extracted_id", respJSON.ID)
+			text = respJSON.ID
+		}
+	}
 	slog.Info("Incoming message received", "chat", chatStr, "sender", senderStr, "is_from_me", evt.Info.IsFromMe, "text", text)
 
 	s, okStore := client.Store.Identities.(*sqlstore.SQLStore)
@@ -399,6 +409,12 @@ func extractText(evt *events.Message) string {
 	if interactiveResp := evt.Message.GetInteractiveResponseMessage(); interactiveResp != nil {
 		if nativeFlow := interactiveResp.GetNativeFlowResponseMessage(); nativeFlow != nil {
 			if params := nativeFlow.GetParamsJSON(); params != "" {
+				var respJSON struct {
+					ID string `json:"id"`
+				}
+				if err := json.Unmarshal([]byte(params), &respJSON); err == nil && respJSON.ID != "" {
+					return respJSON.ID
+				}
 				return params
 			}
 		}
