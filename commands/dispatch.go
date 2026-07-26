@@ -71,6 +71,15 @@ func initTables(ctx context.Context, s *sqlstore.SQLStore) {
 			command_name TEXT,
 			PRIMARY KEY (our_jid, sticker_sha256)
 		)`)
+
+		// Create bot_user_xp table
+		_, _ = db.Exec(ctx, `CREATE TABLE IF NOT EXISTS bot_user_xp (
+			user_jid TEXT PRIMARY KEY,
+			xp INTEGER DEFAULT 0,
+			ttt_wins INTEGER DEFAULT 0,
+			ttt_losses INTEGER DEFAULT 0,
+			ttt_draws INTEGER DEFAULT 0
+		)`)
 	})
 }
 
@@ -197,6 +206,13 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 			slog.Info("Prefix matched, executing command", "prefix", p, "body", body)
 			return runCommand(ctx, client, evt, body)
 		}
+	}
+
+	// Active Tic-Tac-Toe move listener without prefix (e.g. typing "1", "2", ... "9")
+	trimmedText := strings.TrimSpace(text)
+	if IsTTTGameActive(chatStr) && len(trimmedText) == 1 && trimmedText >= "1" && trimmedText <= "9" {
+		slog.Info("Direct move matched active Tic-Tac-Toe game", "chat", chatStr, "move", trimmedText)
+		return runCommand(ctx, client, evt, "ttt "+trimmedText)
 	}
 
 	// Empty prefix: treat the whole message as a potential command.
