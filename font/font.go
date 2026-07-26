@@ -25,9 +25,71 @@ func GetStyle() string {
 	return currentStyle
 }
 
-// Convert transforms the input string to the currently active font style.
+// Convert transforms the input string to the currently active font style,
+// while preserving URLs (http:// and https://) in standard normal font.
 func Convert(s string) string {
 	style := GetStyle()
+	if style == "" || style == "normal" {
+		return s
+	}
+
+	var sb strings.Builder
+	pos := 0
+	for pos < len(s) {
+		idx := strings.Index(s[pos:], "http://")
+		idx2 := strings.Index(s[pos:], "https://")
+		urlIdx := -1
+		if idx != -1 && idx2 != -1 {
+			if idx < idx2 {
+				urlIdx = pos + idx
+			} else {
+				urlIdx = pos + idx2
+			}
+		} else if idx != -1 {
+			urlIdx = pos + idx
+		} else if idx2 != -1 {
+			urlIdx = pos + idx2
+		}
+
+		if urlIdx == -1 {
+			sb.WriteString(convertSegment(s[pos:], style))
+			break
+		}
+
+		if urlIdx > pos {
+			sb.WriteString(convertSegment(s[pos:urlIdx], style))
+		}
+
+		urlEnd := urlIdx
+		for urlEnd < len(s) && !isURLSeparator(s[urlEnd]) {
+			urlEnd++
+		}
+
+		actualURLEnd := urlEnd
+		for actualURLEnd > urlIdx && isTrailingURLPunctuation(s[actualURLEnd-1]) {
+			actualURLEnd--
+		}
+
+		sb.WriteString(s[urlIdx:actualURLEnd])
+		if actualURLEnd < urlEnd {
+			sb.WriteString(convertSegment(s[actualURLEnd:urlEnd], style))
+		}
+
+		pos = urlEnd
+	}
+
+	return sb.String()
+}
+
+func isURLSeparator(b byte) bool {
+	return b == ' ' || b == '\t' || b == '\n' || b == '\r'
+}
+
+func isTrailingURLPunctuation(b byte) bool {
+	return b == '.' || b == ',' || b == ')' || b == ']' || b == '>' || b == '"' || b == '\''
+}
+
+func convertSegment(s string, style string) string {
 	var sb strings.Builder
 	for _, r := range s {
 		switch style {

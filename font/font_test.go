@@ -23,3 +23,12 @@ func TestDefaultFontSmallCaps(t *testing.T) {
 		t.Errorf("expected Convert(%q) = %q, got %q", upperInput, expected, actualUpper)
 	}
 }
+
+func TestURLPreservation(t *testing.T) {
+	input := "Shortened URL: https://tinyurl.com/abc1234."
+	expected := "sʜᴏʀᴛᴇɴᴇᴅ ᴜʀʟ: https://tinyurl.com/abc1234."
+	actual := Convert(input)
+	if actual != expected {
+		t.Errorf("expected Convert(%q) = %q, got %q", input, expected, actual)
+	}
+}
