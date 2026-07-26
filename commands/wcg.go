@@ -679,8 +679,8 @@ func getTurnTimeLimit(level int) int {
 	return t
 }
 
-// getCXPTitle maps cumulative XP (CXP) to player titles.
-func getCXPTitle(xp int) string {
+// GetCXPTitle maps cumulative XP (CXP) to player titles.
+func GetCXPTitle(xp int) string {
 	switch {
 	case xp >= 12000:
 		return "👑 Legendary Master"
@@ -740,7 +740,7 @@ func handleWCGLeaderboard(ctx *Context) error {
 				entries = append(entries, wcgLBEntry{
 					tag:    tag,
 					xp:     xp,
-					title:  getCXPTitle(xp),
+					title:  GetCXPTitle(xp),
 					wins:   wins,
 					games:  games,
 					rating: rating,

@@ -60,9 +60,9 @@ func TestWCGCXPTitle(t *testing.T) {
 	}
 
 	for xp, expected := range titles {
-		title := getCXPTitle(xp)
+		title := GetCXPTitle(xp)
 		if title != expected {
-			t.Errorf("getCXPTitle(%d) = %q, expected %q", xp, title, expected)
+			t.Errorf("GetCXPTitle(%d) = %q, expected %q", xp, title, expected)
 		}
 	}
 }

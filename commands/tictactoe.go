@@ -316,19 +316,23 @@ func handleLeaderboard(ctx *Context) error {
 		return ctx.Reply("Database connection unavailable.")
 	}
 
-	rows, err := db.Query(ctx.Ctx, `SELECT user_jid, xp, ttt_wins, ttt_losses, ttt_draws FROM bot_user_xp ORDER BY xp DESC LIMIT 10`)
+	rows, err := db.Query(ctx.Ctx, `SELECT user_jid, xp, ttt_wins, ttt_losses, ttt_draws, COALESCE(wcg_wins, 0), COALESCE(wcg_games, 0), COALESCE(wcg_rating, 1000) FROM bot_user_xp ORDER BY xp DESC LIMIT 10`)
 	if err != nil {
 		return ctx.Reply("Failed to fetch leaderboard.")
 	}
 	defer rows.Close()
 
 	type lbEntry struct {
-		jid    types.JID
-		tag    string
-		xp     int
-		wins   int
-		losses int
-		draws  int
+		jid       types.JID
+		tag       string
+		xp        int
+		title     string
+		tttWins   int
+		tttLosses int
+		tttDraws  int
+		wcgWins   int
+		wcgGames  int
+		rating    int
 	}
 
 	var entries []lbEntry
@@ -336,18 +340,25 @@ func handleLeaderboard(ctx *Context) error {
 
 	for rows.Next() {
 		var jidStr string
-		var xp, wins, losses, draws int
-		if err := rows.Scan(&jidStr, &xp, &wins, &losses, &draws); err == nil {
+		var xp, tWins, tLosses, tDraws, wWins, wGames, rating int
+		if err := rows.Scan(&jidStr, &xp, &tWins, &tLosses, &tDraws, &wWins, &wGames, &rating); err == nil {
+			if rating == 0 {
+				rating = 1000
+			}
 			parsed, pErr := types.ParseJID(jidStr)
 			if pErr == nil {
 				tag, resolved := ctx.FormatMention(parsed)
 				entries = append(entries, lbEntry{
-					jid:    resolved,
-					tag:    tag,
-					xp:     xp,
-					wins:   wins,
-					losses: losses,
-					draws:  draws,
+					jid:       resolved,
+					tag:       tag,
+					xp:        xp,
+					title:     GetCXPTitle(xp),
+					tttWins:   tWins,
+					tttLosses: tLosses,
+					tttDraws:  tDraws,
+					wcgWins:   wWins,
+					wcgGames:  wGames,
+					rating:    rating,
 				})
 				mentions = append(mentions, resolved)
 			}
@@ -355,14 +366,15 @@ func handleLeaderboard(ctx *Context) error {
 	}
 
 	if len(entries) == 0 {
-		return ctx.Reply("No players on the leaderboard yet! Play a game of .ttt to earn XP.")
+		return ctx.Reply("No players on the leaderboard yet! Play games like .ttt or .wcg to earn CXP.")
 	}
 
 	var sb strings.Builder
-	sb.WriteString("WhatsRook Leaderboard & XP\n\n")
+	sb.WriteString("🏆 WHATSROOK GLOBAL LEADERBOARD & CXP 🏆\n\n")
 
 	for i, e := range entries {
-		fmt.Fprintf(&sb, "%d. %s — %d XP\n   TTT: %dW / %dL / %dD\n\n", i+1, e.tag, e.xp, e.wins, e.losses, e.draws)
+		fmt.Fprintf(&sb, "%d. %s — %s (%d CXP)\n   Rating: %d | TTT: %dW/%dL/%dD | WCG: %dW/%dG\n\n",
+			i+1, e.tag, e.title, e.xp, e.rating, e.tttWins, e.tttLosses, e.tttDraws, e.wcgWins, e.wcgGames)
 	}
 
 	return ctx.ReplyWithMentions(strings.TrimSpace(sb.String()), mentions)
