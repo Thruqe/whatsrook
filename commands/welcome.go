@@ -10,7 +10,6 @@ import (
 	"go.mau.fi/whatsmeow"
 	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/proto/waE2E"
-	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -203,17 +202,9 @@ Select an action below to toggle settings.`, strings.ToUpper(kind), groupName, s
 		DocumentWithCaptionMessage: &waE2E.FutureProofMessage{
 			Message: &waE2E.Message{
 				ButtonsMessage: &waE2E.ButtonsMessage{
-					Header: &waE2E.ButtonsMessage_LocationMessage{
-						LocationMessage: &waE2E.LocationMessage{
-							DegreesLatitude:  proto.Float64(0),
-							DegreesLongitude: proto.Float64(0),
-							Name:             new(strings.Title(kind) + " Settings"),
-							Address:          new("WhatsRook Group Greetings"),
-						},
-					},
 					ContentText: new(bodyText),
 					FooterText:  new("WhatsRook Group Greetings"),
-					HeaderType:  waE2E.ButtonsMessage_LOCATION.Enum(),
+					HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
 					Buttons: []*waE2E.ButtonsMessage_Button{
 						{
 							ButtonID: new(cmdPrefix + " toggle"),
