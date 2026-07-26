@@ -95,20 +95,16 @@ func handleTicTacToe(ctx *Context) error {
 
 		// rawSenderLID is used for turn tracking — always LID format matching incoming senders.
 		rawSenderLID := ctx.Sender.ToNonAD()
-		// FormatMention resolves LID → phone JID; keep for mention tags only.
-		userTag, userMentionJID := ctx.FormatMention(rawSenderLID)
+		userMentionJID, username := ctx.ResolveMention(rawSenderLID)
+		userTag := "@" + username
 
 		var playerOMention types.JID
 		if arg0 == "bot" || arg0 == "ai" || arg0 == "me" || arg0 == "solo" {
 			// Use the bot's own JID so WhatsApp renders it as a real interactive mention.
-			if ctx.Client.Store.ID != nil {
-				playerO = ctx.Client.Store.ID.ToNonAD()
-				playerOMention = playerO
-			} else {
-				playerO = botJID
-				playerOMention = botJID
-			}
-			oTag, _ = ctx.FormatMention(playerOMention)
+			rawBot := ctx.Client.Store.ID.ToNonAD()
+			playerO = rawBot
+			playerOMention, _ = ctx.ResolveMention(rawBot)
+			oTag, _ = ctx.FormatMention(rawBot)
 			isBotGame = true
 		} else if len(ctx.Evt.Message.GetExtendedTextMessage().GetContextInfo().GetMentionedJID()) > 0 {
 			mentionedRaw := ctx.Evt.Message.GetExtendedTextMessage().GetContextInfo().GetMentionedJID()[0]
@@ -116,10 +112,10 @@ func handleTicTacToe(ctx *Context) error {
 			if err != nil {
 				return ctx.Reply("Invalid user mention for opponent.")
 			}
-			// Store raw LID for turn tracking
+			// Store raw LID for turn tracking, resolved phone JID for mentions.
 			playerO = parsedJID.ToNonAD()
-			// Resolve to phone JID only for mentions
-			oTag, playerOMention = ctx.FormatMention(playerO)
+			playerOMention, _ = ctx.ResolveMention(playerO)
+			oTag, _ = ctx.FormatMention(playerO)
 		} else {
 			return ctx.Reply("To start a Tic-Tac-Toe game, play against AI:\n.ttt bot\nOr tag an opponent:\n.ttt @user")
 		}
