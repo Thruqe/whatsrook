@@ -115,18 +115,23 @@ func TestIsAdminRaw(t *testing.T) {
 	}
 }
 
-func TestLockPollCommandRegistration(t *testing.T) {
-	cmd, ok := Get("lockpoll")
+func TestPollCommandRegistration(t *testing.T) {
+	cmd, ok := Get("poll")
 	if !ok {
-		t.Fatal("expected 'lockpoll' command to be registered")
+		t.Fatal("expected 'poll' command to be registered")
 	}
-	if cmd.Name != "lockpoll" {
-		t.Errorf("expected command name 'lockpoll', got %q", cmd.Name)
+	if cmd.Name != "poll" {
+		t.Errorf("expected command name 'poll', got %q", cmd.Name)
 	}
 	if cmd.Category != "group" {
 		t.Errorf("expected category 'group', got %q", cmd.Category)
 	}
 	if !cmd.GroupOnly {
 		t.Error("expected GroupOnly to be true")
+	}
+
+	aliasCmd, aliasOk := Get("lockpoll")
+	if !aliasOk || aliasCmd.Name != "poll" {
+		t.Error("expected 'lockpoll' to be registered as an alias of 'poll'")
 	}
 }

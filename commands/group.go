@@ -9,6 +9,8 @@ import (
 	"whatsrook/store/sqlstore"
 
 	"go.mau.fi/whatsmeow"
+	waBinary "go.mau.fi/whatsmeow/binary"
+	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 )
 
@@ -88,19 +90,12 @@ func init() {
 	})
 	Register(&Command{
 		Name:        "poll",
-		Description: "Create a poll. Usage: poll Question | Option 1 | Option 2 | ...",
+		Aliases:     []string{"lockpoll"},
+		Description: "Create a poll with single or multiple choice selection buttons",
 		Category:    "group",
 		GroupOnly:   true,
 		IsPublic:    true,
 		Handler:     handlePoll,
-	})
-	Register(&Command{
-		Name:        "lockpoll",
-		Description: "Create a single-choice poll. Usage: lockpoll Question | Option 1 | Option 2 | ...",
-		Category:    "group",
-		GroupOnly:   true,
-		IsPublic:    true,
-		Handler:     handleLockPoll,
 	})
 	Register(&Command{
 		Name:        "invite",
@@ -521,10 +516,27 @@ func handleGStats(ctx *Context) error {
 }
 
 func handlePoll(ctx *Context) error {
-	parts := strings.Split(ctx.RawArgs, "|")
-	if len(parts) < 3 {
-		return ctx.Reply("Usage: poll Question | Option 1 | Option 2 | ...")
+	raw := strings.TrimSpace(ctx.RawArgs)
+	if raw == "" {
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage: %spoll Question | Option 1 | Option 2 | ...", p))
 	}
+
+	selectableCount := -1
+	if strings.HasPrefix(raw, "--single ") || strings.HasPrefix(raw, "-s ") || strings.HasPrefix(raw, "single ") {
+		selectableCount = 1
+		raw = strings.TrimSpace(raw[strings.Index(raw, " "):])
+	} else if strings.HasPrefix(raw, "--multi ") || strings.HasPrefix(raw, "-m ") || strings.HasPrefix(raw, "multi ") || strings.HasPrefix(raw, "multiple ") {
+		selectableCount = 0
+		raw = strings.TrimSpace(raw[strings.Index(raw, " "):])
+	}
+
+	parts := strings.Split(raw, "|")
+	if len(parts) < 3 {
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage: %spoll Question | Option 1 | Option 2 | ...", p))
+	}
+
 	question := strings.TrimSpace(parts[0])
 	var options []string
 	for _, opt := range parts[1:] {
@@ -537,30 +549,79 @@ func handlePoll(ctx *Context) error {
 		return ctx.Reply("Please provide at least 2 options.")
 	}
 
-	pollMsg := ctx.Client.BuildPollCreation(question, options, 0)
-	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, pollMsg)
-	return err
-}
-
-func handleLockPoll(ctx *Context) error {
-	parts := strings.Split(ctx.RawArgs, "|")
-	if len(parts) < 3 {
-		return ctx.Reply("Usage: lockpoll Question | Option 1 | Option 2 | ...")
-	}
-	question := strings.TrimSpace(parts[0])
-	var options []string
-	for _, opt := range parts[1:] {
-		trimmed := strings.TrimSpace(opt)
-		if trimmed != "" {
-			options = append(options, trimmed)
-		}
-	}
-	if len(options) < 2 {
-		return ctx.Reply("Please provide at least 2 options.")
+	if selectableCount >= 0 {
+		pollMsg := ctx.Client.BuildPollCreation(question, options, selectableCount)
+		_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, pollMsg)
+		return err
 	}
 
-	pollMsg := ctx.Client.BuildPollCreation(question, options, 1)
-	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, pollMsg)
+	var sb strings.Builder
+	sb.WriteString("Poll Creation\n\nQuestion: ")
+	sb.WriteString(question)
+	sb.WriteString("\nOptions:\n")
+	for i, opt := range options {
+		fmt.Fprintf(&sb, "%d. %s\n", i+1, opt)
+	}
+	sb.WriteString("\nSelect poll type below to create poll.")
+
+	p := ctx.GetPrefix()
+	pollArgs := question + " | " + strings.Join(options, " | ")
+	msg := &waE2E.Message{
+		DocumentWithCaptionMessage: &waE2E.FutureProofMessage{
+			Message: &waE2E.Message{
+				ButtonsMessage: &waE2E.ButtonsMessage{
+					ContentText: new(sb.String()),
+					FooterText:  new("WhatsRook Interactive Poll"),
+					HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
+					Buttons: []*waE2E.ButtonsMessage_Button{
+						{
+							ButtonID: new(p + "poll --single " + pollArgs),
+							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
+								DisplayText: new("SINGLE CHOICE"),
+							},
+							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
+						},
+						{
+							ButtonID: new(p + "poll --multi " + pollArgs),
+							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
+								DisplayText: new("MULTIPLE CHOICE"),
+							},
+							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	bizNode := waBinary.Node{
+		Tag:   "biz",
+		Attrs: waBinary.Attrs{},
+		Content: []waBinary.Node{
+			{
+				Tag: "interactive",
+				Attrs: waBinary.Attrs{
+					"type": "native_flow",
+					"v":    "1",
+				},
+				Content: []waBinary.Node{
+					{
+						Tag: "native_flow",
+						Attrs: waBinary.Attrs{
+							"v":    "9",
+							"name": "mixed",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	extra := whatsmeow.SendRequestExtra{
+		AdditionalNodes: &[]waBinary.Node{bizNode},
+	}
+
+	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
 	return err
 }
 
