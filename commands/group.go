@@ -16,6 +16,7 @@ import (
 	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events"
 )
 
 func init() {
@@ -746,22 +747,76 @@ func handleListOnline(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("Failed to get group info: %v", err))
 	}
 
-	slog.Debug("handleListOnline retrieved group info", "group", ctx.Chat.String(), "participant_count", len(info.Participants))
+	total := len(info.Participants)
+	slog.Debug("handleListOnline retrieved group info", "group", ctx.Chat.String(), "participant_count", total)
 
-	// 1. Subscribe to presence for all group participants
+	if total == 0 {
+		return ctx.Reply("No participants found in this group.")
+	}
+
+	// Build set of expected participant JID keys (LID & PN formats)
+	expectedJIDs := make(map[string]types.JID)
+	var mu sync.Mutex
+	receivedCount := 0
+	doneChan := make(chan struct{})
+
 	for _, p := range info.Participants {
-		subErr := ctx.Client.SubscribePresence(ctx.Ctx, p.JID)
-		if subErr != nil {
-			slog.Debug("handleListOnline: SubscribePresence failed", "participant", p.JID.String(), "err", subErr)
-		} else {
-			slog.Debug("handleListOnline: SubscribePresence sent", "participant", p.JID.String())
+		nonAD := p.JID.ToNonAD()
+		expectedJIDs[nonAD.String()] = nonAD
+		if ctx.Client.Store != nil && ctx.Client.Store.LIDs != nil {
+			if nonAD.Server == types.HiddenUserServer {
+				if pn, err := ctx.Client.Store.LIDs.GetPNForLID(ctx.Ctx, nonAD); err == nil && !pn.IsEmpty() {
+					expectedJIDs[pn.ToNonAD().String()] = nonAD
+				}
+			} else {
+				if lid, err := ctx.Client.Store.LIDs.GetLIDForPN(ctx.Ctx, nonAD); err == nil && !lid.IsEmpty() {
+					expectedJIDs[lid.ToNonAD().String()] = nonAD
+				}
+			}
 		}
 	}
 
-	// 2. Pause 1.5 seconds to allow WhatsApp servers to stream back async presence frames
-	time.Sleep(1500 * time.Millisecond)
+	// Register temporary event listener for WhatsApp presence response stanzas
+	handlerID := ctx.Client.AddEventHandler(func(evt any) {
+		pEvt, ok := evt.(*events.Presence)
+		if !ok || pEvt == nil {
+			return
+		}
 
-	// 3. Collect online participants
+		fromKey := pEvt.From.ToNonAD().String()
+		mu.Lock()
+		defer mu.Unlock()
+
+		if targetJID, isExpected := expectedJIDs[fromKey]; isExpected {
+			slog.Debug("handleListOnline: received presence stanza from WhatsApp", "from", fromKey, "unavailable", pEvt.Unavailable)
+			TrackPresence(targetJID, !pEvt.Unavailable)
+			delete(expectedJIDs, fromKey)
+			receivedCount++
+			if len(expectedJIDs) == 0 {
+				select {
+				case <-doneChan:
+				default:
+					close(doneChan)
+				}
+			}
+		}
+	})
+	defer ctx.Client.RemoveEventHandler(handlerID)
+
+	// Dispatch SubscribePresence to WhatsApp for all group participants
+	for _, p := range info.Participants {
+		_ = ctx.Client.SubscribePresence(ctx.Ctx, p.JID)
+	}
+
+	// Wait for WhatsApp to return presence events for all participants (or 4s max timeout)
+	select {
+	case <-doneChan:
+		slog.Info("handleListOnline: WhatsApp returned presence results for all participants", "count", receivedCount)
+	case <-time.After(4 * time.Second):
+		slog.Info("handleListOnline: presence wait timeout reached", "received", receivedCount, "total", total)
+	}
+
+	// Collect online participants
 	var onlineJIDs []types.JID
 	var displayNames []string
 
@@ -776,7 +831,7 @@ func handleListOnline(ctx *Context) error {
 		}
 	}
 
-	slog.Info("handleListOnline complete", "group", ctx.Chat.String(), "total_participants", len(info.Participants), "online_count", len(onlineJIDs))
+	slog.Info("handleListOnline complete", "group", ctx.Chat.String(), "total_participants", total, "online_count", len(onlineJIDs))
 
 	if len(onlineJIDs) == 0 {
 		return ctx.Reply("No online participants detected in this group.")
