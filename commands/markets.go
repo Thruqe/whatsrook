@@ -114,6 +114,10 @@ func handleMarkets(ctx *Context) error {
 		queryArg = "NZD/USD"
 	case "BTCUSD", "BTC":
 		queryArg = "BTC/USD"
+	case "ETHUSD", "ETH":
+		queryArg = "ETH/USD"
+	case "HEATOIL/USD", "HEATOIL":
+		queryArg = "Oil/USD"
 	}
 
 	slog.Info("handleMarkets: querying single instrument", "pair", queryArg)
@@ -121,43 +125,43 @@ func handleMarkets(ctx *Context) error {
 }
 
 func fetchForexFactoryInstrumentList(ctx context.Context) ([]FFListItem, error) {
-	apiURL := "https://mds-api.forexfactory.com/instrument-list"
-	slog.Debug("fetchForexFactoryInstrumentList: fetching instrument list from API", "url", apiURL)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
-	if err != nil {
-		slog.Error("fetchForexFactoryInstrumentList: failed to create request", "err", err)
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64)")
-
 	client := &http.Client{Timeout: 8 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		slog.Error("fetchForexFactoryInstrumentList: HTTP request failed", "err", err)
-		return nil, err
-	}
-	defer resp.Body.Close()
+	var allItems []FFListItem
 
-	if resp.StatusCode != http.StatusOK {
-		slog.Warn("fetchForexFactoryInstrumentList: non-200 status", "status", resp.StatusCode)
-		return nil, fmt.Errorf("http status %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		slog.Error("fetchForexFactoryInstrumentList: failed to read response body", "err", err)
-		return nil, err
-	}
-
-	var res FFListResponse
-	if err := json.Unmarshal(body, &res); err != nil {
-		slog.Error("fetchForexFactoryInstrumentList: failed to parse JSON", "err", err)
-		return nil, err
+	// 1. Fetch main instrument list
+	apiURL := "https://mds-api.forexfactory.com/instrument-list"
+	slog.Debug("fetchForexFactoryInstrumentList: fetching main instrument list from API", "url", apiURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+	if err == nil {
+		req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64)")
+		if resp, err := client.Do(req); err == nil && resp.StatusCode == http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			var res FFListResponse
+			if err := json.Unmarshal(body, &res); err == nil {
+				allItems = append(allItems, res.Data...)
+			}
+		}
 	}
 
-	slog.Debug("fetchForexFactoryInstrumentList: successfully retrieved instruments", "count", len(res.Data))
-	return res.Data, nil
+	// 2. Fetch synthetic / crypto instrument list
+	synthURL := "https://mds-api.forexfactory.com/synthetic-instrument-list"
+	slog.Debug("fetchForexFactoryInstrumentList: fetching synthetic instrument list from API", "url", synthURL)
+	synthReq, err := http.NewRequestWithContext(ctx, http.MethodGet, synthURL, nil)
+	if err == nil {
+		synthReq.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64)")
+		if resp, err := client.Do(synthReq); err == nil && resp.StatusCode == http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			var res FFListResponse
+			if err := json.Unmarshal(body, &res); err == nil {
+				allItems = append(allItems, res.Data...)
+			}
+		}
+	}
+
+	slog.Debug("fetchForexFactoryInstrumentList: successfully retrieved total instruments", "count", len(allItems))
+	return allItems, nil
 }
 
 func fetchAndSendSingleMarket(ctx *Context, pair string) error {
@@ -181,7 +185,10 @@ func fetchAndSendSingleMarket(ctx *Context, pair string) error {
 	defer resp.Body.Close()
 
 	slog.Debug("fetchAndSendSingleMarket: API response received", "pair", pair, "status", resp.StatusCode)
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode == http.StatusNotFound {
+		slog.Warn("fetchAndSendSingleMarket: HTTP 404 instrument unavailable", "pair", pair)
+		return ctx.Reply(fmt.Sprintf("Instrument %q is currently unavailable on Forex Factory.\n\nPopular Available Instruments:\n- %smarkets EUR/USD\n- %smarkets GBP/USD\n- %smarkets USD/JPY\n- %smarkets Gold/USD\n- %smarkets Silver/USD\n- %smarkets BTC/USD\n- %smarkets all", pair, p, p, p, p, p, p, p))
+	} else if resp.StatusCode != http.StatusOK {
 		slog.Warn("fetchAndSendSingleMarket: non-200 HTTP status from API", "pair", pair, "status", resp.StatusCode)
 		return ctx.Reply(fmt.Sprintf("Market API error (HTTP %d). Usage:\n- %smarkets EUR/USD", resp.StatusCode, p))
 	}
@@ -194,8 +201,8 @@ func fetchAndSendSingleMarket(ctx *Context, pair string) error {
 
 	var res FFInstrumentResponse
 	if err := json.Unmarshal(body, &res); err != nil || len(res.Data) == 0 {
-		slog.Warn("fetchAndSendSingleMarket: instrument not found or unmarshal failed", "pair", pair, "err", err, "data_len", len(res.Data))
-		return ctx.Reply(fmt.Sprintf("Instrument %q not found. Usage:\n- %smarkets EUR/USD\n- %smarkets Gold/USD\n- %smarkets all", pair, p, p, p))
+		slog.Warn("fetchAndSendSingleMarket: empty data returned", "pair", pair, "err", err, "data_len", len(res.Data))
+		return ctx.Reply(fmt.Sprintf("Instrument %q is currently unavailable on Forex Factory.\n\nPopular Available Instruments:\n- %smarkets EUR/USD\n- %smarkets Gold/USD\n- %smarkets BTC/USD\n- %smarkets all", pair, p, p, p, p))
 	}
 
 	item := res.Data[0]
@@ -327,7 +334,7 @@ func sendMarketsButtonsMenu(ctx *Context) error {
 	p := ctx.GetPrefix()
 	slog.Debug("sendMarketsButtonsMenu: building normal buttons for Web/Desktop non-mobile device", "chat", ctx.Chat.String(), "device", ctx.Sender.Device)
 
-	bodyText := "Forex Factory Markets\n\nSelect an instrument below to check real-time rates:\n\nExamples:\n- " + p + "markets EUR/USD\n- " + p + "markets Gold/USD\n- " + p + "markets all"
+	bodyText := "Forex Factory Markets\n\nSelect an instrument below to check real-time rates:\n\nExamples:\n- " + p + "markets EUR/USD\n- " + p + "markets Gold/USD\n- " + p + "markets BTC/USD\n- " + p + "markets all"
 
 	msg := &waE2E.Message{
 		DocumentWithCaptionMessage: &waE2E.FutureProofMessage{
@@ -418,7 +425,9 @@ func sendMarketsSelectListMenu(ctx *Context) error {
 	apiItems, err := fetchForexFactoryInstrumentList(ctx.Ctx)
 
 	var majorRows []selectListRow
+	var cryptoRows []selectListRow
 	var commodityRows []selectListRow
+	seenIDs := make(map[string]bool)
 
 	if err == nil && len(apiItems) > 0 {
 		slog.Info("sendMarketsSelectListMenu: dynamically populating menu from Forex Factory API", "total_api_items", len(apiItems))
@@ -439,8 +448,7 @@ func sendMarketsSelectListMenu(ctx *Context) error {
 			if name == "" {
 				name = item.Name
 			}
-
-			if name == "" {
+			if name == "" || seenIDs[name] {
 				continue
 			}
 
@@ -455,12 +463,22 @@ func sendMarketsSelectListMenu(ctx *Context) error {
 				Description: title,
 			}
 
-			if strings.Contains(strings.ToUpper(name), "GOLD") || strings.Contains(strings.ToUpper(name), "SILVER") || strings.Contains(strings.ToUpper(name), "OIL") {
+			upperName := strings.ToUpper(name)
+			className := strings.ToUpper(item.InstrumentClassName)
+
+			if className == "CRYPTO" || strings.HasPrefix(upperName, "BTC") || strings.HasPrefix(upperName, "ETH") {
+				if len(cryptoRows) < 5 {
+					cryptoRows = append(cryptoRows, row)
+					seenIDs[name] = true
+				}
+			} else if strings.Contains(upperName, "GOLD") || strings.Contains(upperName, "SILVER") || strings.Contains(upperName, "OIL") {
 				if len(commodityRows) < 5 {
 					commodityRows = append(commodityRows, row)
+					seenIDs[name] = true
 				}
 			} else if len(majorRows) < 7 {
 				majorRows = append(majorRows, row)
+				seenIDs[name] = true
 			}
 		}
 	} else {
@@ -477,6 +495,12 @@ func sendMarketsSelectListMenu(ctx *Context) error {
 			{ID: p + "markets AUD/USD", Title: "AUD/USD", Description: "Australian Dollar / US Dollar"},
 		}
 	}
+	if len(cryptoRows) == 0 {
+		cryptoRows = []selectListRow{
+			{ID: p + "markets BTC/USD", Title: "BTC/USD", Description: "Bitcoin / US Dollar"},
+			{ID: p + "markets ETH/USD", Title: "ETH/USD", Description: "Ethereum / US Dollar"},
+		}
+	}
 	if len(commodityRows) == 0 {
 		commodityRows = []selectListRow{
 			{ID: p + "markets Gold/USD", Title: "Gold/USD", Description: "Spot Gold / US Dollar"},
@@ -490,6 +514,10 @@ func sendMarketsSelectListMenu(ctx *Context) error {
 			{
 				Title: "Forex Major Pairs",
 				Rows:  majorRows,
+			},
+			{
+				Title: "Cryptocurrencies",
+				Rows:  cryptoRows,
 			},
 			{
 				Title: "Metals & Commodities",
