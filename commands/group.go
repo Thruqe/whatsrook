@@ -2,6 +2,7 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -694,8 +695,42 @@ func IsUserOnline(jid types.JID, client *whatsmeow.Client) bool {
 	info, exists := presenceMap[targetKey]
 	presenceMu.RUnlock()
 
-	slog.Debug("IsUserOnline check", "jid", targetKey, "exists", exists, "isOnline", info.IsOnline)
-	return exists && info.IsOnline
+	if exists && info.IsOnline {
+		slog.Debug("IsUserOnline check: direct match online", "jid", targetKey)
+		return true
+	}
+
+	if client != nil && client.Store != nil && client.Store.LIDs != nil {
+		ctx := context.Background()
+		if jid.Server == types.HiddenUserServer {
+			pn, err := client.Store.LIDs.GetPNForLID(ctx, jid)
+			if err == nil && !pn.IsEmpty() {
+				pnKey := pn.ToNonAD().String()
+				presenceMu.RLock()
+				pnInfo, pnExists := presenceMap[pnKey]
+				presenceMu.RUnlock()
+				if pnExists && pnInfo.IsOnline {
+					slog.Debug("IsUserOnline check: PN match online for LID", "lid", targetKey, "pn", pnKey)
+					return true
+				}
+			}
+		} else {
+			lid, err := client.Store.LIDs.GetLIDForPN(ctx, jid)
+			if err == nil && !lid.IsEmpty() {
+				lidKey := lid.ToNonAD().String()
+				presenceMu.RLock()
+				lidInfo, lidExists := presenceMap[lidKey]
+				presenceMu.RUnlock()
+				if lidExists && lidInfo.IsOnline {
+					slog.Debug("IsUserOnline check: LID match online for PN", "pn", targetKey, "lid", lidKey)
+					return true
+				}
+			}
+		}
+	}
+
+	slog.Debug("IsUserOnline check: offline or unknown", "jid", targetKey)
+	return false
 }
 
 func handleListOnline(ctx *Context) error {
@@ -713,9 +748,7 @@ func handleListOnline(ctx *Context) error {
 
 	slog.Debug("handleListOnline retrieved group info", "group", ctx.Chat.String(), "participant_count", len(info.Participants))
 
-	var onlineJIDs []types.JID
-	var displayNames []string
-
+	// 1. Subscribe to presence for all group participants
 	for _, p := range info.Participants {
 		subErr := ctx.Client.SubscribePresence(ctx.Ctx, p.JID)
 		if subErr != nil {
@@ -723,14 +756,23 @@ func handleListOnline(ctx *Context) error {
 		} else {
 			slog.Debug("handleListOnline: SubscribePresence sent", "participant", p.JID.String())
 		}
+	}
 
+	// 2. Pause 1.5 seconds to allow WhatsApp servers to stream back async presence frames
+	time.Sleep(1500 * time.Millisecond)
+
+	// 3. Collect online participants
+	var onlineJIDs []types.JID
+	var displayNames []string
+
+	for _, p := range info.Participants {
 		if IsUserOnline(p.JID, ctx.Client) {
 			resolvedJID, username := ctx.ResolveMention(p.JID)
 			onlineJIDs = append(onlineJIDs, resolvedJID)
 			displayNames = append(displayNames, "@"+username)
 			slog.Debug("handleListOnline: participant online", "participant", p.JID.String(), "username", username)
 		} else {
-			slog.Debug("handleListOnline: participant offline or pending presence response", "participant", p.JID.String())
+			slog.Debug("handleListOnline: participant offline", "participant", p.JID.String())
 		}
 	}
 
