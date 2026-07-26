@@ -16,6 +16,11 @@ We value simplicity, pragmatism, and raw speed. If you contribute code, please a
 * **Concurrency & Memory Safety**: WhatsRook runs continuously. Always avoid leaking goroutines or letting database connections hang open. Clean up temporary files, close readers/writers, and ensure shared state is access-safe (e.g., using mutexes or `sync.Once`).
 * **Direct Communication**: Use `ctx.Reply("...")` to communicate back to users in command handlers. Keep error messages clear and user-friendly.
 * **Command Creation Style**: Do not use emojis or custom formatting like * when writing in strings for the commands, keep it plain and simple.
+* **Unified User Mentions ("@")**: When mentioning or referencing a user in command output:
+  1. Resolve the user's JID to its display username and resolved JID using `resolvedJID, username := ctx.ResolveMention(targetJID)` (or `tag, resolvedJID := ctx.FormatMention(targetJID)`).
+  2. Include `@` + `username` (e.g., `@1234567890`) in the message text.
+  3. Dispatch the message using `ctx.ReplyWithMentions(text, mentions)` or `ctx.SendTextWithMentions(text, mentions)` containing the resolved `types.JID`s.
+  Never print raw JID strings (e.g. `1234567890@s.whatsapp.net`) or `@` handles without passing the resolved JIDs to `ReplyWithMentions`/`SendTextWithMentions`, ensuring WhatsApp renders interactive user tags across all commands.
 
 ## Codebase Map
 

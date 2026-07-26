@@ -168,7 +168,7 @@ func handleKick(ctx *Context) error {
 		_, err := ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, []types.JID{target}, whatsmeow.ParticipantChangeRemove)
 		resolvedJID, username := ctx.ResolveMention(target)
 		if err != nil {
-			_ = ctx.Reply(fmt.Sprintf(" Failed to kick %s: %v", username, err))
+			_ = ctx.ReplyWithMentions(fmt.Sprintf(" Failed to kick @%s: %v", username, err), []types.JID{resolvedJID})
 		} else {
 			kicked = append(kicked, "@"+username)
 			kickedJIDs = append(kickedJIDs, resolvedJID)
@@ -207,7 +207,7 @@ func handleAdd(ctx *Context) error {
 		_, err := ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, []types.JID{target}, whatsmeow.ParticipantChangeAdd)
 		resolvedJID, username := ctx.ResolveMention(target)
 		if err != nil {
-			_ = ctx.Reply(fmt.Sprintf(" Failed to add %s: %v", username, err))
+			_ = ctx.ReplyWithMentions(fmt.Sprintf(" Failed to add @%s: %v", username, err), []types.JID{resolvedJID})
 		} else {
 			added = append(added, "@"+username)
 			addedJIDs = append(addedJIDs, resolvedJID)
@@ -246,7 +246,7 @@ func handlePromote(ctx *Context) error {
 		_, err := ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, []types.JID{target}, whatsmeow.ParticipantChangePromote)
 		resolvedJID, username := ctx.ResolveMention(target)
 		if err != nil {
-			_ = ctx.Reply(fmt.Sprintf(" Failed to promote %s: %v", username, err))
+			_ = ctx.ReplyWithMentions(fmt.Sprintf(" Failed to promote @%s: %v", username, err), []types.JID{resolvedJID})
 		} else {
 			promoted = append(promoted, "@"+username)
 			promotedJIDs = append(promotedJIDs, resolvedJID)
@@ -285,7 +285,7 @@ func handleDemote(ctx *Context) error {
 		_, err := ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, []types.JID{target}, whatsmeow.ParticipantChangeDemote)
 		resolvedJID, username := ctx.ResolveMention(target)
 		if err != nil {
-			_ = ctx.Reply(fmt.Sprintf(" Failed to demote %s: %v", username, err))
+			_ = ctx.ReplyWithMentions(fmt.Sprintf(" Failed to demote @%s: %v", username, err), []types.JID{resolvedJID})
 		} else {
 			demoted = append(demoted, "@"+username)
 			demotedJIDs = append(demotedJIDs, resolvedJID)

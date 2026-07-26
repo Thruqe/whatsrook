@@ -77,7 +77,8 @@ func handleAntiMsg(ctx *Context) error {
 		}
 		_ = s.PutSetting(ctx.Ctx, usersKey, strings.Join(users, ","))
 		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
-		return ctx.Reply("Added " + targetStr + " to AntiMsg target list.")
+		resolvedJID, username := ctx.ResolveMention(targetJID)
+		return ctx.ReplyWithMentions(fmt.Sprintf(" Added @%s to AntiMsg target list.", username), []types.JID{resolvedJID})
 
 	case "del", "remove":
 		targetJID := extractTargetParticipant(ctx, args)
@@ -94,7 +95,8 @@ func handleAntiMsg(ctx *Context) error {
 			}
 		}
 		_ = s.PutSetting(ctx.Ctx, usersKey, strings.Join(newUsers, ","))
-		return ctx.Reply("Removed " + targetStr + " from AntiMsg target list.")
+		resolvedJID, username := ctx.ResolveMention(targetJID)
+		return ctx.ReplyWithMentions(fmt.Sprintf(" Removed @%s from AntiMsg target list.", username), []types.JID{resolvedJID})
 
 	case "list":
 		rawUsers, _ := s.GetSetting(ctx.Ctx, usersKey)
@@ -103,11 +105,19 @@ func handleAntiMsg(ctx *Context) error {
 			return ctx.Reply("No participants are currently targeted by AntiMsg in this group.")
 		}
 		var sb strings.Builder
-		sb.WriteString("AntiMsg Targeted Participants:\n")
-		for i, u := range users {
-			sb.WriteString(fmt.Sprintf("%d. %s\n", i+1, u))
+		var mentions []types.JID
+		sb.WriteString("AntiMsg Targeted Participants:\n\n")
+		for _, u := range users {
+			uj, err := types.ParseJID(u)
+			if err == nil {
+				resolvedJID, username := ctx.ResolveMention(uj)
+				fmt.Fprintf(&sb, "- @%s\n", username)
+				mentions = append(mentions, resolvedJID)
+			} else {
+				fmt.Fprintf(&sb, "- %s\n", u)
+			}
 		}
-		return ctx.Reply(strings.TrimSpace(sb.String()))
+		return ctx.ReplyWithMentions(strings.TrimSpace(sb.String()), mentions)
 
 	case "clear":
 		_ = s.PutSetting(ctx.Ctx, usersKey, "")

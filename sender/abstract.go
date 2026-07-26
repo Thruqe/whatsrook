@@ -887,6 +887,12 @@ func (ctx *Context) ResolveMention(jid types.JID) (types.JID, string) {
 	return ResolveMentionRaw(ctx.Ctx, ctx.Client, jid)
 }
 
+// FormatMention resolves a target JID and returns its "@username" string representation along with the resolved JID for mentions.
+func (ctx *Context) FormatMention(jid types.JID) (string, types.JID) {
+	resolvedJID, username := ctx.ResolveMention(jid)
+	return "@" + username, resolvedJID
+}
+
 func (ctx *Context) formatMentionTextResponse(text string) string {
 	text = strings.ReplaceAll(text, "*", "")
 	text = removeEmojis(text)

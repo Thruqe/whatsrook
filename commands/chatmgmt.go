@@ -247,7 +247,8 @@ func handleBlock(ctx *Context) error {
 	if err != nil {
 		return ctx.Reply("Failed to block user: " + err.Error())
 	}
-	return ctx.Reply(fmt.Sprintf(" Blocked @%s.", target.User))
+	resolvedJID, username := ctx.ResolveMention(target)
+	return ctx.ReplyWithMentions(fmt.Sprintf(" Blocked @%s.", username), []types.JID{resolvedJID})
 }
 
 func handleUnblock(ctx *Context) error {
@@ -268,7 +269,8 @@ func handleUnblock(ctx *Context) error {
 	if err != nil {
 		return ctx.Reply("Failed to unblock user: " + err.Error())
 	}
-	return ctx.Reply(fmt.Sprintf(" Unblocked @%s.", target.User))
+	resolvedJID, username := ctx.ResolveMention(target)
+	return ctx.ReplyWithMentions(fmt.Sprintf(" Unblocked @%s.", username), []types.JID{resolvedJID})
 }
 
 func handleClear(ctx *Context) error {
