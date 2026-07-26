@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -542,6 +543,32 @@ func handleFiltersAndBGM(ctx context.Context, client *whatsmeow.Client, evt *eve
 	return false
 }
 
+var (
+	spamTrackMu sync.Mutex
+	spamHistory = make(map[string][]time.Time)
+)
+
+func checkSpamLimit(chatStr, senderStr string, maxMsgs int) bool {
+	spamTrackMu.Lock()
+	defer spamTrackMu.Unlock()
+
+	key := chatStr + ":" + senderStr
+	now := time.Now()
+	cutoff := now.Add(-5 * time.Second)
+
+	history := spamHistory[key]
+	var recent []time.Time
+	for _, t := range history {
+		if t.After(cutoff) {
+			recent = append(recent, t)
+		}
+	}
+	recent = append(recent, now)
+	spamHistory[key] = recent
+
+	return len(recent) > maxMsgs
+}
+
 func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *events.Message, text string) bool {
 	if evt.Info.Chat.Server != "g.us" {
 		return false
@@ -566,6 +593,47 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 				if u != "" && (u == senderStr || u == sender.User+"@s.whatsapp.net") {
 					slog.Info("antimsg: deleting message from targeted participant", "chat", chatStr, "sender", senderStr)
 					_, _ = client.SendMessage(ctx, evt.Info.Chat, client.BuildRevoke(evt.Info.Chat, evt.Info.Sender, evt.Info.ID))
+					return true
+				}
+			}
+		}
+	}
+
+	// Check AntiSpam rate limits
+	rawAntiSpamStatus, _ := s.GetSetting(ctx, "antispam_status:"+chatStr)
+	if rawAntiSpamStatus == "on" {
+		info, err := client.GetGroupInfo(ctx, evt.Info.Chat)
+		if err == nil && !waSender.IsAdminRaw(ctx, client, info, sender) {
+			rawMax, _ := s.GetSetting(ctx, "antispam_max:"+chatStr)
+			maxMsgs, _ := strconv.Atoi(rawMax)
+			if maxMsgs <= 0 {
+				maxMsgs = 5
+			}
+			if checkSpamLimit(chatStr, sender.String(), maxMsgs) {
+				action, _ := s.GetSetting(ctx, "antispam_action:"+chatStr)
+				if action == "" {
+					action = "delete"
+				}
+				slog.Info("antispam: message rate limit exceeded", "chat", chatStr, "sender", sender.String(), "action", action)
+				botIsAdmin := false
+				if client.Store.ID != nil {
+					botIsAdmin = waSender.IsAdminRaw(ctx, client, info, *client.Store.ID)
+				}
+				if botIsAdmin {
+					_, _ = client.SendMessage(ctx, evt.Info.Chat, client.BuildRevoke(evt.Info.Chat, evt.Info.Sender, evt.Info.ID))
+					if action == "kick" {
+						_, _ = client.UpdateGroupParticipants(ctx, evt.Info.Chat, []types.JID{evt.Info.Sender}, whatsmeow.ParticipantChangeRemove)
+					}
+					resolvedJID, username := waSender.ResolveMentionRaw(ctx, client, evt.Info.Sender)
+					textMsg := fmt.Sprintf("AntiSpam: @%s message rate limit exceeded (action: %s).", username, action)
+					_, _ = client.SendMessage(ctx, evt.Info.Chat, &waE2E.Message{
+						ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+							Text: &textMsg,
+							ContextInfo: &waE2E.ContextInfo{
+								MentionedJID: []string{resolvedJID.ToNonAD().String()},
+							},
+						},
+					})
 					return true
 				}
 			}
@@ -631,7 +699,7 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 		if botIsAdmin {
 			_, _ = client.SendMessage(ctx, evt.Info.Chat, client.BuildRevoke(evt.Info.Chat, evt.Info.Sender, evt.Info.ID))
 			resolvedJID, username := waSender.ResolveMentionRaw(ctx, client, evt.Info.Sender)
-			textMsg := fmt.Sprintf(" Message from @%s deleted: contains %s.", username, reason)
+			textMsg := fmt.Sprintf("Message from @%s deleted: contains %s.", username, reason)
 			_, _ = client.SendMessage(ctx, evt.Info.Chat, &waE2E.Message{
 				ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 					Text: &textMsg,
