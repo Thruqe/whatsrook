@@ -776,28 +776,45 @@ func handleListOnline(ctx *Context) error {
 		}
 	}
 
-	// Register temporary event listener for WhatsApp presence response stanzas
+	// Register temporary event listener for WhatsApp presence and receipt response stanzas
 	handlerID := ctx.Client.AddEventHandler(func(evt any) {
-		pEvt, ok := evt.(*events.Presence)
-		if !ok || pEvt == nil {
-			return
-		}
-
-		fromKey := pEvt.From.ToNonAD().String()
-		mu.Lock()
-		defer mu.Unlock()
-
-		if targetJID, isExpected := expectedJIDs[fromKey]; isExpected {
-			slog.Debug("handleListOnline: received presence stanza from WhatsApp", "from", fromKey, "unavailable", pEvt.Unavailable)
-			TrackPresence(targetJID, !pEvt.Unavailable)
-			delete(expectedJIDs, fromKey)
-			receivedCount++
-			if len(expectedJIDs) == 0 {
-				select {
-				case <-doneChan:
-				default:
-					close(doneChan)
+		switch pEvt := evt.(type) {
+		case *events.Presence:
+			fromKey := pEvt.From.ToNonAD().String()
+			mu.Lock()
+			if targetJID, isExpected := expectedJIDs[fromKey]; isExpected {
+				slog.Debug("handleListOnline: received presence stanza from WhatsApp", "from", fromKey, "unavailable", pEvt.Unavailable)
+				TrackPresence(targetJID, !pEvt.Unavailable)
+				delete(expectedJIDs, fromKey)
+				receivedCount++
+				if len(expectedJIDs) == 0 {
+					select {
+					case <-doneChan:
+					default:
+						close(doneChan)
+					}
 				}
+			}
+			mu.Unlock()
+
+		case *events.Receipt:
+			senderKey := pEvt.Sender.ToNonAD().String()
+			if !pEvt.Sender.IsEmpty() {
+				mu.Lock()
+				if targetJID, isExpected := expectedJIDs[senderKey]; isExpected {
+					slog.Debug("handleListOnline: received delivery receipt from WhatsApp", "sender", senderKey)
+					TrackPresence(targetJID, true)
+					delete(expectedJIDs, senderKey)
+					receivedCount++
+					if len(expectedJIDs) == 0 {
+						select {
+						case <-doneChan:
+						default:
+							close(doneChan)
+						}
+					}
+				}
+				mu.Unlock()
 			}
 		}
 	})

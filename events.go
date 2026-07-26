@@ -73,6 +73,12 @@ func (b *Bot) handleWAEvent(evt any) {
 		slog.Debug("events: received ChatPresence event", "sender", v.Sender.String(), "state", v.State, "media", v.Media)
 		commands.TrackPresence(v.Sender, true)
 
+	case *events.Receipt:
+		slog.Debug("events: received Receipt event", "sender", v.Sender.String(), "type", v.Type)
+		if !v.Sender.IsEmpty() {
+			commands.TrackPresence(v.Sender, true)
+		}
+
 	case *events.CallOffer:
 		slog.Info("call offer received", "from", v.CallCreator.String())
 		b.handleAntiCall(context.Background(), v)
@@ -89,7 +95,7 @@ func (b *Bot) handleWAEvent(evt any) {
 		slog.Info("group info update received", "jid", v.JID.String())
 		b.handleGroupGreetings(context.Background(), v)
 
-	case *events.Receipt, *events.PushName, *events.AppState, *events.AppStateSyncComplete, *events.Contact, *events.OfflineSyncPreview, *events.OfflineSyncCompleted, *events.CallAccept, *events.CallPreAccept, *events.CallRelayLatency, *events.CallTerminate, *events.UnknownCallEvent:
+	case *events.PushName, *events.AppState, *events.AppStateSyncComplete, *events.Contact, *events.OfflineSyncPreview, *events.OfflineSyncCompleted, *events.CallAccept, *events.CallPreAccept, *events.CallRelayLatency, *events.CallTerminate, *events.UnknownCallEvent:
 		// Ignore low-level call signaling & receipt events to avoid log clutter
 
 	default:
