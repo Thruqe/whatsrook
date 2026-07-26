@@ -51,6 +51,7 @@ func (b *Bot) handleWAEvent(evt any) {
 		go b.notifyOwnerConnected()
 
 	case *events.Message:
+		commands.TrackPresence(v.Info.Sender, true)
 		if commands.HandlePendingAudioReply(context.Background(), b.client, v) {
 			return
 		}
@@ -64,6 +65,12 @@ func (b *Bot) handleWAEvent(evt any) {
 			Kind:    EventIncomingMessage,
 			Payload: payload,
 		})
+
+	case *events.Presence:
+		commands.TrackPresence(v.From, !v.Unavailable)
+
+	case *events.ChatPresence:
+		commands.TrackPresence(v.Sender, true)
 
 	case *events.CallOffer:
 		slog.Info("call offer received", "from", v.CallCreator.String())
@@ -81,8 +88,8 @@ func (b *Bot) handleWAEvent(evt any) {
 		slog.Info("group info update received", "jid", v.JID.String())
 		b.handleGroupGreetings(context.Background(), v)
 
-	case *events.Receipt, *events.PushName, *events.Presence, *events.ChatPresence, *events.AppState, *events.AppStateSyncComplete, *events.Contact, *events.OfflineSyncPreview, *events.OfflineSyncCompleted, *events.CallAccept, *events.CallPreAccept, *events.CallRelayLatency, *events.CallTerminate, *events.UnknownCallEvent:
-		// Ignore low-level call signaling & presence/receipt events to avoid log clutter
+	case *events.Receipt, *events.PushName, *events.AppState, *events.AppStateSyncComplete, *events.Contact, *events.OfflineSyncPreview, *events.OfflineSyncCompleted, *events.CallAccept, *events.CallPreAccept, *events.CallRelayLatency, *events.CallTerminate, *events.UnknownCallEvent:
+		// Ignore low-level call signaling & receipt events to avoid log clutter
 
 	default:
 		slog.Debug("unhandled event", "type", fmt.Sprintf("%T", evt))

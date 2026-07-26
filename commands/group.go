@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
+	"time"
 
 	"whatsrook/store/sqlstore"
 
@@ -104,6 +106,15 @@ func init() {
 		GroupOnly:   true,
 		IsPublic:    true,
 		Handler:     handleInvite,
+	})
+	Register(&Command{
+		Name:        "listonline",
+		Aliases:     []string{"online", "onlines", "list-online"},
+		Description: "List online participants in the current group",
+		Category:    "group",
+		GroupOnly:   true,
+		IsPublic:    true,
+		Handler:     handleListOnline,
 	})
 }
 
@@ -646,4 +657,80 @@ func handleInvite(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("Failed to get invite link: %v", err))
 	}
 	return ctx.Reply(link)
+}
+
+var (
+	presenceMu  sync.RWMutex
+	presenceMap = make(map[string]PresenceInfo)
+)
+
+type PresenceInfo struct {
+	LastSeen time.Time
+	IsOnline bool
+}
+
+func TrackPresence(jid types.JID, isOnline bool) {
+	if jid.IsEmpty() {
+		return
+	}
+	presenceMu.Lock()
+	defer presenceMu.Unlock()
+	presenceMap[jid.ToNonAD().String()] = PresenceInfo{
+		LastSeen: time.Now(),
+		IsOnline: isOnline,
+	}
+}
+
+func IsUserOnline(jid types.JID, client *whatsmeow.Client) bool {
+	if jid.IsEmpty() {
+		return false
+	}
+	targetKey := jid.ToNonAD().String()
+
+	presenceMu.RLock()
+	info, exists := presenceMap[targetKey]
+	presenceMu.RUnlock()
+
+	if exists {
+		if info.IsOnline || time.Since(info.LastSeen) < 5*time.Minute {
+			return true
+		}
+	}
+
+	return false
+}
+
+func handleListOnline(ctx *Context) error {
+	if ctx.Chat.Server != "g.us" {
+		return ctx.Reply("This command can only be used in a group.")
+	}
+
+	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
+	if err != nil {
+		return ctx.Reply(fmt.Sprintf("Failed to get group info: %v", err))
+	}
+
+	var onlineJIDs []types.JID
+	var displayNames []string
+
+	for _, p := range info.Participants {
+		_ = ctx.Client.SubscribePresence(ctx.Ctx, p.JID)
+		if IsUserOnline(p.JID, ctx.Client) {
+			resolvedJID, username := ctx.ResolveMention(p.JID)
+			onlineJIDs = append(onlineJIDs, resolvedJID)
+			displayNames = append(displayNames, "@"+username)
+		}
+	}
+
+	if len(onlineJIDs) == 0 {
+		return ctx.Reply("No online participants detected in this group.")
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Online Participants (%d):\n\n", len(onlineJIDs)))
+	for _, name := range displayNames {
+		fmt.Fprintf(&sb, "- %s\n", name)
+	}
+
+	return ctx.ReplyWithMentions(sb.String(), onlineJIDs)
 }

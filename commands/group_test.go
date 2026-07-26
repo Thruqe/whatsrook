@@ -135,3 +135,25 @@ func TestPollCommandRegistration(t *testing.T) {
 		t.Error("expected 'lockpoll' to be registered as an alias of 'poll'")
 	}
 }
+
+func TestListOnlineCommandRegistration(t *testing.T) {
+	cmd, ok := Get("listonline")
+	if !ok {
+		t.Fatal("expected 'listonline' command to be registered")
+	}
+	if cmd.Name != "listonline" {
+		t.Errorf("expected command name 'listonline', got %q", cmd.Name)
+	}
+	if cmd.Category != "group" {
+		t.Errorf("expected category 'group', got %q", cmd.Category)
+	}
+	if !cmd.GroupOnly {
+		t.Error("expected GroupOnly to be true")
+	}
+
+	testJID := types.NewJID("1234567890", types.DefaultUserServer)
+	TrackPresence(testJID, true)
+	if !IsUserOnline(testJID, nil) {
+		t.Error("expected tracked user to be reported as online")
+	}
+}
