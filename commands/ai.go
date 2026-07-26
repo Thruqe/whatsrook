@@ -419,7 +419,8 @@ func handleAutoAI(ctx *Context) error {
 
 func handleAI(ctx *Context) error {
 	if len(ctx.Args) == 0 {
-		return sendText(ctx, "Usage: !ai <question>")
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage:\n- %sai <question>\n- %sask <question>\n\nExamples:\n- %sai What is the speed of light?\n- %sask Explain quantum computing in simple terms\n- Reply to an image or message with %sai Analyze this", p, p, p, p, p))
 	}
 
 	// Build (or reuse cached) instruction block describing available

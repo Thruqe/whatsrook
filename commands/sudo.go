@@ -81,7 +81,8 @@ func handleSetSudo(ctx *Context) error {
 
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
-		return ctx.Reply("Please reply to a user, tag them, or type their phone number.")
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage:\n- %ssetsudo @user\n- %ssetsudo 1234567890\n- Reply to a user's message with %ssetsudo", p, p, p))
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
@@ -130,7 +131,8 @@ func handleDelSudo(ctx *Context) error {
 
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
-		return ctx.Reply("Please reply to a user, tag them, or type their phone number.")
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage:\n- %sdelsudo @user\n- %sdelsudo 1234567890\n- Reply to a user's message with %sdelsudo", p, p, p))
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
@@ -224,7 +226,8 @@ func handleDisableCmd(ctx *Context) error {
 	}
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("Usage: disablecmd <command_name>")
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage:\n- %sdisablecmd <command_name>\nExample:\n- %sdisablecmd weather", p, p))
 	}
 
 	cmdName := strings.ToLower(ctx.Args[0])
@@ -268,7 +271,8 @@ func handleEnableCmd(ctx *Context) error {
 	}
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("Usage: enablecmd <command_name>")
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage:\n- %senablecmd <command_name>\nExample:\n- %senablecmd weather", p, p))
 	}
 
 	cmdName := strings.ToLower(ctx.Args[0])
@@ -311,7 +315,8 @@ func handleAutoVV(ctx *Context) error {
 	}
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("Usage: autovv [on/off]")
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage:\n- %sautovv on\n- %sautovv off", p, p))
 	}
 
 	state := strings.ToLower(ctx.Args[0])
@@ -342,7 +347,8 @@ func handleAutoStatusSave(ctx *Context) error {
 	}
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("Usage: autostatussave [on/off]")
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage:\n- %sautostatussave on\n- %sautostatussave off", p, p))
 	}
 
 	state := strings.ToLower(ctx.Args[0])
@@ -374,7 +380,8 @@ func handleBan(ctx *Context) error {
 
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
-		return ctx.Reply("Please reply to a user, tag them, or type their phone number.")
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage:\n- %sban @user\n- %sban 1234567890\n- Reply to a user's message with %sban", p, p, p))
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
@@ -446,7 +453,8 @@ func handleUnban(ctx *Context) error {
 
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
-		return ctx.Reply("Please reply to a user, tag them, or type their phone number.")
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage:\n- %sunban @user\n- %sunban 1234567890\n- Reply to a user's message with %sunban", p, p, p))
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
@@ -502,6 +510,7 @@ func handleMode(ctx *Context) error {
 		return ctx.Reply("Settings store unavailable.")
 	}
 
+	p := ctx.GetPrefix()
 	if len(ctx.Args) == 0 {
 		current, err := s.GetSetting(ctx.Ctx, "mode")
 		if err != nil {
@@ -510,7 +519,7 @@ func handleMode(ctx *Context) error {
 		if current == "" {
 			current = "public"
 		}
-		return ctx.Reply(fmt.Sprintf("The bot is currently in %s mode.", current))
+		return ctx.Reply(fmt.Sprintf("Current bot mode: %s\n\nUsage:\n- %smode public\n- %smode private", current, p, p))
 	}
 
 	mode := strings.ToLower(ctx.Args[0])

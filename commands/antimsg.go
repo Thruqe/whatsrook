@@ -42,7 +42,8 @@ func handleAntiMsg(ctx *Context) error {
 		users := splitCSV(rawUsers)
 		userCount := len(users)
 
-		return ctx.Reply(fmt.Sprintf("AntiMsg Status: %s\nTargeted Participants: %d\n\nUsage: .antimsg [on|off|add|del|list|clear]", strings.ToUpper(status), userCount))
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("AntiMsg Status: %s\nTargeted Participants: %d\n\nUsage:\n- %santimsg on\n- %santimsg off\n- %santimsg add @user\n- %santimsg del @user\n- %santimsg list", strings.ToUpper(status), userCount, p, p, p, p, p))
 	}
 
 	sub := strings.ToLower(args[0])
@@ -67,7 +68,8 @@ func handleAntiMsg(ctx *Context) error {
 	case "add":
 		targetJID := extractTargetParticipant(ctx, args)
 		if targetJID.IsEmpty() {
-			return ctx.Reply("Please mention a participant, quote their message, or specify their JID/phone number to add to AntiMsg.")
+			p := ctx.GetPrefix()
+			return ctx.Reply(fmt.Sprintf("Usage:\n- %santimsg add @user\n- %santimsg add 1234567890\n- Reply to a user's message with %santimsg add", p, p, p))
 		}
 		targetStr := targetJID.ToNonAD().String()
 		rawUsers, _ := s.GetSetting(ctx.Ctx, usersKey)

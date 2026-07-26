@@ -154,7 +154,8 @@ func handleKick(ctx *Context) error {
 
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
-		return ctx.Reply("Please reply to a member, tag them, or type their phone number to kick.")
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage:\n- %skick @user\n- %skick 1234567890\n- Reply to a user's message with %skick", p, p, p))
 	}
 
 	var kicked []string
@@ -193,7 +194,8 @@ func handleAdd(ctx *Context) error {
 
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
-		return ctx.Reply("Please type a phone number to add.")
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage:\n- %sadd 1234567890\n- %sadd 1234567890 9876543210", p, p))
 	}
 
 	var added []string
@@ -232,7 +234,8 @@ func handlePromote(ctx *Context) error {
 
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
-		return ctx.Reply("Please reply to a member, tag them, or type their phone number to promote.")
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage:\n- %spromote @user\n- %spromote 1234567890\n- Reply to a user's message with %spromote", p, p, p))
 	}
 
 	var promoted []string
@@ -271,7 +274,8 @@ func handleDemote(ctx *Context) error {
 
 	targets := ctx.GetTargets()
 	if len(targets) == 0 {
-		return ctx.Reply("Please reply to a member, tag them, or type their phone number to demote.")
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage:\n- %sdemote @user\n- %sdemote 1234567890\n- Reply to a user's message with %sdemote", p, p, p))
 	}
 
 	var demoted []string
@@ -309,7 +313,8 @@ func handleGroup(ctx *Context) error {
 	}
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("Usage: group <open|close|lock|unlock>")
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage:\n- %sgroup open\n- %sgroup close\n- %sgroup lock\n- %sgroup unlock", p, p, p, p))
 	}
 
 	action := strings.ToLower(ctx.Args[0])
@@ -353,7 +358,8 @@ func handleAntiLink(ctx *Context) error {
 	}
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("Usage: antilink [on/off]")
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage:\n- %santilink on\n- %santilink off", p, p))
 	}
 
 	state := strings.ToLower(ctx.Args[0])
@@ -384,7 +390,8 @@ func handleAntiWord(ctx *Context) error {
 	}
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("Usage:\n- antiword add [word]\n- antiword del [word]\n- antiword list")
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage:\n- %santiword add <word>\n- %santiword del <word>\n- %santiword list\nExamples:\n- %santiword add spamword", p, p, p, p))
 	}
 
 	sub := strings.ToLower(ctx.Args[0])
