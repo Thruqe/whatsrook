@@ -54,6 +54,19 @@ type FFInstrumentData struct {
 	} `json:"quotes"`
 }
 
+type FFBarsResponse struct {
+	Data []struct {
+		Timestamp    int64   `json:"timestamp"`
+		DataSourceID string  `json:"data_source_id"`
+		Interval     string  `json:"interval"`
+		Instrument   string  `json:"instrument"`
+		Open         float64 `json:"open"`
+		High         float64 `json:"high"`
+		Low          float64 `json:"low"`
+		Close        float64 `json:"close"`
+	} `json:"data"`
+}
+
 type FFListItem struct {
 	ID                  int    `json:"id"`
 	Name                string `json:"name"`
@@ -98,6 +111,8 @@ func handleMarkets(ctx *Context) error {
 		queryArg = "Gold/USD"
 	case "SILVER", "XAGUSD", "SILVER/USD":
 		queryArg = "Silver/USD"
+	case "DOW", "DOW/USD", "DOWJONES":
+		queryArg = "Dow/USD"
 	case "EURUSD":
 		queryArg = "EUR/USD"
 	case "GBPUSD":
@@ -162,46 +177,85 @@ func fetchForexFactoryInstrumentList(ctx context.Context) ([]FFListItem, error) 
 	return allItems, nil
 }
 
-func fetchAndSendSingleMarket(ctx *Context, pair string) error {
-	apiURL := fmt.Sprintf("https://mds-api.forexfactory.com/instruments?instruments=%s", url.QueryEscape(pair))
-	slog.Debug("fetchAndSendSingleMarket: requesting market metrics from API", "pair", pair, "url", apiURL)
+func fetchMarketBars(ctx context.Context, pair string) (*FFBarsResponse, error) {
+	apiURL := fmt.Sprintf("https://mds-api.forexfactory.com/bars?instrument=%s&interval=M5&per_page=1", url.QueryEscape(pair))
+	slog.Debug("fetchMarketBars: querying bars fallback API", "pair", pair, "url", apiURL)
 
-	req, err := http.NewRequestWithContext(ctx.Ctx, http.MethodGet, apiURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
 	if err != nil {
-		slog.Error("fetchAndSendSingleMarket: failed to create request", "pair", pair, "err", err)
-		return ctx.Reply(fmt.Sprintf("Failed to create request: %v", err))
+		return nil, err
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64)")
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{Timeout: 8 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		slog.Error("fetchAndSendSingleMarket: HTTP request failed", "pair", pair, "err", err)
-		return ctx.Reply(fmt.Sprintf("Failed to fetch market data for %s: %v", pair, err))
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	slog.Debug("fetchAndSendSingleMarket: API response received", "pair", pair, "status", resp.StatusCode)
-
-	// If HTTP 404 or non-200 occurs, fetch live instrument list from API to display valid choices
 	if resp.StatusCode != http.StatusOK {
-		slog.Warn("fetchAndSendSingleMarket: HTTP non-200 status from API", "pair", pair, "status", resp.StatusCode)
-		return sendAvailableInstrumentsList(ctx, pair)
+		return nil, fmt.Errorf("http %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		slog.Error("fetchAndSendSingleMarket: failed to read response body", "pair", pair, "err", err)
-		return ctx.Reply("Failed to read market API response.")
+		return nil, err
 	}
 
-	var res FFInstrumentResponse
-	if err := json.Unmarshal(body, &res); err != nil || len(res.Data) == 0 {
-		slog.Warn("fetchAndSendSingleMarket: empty data returned from API", "pair", pair, "err", err, "data_len", len(res.Data))
-		return sendAvailableInstrumentsList(ctx, pair)
+	var res FFBarsResponse
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, err
 	}
 
-	item := res.Data[0]
+	return &res, nil
+}
+
+func fetchAndSendSingleMarket(ctx *Context, pair string) error {
+	apiURL := fmt.Sprintf("https://mds-api.forexfactory.com/instruments?instruments=%s", url.QueryEscape(pair))
+	slog.Debug("fetchAndSendSingleMarket: requesting market metrics from primary API", "pair", pair, "url", apiURL)
+
+	// 1. Try primary instruments API
+	req, err := http.NewRequestWithContext(ctx.Ctx, http.MethodGet, apiURL, nil)
+	if err == nil {
+		req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64)")
+		client := &http.Client{Timeout: 8 * time.Second}
+		resp, err := client.Do(req)
+		if err == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				body, _ := io.ReadAll(resp.Body)
+				var res FFInstrumentResponse
+				if err := json.Unmarshal(body, &res); err == nil && len(res.Data) > 0 {
+					return formatAndSendInstrumentResponse(ctx, pair, res.Data[0])
+				}
+			}
+		}
+	}
+
+	// 2. Fallback to bars API (for indices like Dow/USD, SPX/USD, etc.)
+	slog.Info("fetchAndSendSingleMarket: primary API empty or unavailable, querying bars fallback API", "pair", pair)
+	barsRes, err := fetchMarketBars(ctx.Ctx, pair)
+	if err == nil && len(barsRes.Data) > 0 {
+		latest := barsRes.Data[0]
+		slog.Info("fetchAndSendSingleMarket: successfully retrieved bar metrics from fallback API", "pair", pair, "close", latest.Close)
+
+		var sb strings.Builder
+		sb.WriteString(fmt.Sprintf("Forex Factory Rates - %s\n\n", pair))
+		sb.WriteString(fmt.Sprintf("Price: %.2f\n", latest.Close))
+		sb.WriteString(fmt.Sprintf("Open: %.2f\n", latest.Open))
+		sb.WriteString(fmt.Sprintf("High: %.2f | Low: %.2f\n", latest.High, latest.Low))
+		sb.WriteString("Market Status: Active\n")
+
+		return ctx.Reply(sb.String())
+	}
+
+	// 3. Fallback: Show list of available instruments
+	slog.Warn("fetchAndSendSingleMarket: both primary and bars APIs failed", "pair", pair)
+	return sendAvailableInstrumentsList(ctx, pair)
+}
+
+func formatAndSendInstrumentResponse(ctx *Context, pair string, item FFInstrumentData) error {
 	displayName := item.Instrument.DisplayName
 	if displayName == "" {
 		displayName = pair
@@ -240,7 +294,7 @@ func fetchAndSendSingleMarket(ctx *Context, pair string) error {
 		marketStatus = "Holiday / Closed"
 	}
 
-	slog.Info("fetchAndSendSingleMarket: parsed market data", "pair", displayName, "price", price, "bid", bid, "ask", ask, "high", high, "low", low, "spread", spread, "status", marketStatus)
+	slog.Info("formatAndSendInstrumentResponse: parsed market data", "pair", displayName, "price", price, "bid", bid, "ask", ask, "high", high, "low", low, "spread", spread, "status", marketStatus)
 
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("Forex Factory Rates - %s\n\n", displayName))
