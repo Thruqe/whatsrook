@@ -116,8 +116,6 @@ func handleMarkets(ctx *Context) error {
 		queryArg = "BTC/USD"
 	case "ETHUSD", "ETH":
 		queryArg = "ETH/USD"
-	case "HEATOIL/USD", "HEATOIL":
-		queryArg = "Oil/USD"
 	}
 
 	slog.Info("handleMarkets: querying single instrument", "pair", queryArg)
@@ -128,7 +126,7 @@ func fetchForexFactoryInstrumentList(ctx context.Context) ([]FFListItem, error) 
 	client := &http.Client{Timeout: 8 * time.Second}
 	var allItems []FFListItem
 
-	// 1. Fetch main instrument list
+	// 1. Fetch main instrument list from Forex Factory API
 	apiURL := "https://mds-api.forexfactory.com/instrument-list"
 	slog.Debug("fetchForexFactoryInstrumentList: fetching main instrument list from API", "url", apiURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
@@ -144,7 +142,7 @@ func fetchForexFactoryInstrumentList(ctx context.Context) ([]FFListItem, error) 
 		}
 	}
 
-	// 2. Fetch synthetic / crypto instrument list
+	// 2. Fetch synthetic / crypto instrument list from Forex Factory API
 	synthURL := "https://mds-api.forexfactory.com/synthetic-instrument-list"
 	slog.Debug("fetchForexFactoryInstrumentList: fetching synthetic instrument list from API", "url", synthURL)
 	synthReq, err := http.NewRequestWithContext(ctx, http.MethodGet, synthURL, nil)
@@ -160,12 +158,11 @@ func fetchForexFactoryInstrumentList(ctx context.Context) ([]FFListItem, error) 
 		}
 	}
 
-	slog.Debug("fetchForexFactoryInstrumentList: successfully retrieved total instruments", "count", len(allItems))
+	slog.Debug("fetchForexFactoryInstrumentList: retrieved total instruments from APIs", "count", len(allItems))
 	return allItems, nil
 }
 
 func fetchAndSendSingleMarket(ctx *Context, pair string) error {
-	p := ctx.GetPrefix()
 	apiURL := fmt.Sprintf("https://mds-api.forexfactory.com/instruments?instruments=%s", url.QueryEscape(pair))
 	slog.Debug("fetchAndSendSingleMarket: requesting market metrics from API", "pair", pair, "url", apiURL)
 
@@ -185,12 +182,11 @@ func fetchAndSendSingleMarket(ctx *Context, pair string) error {
 	defer resp.Body.Close()
 
 	slog.Debug("fetchAndSendSingleMarket: API response received", "pair", pair, "status", resp.StatusCode)
-	if resp.StatusCode == http.StatusNotFound {
-		slog.Warn("fetchAndSendSingleMarket: HTTP 404 instrument unavailable", "pair", pair)
-		return ctx.Reply(fmt.Sprintf("Instrument %q is currently unavailable on Forex Factory.\n\nPopular Available Instruments:\n- %smarkets EUR/USD\n- %smarkets GBP/USD\n- %smarkets USD/JPY\n- %smarkets Gold/USD\n- %smarkets Silver/USD\n- %smarkets BTC/USD\n- %smarkets all", pair, p, p, p, p, p, p, p))
-	} else if resp.StatusCode != http.StatusOK {
-		slog.Warn("fetchAndSendSingleMarket: non-200 HTTP status from API", "pair", pair, "status", resp.StatusCode)
-		return ctx.Reply(fmt.Sprintf("Market API error (HTTP %d). Usage:\n- %smarkets EUR/USD", resp.StatusCode, p))
+
+	// If HTTP 404 or non-200 occurs, fetch live instrument list from API to display valid choices
+	if resp.StatusCode != http.StatusOK {
+		slog.Warn("fetchAndSendSingleMarket: HTTP non-200 status from API", "pair", pair, "status", resp.StatusCode)
+		return sendAvailableInstrumentsList(ctx, pair)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -201,8 +197,8 @@ func fetchAndSendSingleMarket(ctx *Context, pair string) error {
 
 	var res FFInstrumentResponse
 	if err := json.Unmarshal(body, &res); err != nil || len(res.Data) == 0 {
-		slog.Warn("fetchAndSendSingleMarket: empty data returned", "pair", pair, "err", err, "data_len", len(res.Data))
-		return ctx.Reply(fmt.Sprintf("Instrument %q is currently unavailable on Forex Factory.\n\nPopular Available Instruments:\n- %smarkets EUR/USD\n- %smarkets Gold/USD\n- %smarkets BTC/USD\n- %smarkets all", pair, p, p, p, p))
+		slog.Warn("fetchAndSendSingleMarket: empty data returned from API", "pair", pair, "err", err, "data_len", len(res.Data))
+		return sendAvailableInstrumentsList(ctx, pair)
 	}
 
 	item := res.Data[0]
@@ -262,6 +258,39 @@ func fetchAndSendSingleMarket(ctx *Context, pair string) error {
 	}
 	sb.WriteString(fmt.Sprintf("Market Status: %s\n", marketStatus))
 
+	return ctx.Reply(sb.String())
+}
+
+func sendAvailableInstrumentsList(ctx *Context, requestedPair string) error {
+	p := ctx.GetPrefix()
+	apiItems, err := fetchForexFactoryInstrumentList(ctx.Ctx)
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Instrument %q is not available on Forex Factory.\n\nAvailable Active Markets:\n", requestedPair))
+
+	if err == nil && len(apiItems) > 0 {
+		seen := make(map[string]bool)
+		count := 0
+		for _, item := range apiItems {
+			name := item.DisplayName
+			if name == "" {
+				name = item.Name
+			}
+			if name == "" || seen[name] {
+				continue
+			}
+			seen[name] = true
+			fmt.Fprintf(&sb, "- %smarkets %s\n", p, name)
+			count++
+			if count >= 12 {
+				break
+			}
+		}
+	} else {
+		fmt.Fprintf(&sb, "- %smarkets EUR/USD\n- %smarkets GBP/USD\n- %smarkets USD/JPY\n- %smarkets Gold/USD\n", p, p, p, p)
+	}
+
+	fmt.Fprintf(&sb, "\nView all summary:\n- %smarkets all", p)
 	return ctx.Reply(sb.String())
 }
 
@@ -334,7 +363,21 @@ func sendMarketsButtonsMenu(ctx *Context) error {
 	p := ctx.GetPrefix()
 	slog.Debug("sendMarketsButtonsMenu: building normal buttons for Web/Desktop non-mobile device", "chat", ctx.Chat.String(), "device", ctx.Sender.Device)
 
-	bodyText := "Forex Factory Markets\n\nSelect an instrument below to check real-time rates:\n\nExamples:\n- " + p + "markets EUR/USD\n- " + p + "markets Gold/USD\n- " + p + "markets BTC/USD\n- " + p + "markets all"
+	// Fetch live API instruments to populate buttons dynamically
+	apiItems, _ := fetchForexFactoryInstrumentList(ctx.Ctx)
+
+	var btn1, btn2, btn3 string
+	if len(apiItems) >= 3 {
+		btn1 = apiItems[0].DisplayName
+		btn2 = apiItems[1].DisplayName
+		btn3 = apiItems[2].DisplayName
+	} else {
+		btn1 = "EUR/USD"
+		btn2 = "GBP/USD"
+		btn3 = "Gold/USD"
+	}
+
+	bodyText := "Forex Factory Markets\n\nSelect an instrument below to check real-time rates:\n\nExamples:\n- " + p + "markets EUR/USD\n- " + p + "markets Gold/USD\n- " + p + "markets all"
 
 	msg := &waE2E.Message{
 		DocumentWithCaptionMessage: &waE2E.FutureProofMessage{
@@ -345,23 +388,23 @@ func sendMarketsButtonsMenu(ctx *Context) error {
 					HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
 					Buttons: []*waE2E.ButtonsMessage_Button{
 						{
-							ButtonID: new(p + "markets EUR/USD"),
+							ButtonID: new(p + "markets " + btn1),
 							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
-								DisplayText: new("EUR/USD"),
+								DisplayText: new(btn1),
 							},
 							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
 						},
 						{
-							ButtonID: new(p + "markets GBP/USD"),
+							ButtonID: new(p + "markets " + btn2),
 							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
-								DisplayText: new("GBP/USD"),
+								DisplayText: new(btn2),
 							},
 							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
 						},
 						{
-							ButtonID: new(p + "markets Gold/USD"),
+							ButtonID: new(p + "markets " + btn3),
 							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
-								DisplayText: new("GOLD/USD"),
+								DisplayText: new(btn3),
 							},
 							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
 						},
@@ -421,119 +464,120 @@ func sendMarketsSelectListMenu(ctx *Context) error {
 	p := ctx.GetPrefix()
 	slog.Debug("sendMarketsSelectListMenu: building single_select native flow list for mobile device", "chat", ctx.Chat.String(), "device", ctx.Sender.Device)
 
-	// Fetch dynamic instrument list from Forex Factory API
+	// Fetch live instrument list directly from Forex Factory API endpoints
 	apiItems, err := fetchForexFactoryInstrumentList(ctx.Ctx)
+	if err != nil || len(apiItems) == 0 {
+		slog.Error("sendMarketsSelectListMenu: failed to fetch live instruments from Forex Factory API", "err", err)
+		return ctx.Reply("Failed to fetch market instruments from Forex Factory. Please try again later.")
+	}
 
-	var majorRows []selectListRow
+	slog.Info("sendMarketsSelectListMenu: fetched live instruments from Forex Factory API", "total_items", len(apiItems))
+
+	// Sort items by rank (or ID if rank is 0)
+	slices.SortFunc(apiItems, func(a, b FFListItem) int {
+		if a.Rank == 0 && b.Rank == 0 {
+			return a.ID - b.ID
+		}
+		if a.Rank == 0 {
+			return 1
+		}
+		if b.Rank == 0 {
+			return -1
+		}
+		return a.Rank - b.Rank
+	})
+
+	var forexRows []selectListRow
 	var cryptoRows []selectListRow
 	var commodityRows []selectListRow
-	seenIDs := make(map[string]bool)
+	var otherRows []selectListRow
 
-	if err == nil && len(apiItems) > 0 {
-		slog.Info("sendMarketsSelectListMenu: dynamically populating menu from Forex Factory API", "total_api_items", len(apiItems))
+	seenNames := make(map[string]bool)
 
-		// Sort by Rank
-		slices.SortFunc(apiItems, func(a, b FFListItem) int {
-			if a.Rank == 0 {
-				return 1
+	for _, item := range apiItems {
+		name := strings.TrimSpace(item.DisplayName)
+		if name == "" {
+			name = strings.TrimSpace(item.Name)
+		}
+		if name == "" || seenNames[strings.ToUpper(name)] {
+			continue
+		}
+		seenNames[strings.ToUpper(name)] = true
+
+		title := strings.TrimSpace(item.Title)
+		if title == "" {
+			title = name
+		}
+
+		row := selectListRow{
+			ID:          fmt.Sprintf("%smarkets %s", p, name),
+			Title:       name,
+			Description: title,
+		}
+
+		className := strings.ToUpper(strings.TrimSpace(item.InstrumentClassName))
+		upperName := strings.ToUpper(name)
+
+		if className == "CRYPTO" || strings.HasPrefix(upperName, "BTC") || strings.HasPrefix(upperName, "ETH") {
+			if len(cryptoRows) < 10 {
+				cryptoRows = append(cryptoRows, row)
 			}
-			if b.Rank == 0 {
-				return -1
+		} else if strings.Contains(upperName, "GOLD") || strings.Contains(upperName, "SILVER") || strings.Contains(upperName, "OIL") {
+			if len(commodityRows) < 10 {
+				commodityRows = append(commodityRows, row)
 			}
-			return a.Rank - b.Rank
+		} else if className == "FOREX" || strings.Contains(upperName, "/") {
+			if len(forexRows) < 10 {
+				forexRows = append(forexRows, row)
+			}
+		} else {
+			if len(otherRows) < 5 {
+				otherRows = append(otherRows, row)
+			}
+		}
+	}
+
+	var sections []selectListSection
+
+	if len(forexRows) > 0 {
+		sections = append(sections, selectListSection{
+			Title: "Forex Currency Pairs",
+			Rows:  forexRows,
 		})
-
-		for _, item := range apiItems {
-			name := item.DisplayName
-			if name == "" {
-				name = item.Name
-			}
-			if name == "" || seenIDs[name] {
-				continue
-			}
-
-			title := item.Title
-			if title == "" {
-				title = name
-			}
-
-			row := selectListRow{
-				ID:          fmt.Sprintf("%smarkets %s", p, name),
-				Title:       name,
-				Description: title,
-			}
-
-			upperName := strings.ToUpper(name)
-			className := strings.ToUpper(item.InstrumentClassName)
-
-			if className == "CRYPTO" || strings.HasPrefix(upperName, "BTC") || strings.HasPrefix(upperName, "ETH") {
-				if len(cryptoRows) < 5 {
-					cryptoRows = append(cryptoRows, row)
-					seenIDs[name] = true
-				}
-			} else if strings.Contains(upperName, "GOLD") || strings.Contains(upperName, "SILVER") || strings.Contains(upperName, "OIL") {
-				if len(commodityRows) < 5 {
-					commodityRows = append(commodityRows, row)
-					seenIDs[name] = true
-				}
-			} else if len(majorRows) < 7 {
-				majorRows = append(majorRows, row)
-				seenIDs[name] = true
-			}
-		}
-	} else {
-		slog.Warn("sendMarketsSelectListMenu: API fetch failed or empty, using fallback presets", "err", err)
+	}
+	if len(commodityRows) > 0 {
+		sections = append(sections, selectListSection{
+			Title: "Metals & Commodities",
+			Rows:  commodityRows,
+		})
+	}
+	if len(cryptoRows) > 0 {
+		sections = append(sections, selectListSection{
+			Title: "Cryptocurrencies",
+			Rows:  cryptoRows,
+		})
+	}
+	if len(otherRows) > 0 {
+		sections = append(sections, selectListSection{
+			Title: "Other Instruments",
+			Rows:  otherRows,
+		})
 	}
 
-	// Fallback presets if API rows are empty
-	if len(majorRows) == 0 {
-		majorRows = []selectListRow{
-			{ID: p + "markets EUR/USD", Title: "EUR/USD", Description: "Euro / US Dollar"},
-			{ID: p + "markets GBP/USD", Title: "GBP/USD", Description: "British Pound / US Dollar"},
-			{ID: p + "markets USD/JPY", Title: "USD/JPY", Description: "US Dollar / Japanese Yen"},
-			{ID: p + "markets USD/CAD", Title: "USD/CAD", Description: "US Dollar / Canadian Dollar"},
-			{ID: p + "markets AUD/USD", Title: "AUD/USD", Description: "Australian Dollar / US Dollar"},
-		}
-	}
-	if len(cryptoRows) == 0 {
-		cryptoRows = []selectListRow{
-			{ID: p + "markets BTC/USD", Title: "BTC/USD", Description: "Bitcoin / US Dollar"},
-			{ID: p + "markets ETH/USD", Title: "ETH/USD", Description: "Ethereum / US Dollar"},
-		}
-	}
-	if len(commodityRows) == 0 {
-		commodityRows = []selectListRow{
-			{ID: p + "markets Gold/USD", Title: "Gold/USD", Description: "Spot Gold / US Dollar"},
-			{ID: p + "markets Silver/USD", Title: "Silver/USD", Description: "Spot Silver / US Dollar"},
-		}
-	}
-
-	paramsObj := selectListParams{
-		Title: "Select Instrument",
-		Sections: []selectListSection{
+	sections = append(sections, selectListSection{
+		Title: "Market Summary",
+		Rows: []selectListRow{
 			{
-				Title: "Forex Major Pairs",
-				Rows:  majorRows,
-			},
-			{
-				Title: "Cryptocurrencies",
-				Rows:  cryptoRows,
-			},
-			{
-				Title: "Metals & Commodities",
-				Rows:  commodityRows,
-			},
-			{
-				Title: "Overview",
-				Rows: []selectListRow{
-					{
-						ID:          p + "markets all",
-						Title:       "All Majors Summary",
-						Description: "View rates summary for all major pairs",
-					},
-				},
+				ID:          p + "markets all",
+				Title:       "All Major Markets",
+				Description: "View live summary for all major market pairs",
 			},
 		},
+	})
+
+	paramsObj := selectListParams{
+		Title:    "Select Market Instrument",
+		Sections: sections,
 	}
 
 	paramsJSON, err := json.Marshal(paramsObj)
@@ -547,10 +591,10 @@ func sendMarketsSelectListMenu(ctx *Context) error {
 			Message: &waE2E.Message{
 				InteractiveMessage: &waE2E.InteractiveMessage{
 					Body: &waE2E.InteractiveMessage_Body{
-						Text: new("Forex Factory Market Rates\n\nClick the button below to choose an instrument:"),
+						Text: new("Forex Factory Market Rates\n\nClick the button below to choose an active instrument:"),
 					},
 					Footer: &waE2E.InteractiveMessage_Footer{
-						Text: new("Forex Factory Data"),
+						Text: new("Live Forex Factory Data"),
 					},
 					InteractiveMessage: &waE2E.InteractiveMessage_NativeFlowMessage_{
 						NativeFlowMessage: &waE2E.InteractiveMessage_NativeFlowMessage{
@@ -589,7 +633,7 @@ func sendMarketsSelectListMenu(ctx *Context) error {
 		AdditionalNodes: &[]waBinary.Node{bizNode},
 	}
 
-	slog.Info("sendMarketsSelectListMenu: sending single_select list message", "chat", ctx.Chat.String())
+	slog.Info("sendMarketsSelectListMenu: sending live API single_select list message", "chat", ctx.Chat.String())
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
 	if err != nil {
 		slog.Error("sendMarketsSelectListMenu: failed to send list message", "err", err)
