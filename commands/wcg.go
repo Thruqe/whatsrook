@@ -334,7 +334,7 @@ func handleWCG(ctx *Context) error {
 	})
 
 	// Try sending interactive message with buttons
-	err := sendWCGInteractiveMenu(ctx, hostTag, hostMention)
+	err := sendWCGInteractiveMenu(ctx, hostTag)
 	if err != nil {
 		// Fallback to text menu
 		textMsg := fmt.Sprintf("🔤 WORD GUESSING GAME (WCG) 🔤\n\nHosted by: %s\n\n⏱️ Lobby is open for 30 SECONDS!\nType '.wcg join' to join\nType '.wcg start' to begin now\nType '.wcg lb' for Leaderboard", hostTag)
@@ -344,7 +344,7 @@ func handleWCG(ctx *Context) error {
 	return nil
 }
 
-func sendWCGInteractiveMenu(ctx *Context, hostTag string, hostMention types.JID) error {
+func sendWCGInteractiveMenu(ctx *Context, hostTag string) error {
 	msgVersion := int32(1)
 
 	bodyText := fmt.Sprintf("🔤 WORD GUESSING GAME (WCG)\n\nHosted by %s\n\n⏱️ 30s Join Window Open!\nClick 'Join Match' or type '.wcg join' to play.\n\nRules:\n• Words progress from 3 to 16 letters\n• Turn time decreases as difficulty rises (30s → 6s)\n• Emojis & non-players are ignored\n• Win XP & climb performance ratings!", hostTag)

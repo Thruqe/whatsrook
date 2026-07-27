@@ -4,13 +4,18 @@ package commands
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	"whatsrook/store/sqlstore"
 
 	"go.mau.fi/whatsmeow"
 	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
+
+var titleCaser = cases.Title(language.English)
 
 func init() {
 	Register(&Command{
@@ -49,11 +54,16 @@ func handleGroupGreetingConfig(ctx *Context, kind string) error {
 	}
 
 	chatKey := ctx.Chat.String()
-	statusKey := kind + "_status:" + chatKey
-	tagKey := kind + "_tag:" + chatKey
-	descKey := kind + "_desc:" + chatKey
-	msgKey := kind + "_msg:" + chatKey
-	mediaKey := kind + "_media:" + chatKey
+	key := func(suffix string) string {
+		return kind + "_" + suffix + ":" + chatKey
+	}
+	statusKey := key("status")
+	tagKey := key("tag")
+	descKey := key("desc")
+	msgKey := key("msg")
+	mediaKey := key("media")
+
+	label := titleCase(kind)
 
 	args := strings.Fields(ctx.RawArgs)
 	if len(args) == 0 {
@@ -63,67 +73,35 @@ func handleGroupGreetingConfig(ctx *Context, kind string) error {
 	sub := strings.ToLower(args[0])
 	switch sub {
 	case "on", "enable":
-		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
-		return ctx.Reply(strings.Title(kind) + " message enabled for this group.")
+		return applyToggle(ctx, s, statusKey, "on", label+" message")
 
 	case "off", "disable":
-		_ = s.PutSetting(ctx.Ctx, statusKey, "off")
-		return ctx.Reply(strings.Title(kind) + " message disabled for this group.")
+		return applyToggle(ctx, s, statusKey, "off", label+" message")
 
 	case "toggle":
-		curr, _ := s.GetSetting(ctx.Ctx, statusKey)
-		if curr == "on" {
-			_ = s.PutSetting(ctx.Ctx, statusKey, "off")
-			return ctx.Reply(strings.Title(kind) + " message disabled for this group.")
-		}
-		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
-		return ctx.Reply(strings.Title(kind) + " message enabled for this group.")
+		return applyToggle(ctx, s, statusKey, "toggle", label+" message")
 
 	case "tag":
 		if len(args) < 2 {
 			curr, _ := s.GetSetting(ctx.Ctx, tagKey)
-			return ctx.Reply(strings.Title(kind) + " participant tag setting: " + curr)
+			return ctx.Reply(label + " participant tag setting: " + curr)
 		}
 		mode := strings.ToLower(args[1])
-		if mode == "on" || mode == "true" {
-			_ = s.PutSetting(ctx.Ctx, tagKey, "on")
-			return ctx.Reply(strings.Title(kind) + " participant tagging enabled.")
-		} else if mode == "off" || mode == "false" {
-			_ = s.PutSetting(ctx.Ctx, tagKey, "off")
-			return ctx.Reply(strings.Title(kind) + " participant tagging disabled.")
-		} else if mode == "toggle" {
-			curr, _ := s.GetSetting(ctx.Ctx, tagKey)
-			if curr == "on" {
-				_ = s.PutSetting(ctx.Ctx, tagKey, "off")
-				return ctx.Reply(strings.Title(kind) + " participant tagging disabled.")
-			}
-			_ = s.PutSetting(ctx.Ctx, tagKey, "on")
-			return ctx.Reply(strings.Title(kind) + " participant tagging enabled.")
+		if mode != "on" && mode != "true" && mode != "off" && mode != "false" && mode != "toggle" {
+			return ctx.Reply("Usage: ." + kind + " tag [on|off|toggle]")
 		}
-		return ctx.Reply("Usage: ." + kind + " tag [on|off|toggle]")
+		return applyToggle(ctx, s, tagKey, mode, label+" participant tagging")
 
 	case "desc":
 		if len(args) < 2 {
 			curr, _ := s.GetSetting(ctx.Ctx, descKey)
-			return ctx.Reply(strings.Title(kind) + " group description setting: " + curr)
+			return ctx.Reply(label + " group description setting: " + curr)
 		}
 		mode := strings.ToLower(args[1])
-		if mode == "on" || mode == "true" {
-			_ = s.PutSetting(ctx.Ctx, descKey, "on")
-			return ctx.Reply(strings.Title(kind) + " group description inclusion enabled.")
-		} else if mode == "off" || mode == "false" {
-			_ = s.PutSetting(ctx.Ctx, descKey, "off")
-			return ctx.Reply(strings.Title(kind) + " group description inclusion disabled.")
-		} else if mode == "toggle" {
-			curr, _ := s.GetSetting(ctx.Ctx, descKey)
-			if curr == "on" {
-				_ = s.PutSetting(ctx.Ctx, descKey, "off")
-				return ctx.Reply(strings.Title(kind) + " group description inclusion disabled.")
-			}
-			_ = s.PutSetting(ctx.Ctx, descKey, "on")
-			return ctx.Reply(strings.Title(kind) + " group description inclusion enabled.")
+		if mode != "on" && mode != "true" && mode != "off" && mode != "false" && mode != "toggle" {
+			return ctx.Reply("Usage: ." + kind + " desc [on|off|toggle]")
 		}
-		return ctx.Reply("Usage: ." + kind + " desc [on|off|toggle]")
+		return applyToggle(ctx, s, descKey, mode, label+" group description inclusion")
 
 	case "msg", "message", "text":
 		if len(args) < 2 {
@@ -131,11 +109,13 @@ func handleGroupGreetingConfig(ctx *Context, kind string) error {
 			if curr == "" {
 				curr = "none (using default template)"
 			}
-			return ctx.Reply(strings.Title(kind) + " custom message template: " + curr)
+			return ctx.Reply(label + " custom message template: " + curr)
 		}
-		text := strings.TrimSpace(strings.TrimPrefix(ctx.RawArgs, args[0]))
-		_ = s.PutSetting(ctx.Ctx, msgKey, text)
-		return ctx.Reply(strings.Title(kind) + " custom message template updated.")
+		text := strings.TrimSpace(ctx.RawArgs[len(args[0]):])
+		if err := s.PutSetting(ctx.Ctx, msgKey, text); err != nil {
+			return ctx.Reply("Failed to update message template: " + err.Error())
+		}
+		return ctx.Reply(label + " custom message template updated.")
 
 	case "media", "video":
 		if len(args) < 2 {
@@ -143,21 +123,64 @@ func handleGroupGreetingConfig(ctx *Context, kind string) error {
 			if curr == "" {
 				curr = "none"
 			}
-			return ctx.Reply(strings.Title(kind) + " media URL: " + curr)
+			return ctx.Reply(label + " media URL: " + curr)
 		}
 		url := strings.TrimSpace(args[1])
 		if url == "none" || url == "clear" {
-			_ = s.PutSetting(ctx.Ctx, mediaKey, "")
-			return ctx.Reply(strings.Title(kind) + " media cleared.")
+			if err := s.PutSetting(ctx.Ctx, mediaKey, ""); err != nil {
+				return ctx.Reply("Failed to clear media: " + err.Error())
+			}
+			return ctx.Reply(label + " media cleared.")
 		}
-		_ = s.PutSetting(ctx.Ctx, mediaKey, url)
-		return ctx.Reply(strings.Title(kind) + " media URL saved.")
+		if err := s.PutSetting(ctx.Ctx, mediaKey, url); err != nil {
+			return ctx.Reply("Failed to update media: " + err.Error())
+		}
+		return ctx.Reply(label + " media URL saved.")
 
 	default:
 		return ctx.Reply("Usage: ." + kind + " [on|off|toggle|tag|desc|msg|media]")
 	}
 }
 
+// applyToggle sets key to on/off, or flips its current value when mode is "toggle".
+// mode must be one of: "on", "true", "off", "false", "toggle".
+func applyToggle(ctx *Context, s *sqlstore.SQLStore, key, mode, label string) error {
+	next := "on"
+	switch mode {
+	case "on", "true":
+		next = "on"
+	case "off", "false":
+		next = "off"
+	case "toggle":
+		curr, _ := s.GetSetting(ctx.Ctx, key)
+		next = "on"
+		if curr == "on" {
+			next = "off"
+		}
+	}
+
+	if err := s.PutSetting(ctx.Ctx, key, next); err != nil {
+		return ctx.Reply("Failed to update setting: " + err.Error())
+	}
+
+	verb := "enabled"
+	if next == "off" {
+		verb = "disabled"
+	}
+	return ctx.Reply(label + " " + verb + ".")
+}
+
+// titleCase upper-cases the first rune of s. Suitable for known,
+// controlled ASCII words (e.g. "welcome", "goodbye") — avoids pulling in
+// golang.org/x/text/cases for a single-word capitalization.
+func titleCase(s string) string {
+	if s == "" {
+		return s
+	}
+	r := []rune(s)
+	r[0] = unicode.ToUpper(r[0])
+	return string(r)
+}
 func sendGreetingMenu(ctx *Context, s *sqlstore.SQLStore, kind string) error {
 	chatKey := ctx.Chat.String()
 	groupName := chatKey

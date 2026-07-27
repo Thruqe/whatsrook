@@ -359,14 +359,15 @@ func (p *exprParser) parseTerm() (float64, error) {
 		if err != nil {
 			return 0, err
 		}
-		if op == '*' {
+		switch op {
+		case '*':
 			val *= nextVal
-		} else if op == '/' {
+		case '/':
 			if nextVal == 0 {
 				return 0, fmt.Errorf("division by zero")
 			}
 			val /= nextVal
-		} else {
+		default:
 			if nextVal == 0 {
 				return 0, fmt.Errorf("modulo by zero")
 			}

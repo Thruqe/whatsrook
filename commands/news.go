@@ -85,7 +85,7 @@ func handleNews(ctx *Context) error {
 
 	var firstImageURL string
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("AP News - %s\n\n", strings.Title(strings.ReplaceAll(country, "-", " "))))
+	fmt.Fprintf(&sb, "AP News - %s\n\n", titleCase(strings.ReplaceAll(country, "-", " ")))
 
 	count := 0
 	for _, art := range articles {

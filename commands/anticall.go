@@ -60,13 +60,14 @@ func handleAntiCall(ctx *Context) error {
 			return ctx.Reply("AntiCall contacts only setting: " + curr)
 		}
 		mode := strings.ToLower(args[1])
-		if mode == "on" || mode == "true" {
+		switch mode {
+		case "on", "true":
 			_ = s.PutSetting(ctx.Ctx, "anticall_contacts_only", "true")
 			return ctx.Reply("AntiCall set to allow calls from contacts only.")
-		} else if mode == "off" || mode == "false" {
+		case "off", "false":
 			_ = s.PutSetting(ctx.Ctx, "anticall_contacts_only", "false")
 			return ctx.Reply("AntiCall contacts only restriction disabled.")
-		} else if mode == "toggle" {
+		case "toggle":
 			curr, _ := s.GetSetting(ctx.Ctx, "anticall_contacts_only")
 			if curr == "true" {
 				_ = s.PutSetting(ctx.Ctx, "anticall_contacts_only", "false")
