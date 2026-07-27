@@ -110,7 +110,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 			text = respJSON.ID
 		}
 	}
-	slog.Info("Incoming message received", "chat", chatStr, "sender", senderStr, "is_from_me", evt.Info.IsFromMe, "text", text)
+	slog.Debug("Incoming message received", "chat", chatStr, "sender", senderStr, "is_from_me", evt.Info.IsFromMe, "text", text)
 
 	s, okStore := client.Store.Identities.(*sqlstore.SQLStore)
 	if okStore {
@@ -209,7 +209,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		}
 		if strings.HasPrefix(text, p) {
 			body := strings.TrimSpace(text[len(p):])
-			slog.Info("Prefix matched, executing command", "prefix", p, "body", body)
+			slog.Debug("Prefix matched, executing command", "prefix", p, "body", body)
 			return runCommand(ctx, client, evt, body)
 		}
 	}
@@ -217,7 +217,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	// Active Tic-Tac-Toe move listener without prefix (e.g. typing "1", "2", ... "9")
 	trimmedText := strings.TrimSpace(text)
 	if IsTTTGameActive(chatStr) && len(trimmedText) == 1 && trimmedText >= "1" && trimmedText <= "9" {
-		slog.Info("Direct move matched active Tic-Tac-Toe game", "chat", chatStr, "move", trimmedText)
+		slog.Debug("Direct move matched active Tic-Tac-Toe game", "chat", chatStr, "move", trimmedText)
 		return runCommand(ctx, client, evt, "ttt "+trimmedText)
 	}
 
@@ -243,7 +243,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 			first := fields[0]
 			// 1. Direct match without prefix
 			if _, exists := Get(strings.ToLower(first)); exists {
-				slog.Info("Direct command matched (empty prefix)", "command", first, "body", body)
+				slog.Debug("Direct command matched (empty prefix)", "command", first, "body", body)
 				return runCommand(ctx, client, evt, body)
 			}
 			// 2. Match with database configured active prefixes
@@ -252,7 +252,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 					strippedName := first[len(p):]
 					if _, exists := Get(strings.ToLower(strippedName)); exists {
 						strippedBody := strings.TrimSpace(body[len(p):])
-						slog.Info("Configured prefix matched", "prefix", p, "command", strippedName, "body", strippedBody)
+						slog.Debug("Configured prefix matched", "prefix", p, "command", strippedName, "body", strippedBody)
 						return runCommand(ctx, client, evt, strippedBody)
 					}
 				}
@@ -416,7 +416,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 			slog.Error("Command handler failed", "command", name, "err", err)
 			logHandlerErr(name, err)
 		} else {
-			slog.Info("Command completed successfully", "command", name)
+			slog.Debug("Command completed successfully", "command", name)
 		}
 	}()
 

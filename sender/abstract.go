@@ -49,14 +49,14 @@ func (ctx *Context) SendText(text string) error {
 	ctx.simulateTyping()
 	formatted := ctx.formatTextResponse(text)
 	slog.Debug("Building SendText", "text", text, "formatted", formatted)
-	slog.Info("Sending SendText", "chat", ctx.Chat.String())
+	slog.Debug("Sending SendText", "chat", ctx.Chat.String())
 	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
 		Conversation: &formatted,
 	})
 	if err != nil {
 		slog.Error("SendText failed", "err", err)
 	} else {
-		slog.Info("SendText sent successfully")
+		slog.Debug("SendText sent successfully")
 	}
 	return err
 }
@@ -122,7 +122,7 @@ func (ctx *Context) Reply(text string) error {
 	formatted := ctx.formatTextResponse(text)
 	cinfo := ctx.replyContextInfo()
 	slog.Debug("Building Reply", "text", text, "formatted", formatted, "context_info", cinfo)
-	slog.Info("Sending Reply", "chat", ctx.Chat.String())
+	slog.Debug("Sending Reply", "chat", ctx.Chat.String())
 	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text:        &formatted,
@@ -132,7 +132,7 @@ func (ctx *Context) Reply(text string) error {
 	if err != nil {
 		slog.Error("Reply failed", "err", err)
 	} else {
-		slog.Info("Reply sent successfully")
+		slog.Debug("Reply sent successfully")
 	}
 	return err
 }
@@ -175,12 +175,12 @@ func (ctx *Context) SendImage(data []byte, mimetype, caption string) error {
 		},
 	}
 	*msg.ImageMessage.FileLength = uint64(len(data))
-	slog.Info("Sending SendImage", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	slog.Debug("Sending SendImage", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
 	if err != nil {
 		slog.Error("SendImage failed", "err", err)
 	} else {
-		slog.Info("SendImage sent successfully")
+		slog.Debug("SendImage sent successfully")
 	}
 	return err
 }
@@ -212,12 +212,12 @@ func (ctx *Context) ReplyWithImage(data []byte, mimetype, caption string) error 
 		},
 	}
 	*msg.ImageMessage.FileLength = uint64(len(data))
-	slog.Info("Sending ReplyWithImage", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	slog.Debug("Sending ReplyWithImage", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
 	if err != nil {
 		slog.Error("ReplyWithImage failed", "err", err)
 	} else {
-		slog.Info("ReplyWithImage sent successfully")
+		slog.Debug("ReplyWithImage sent successfully")
 	}
 	return err
 }
@@ -247,12 +247,12 @@ func (ctx *Context) SendVideo(data []byte, mimetype, caption string) error {
 		},
 	}
 	*msg.VideoMessage.FileLength = uint64(len(data))
-	slog.Info("Sending SendVideo", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	slog.Debug("Sending SendVideo", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
 	if err != nil {
 		slog.Error("SendVideo failed", "err", err)
 	} else {
-		slog.Info("SendVideo sent successfully")
+		slog.Debug("SendVideo sent successfully")
 	}
 	return err
 }
@@ -284,12 +284,12 @@ func (ctx *Context) ReplyWithVideo(data []byte, mimetype, caption string) error 
 		},
 	}
 	*msg.VideoMessage.FileLength = uint64(len(data))
-	slog.Info("Sending ReplyWithVideo", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	slog.Debug("Sending ReplyWithVideo", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
 	if err != nil {
 		slog.Error("ReplyWithVideo failed", "err", err)
 	} else {
-		slog.Info("ReplyWithVideo sent successfully")
+		slog.Debug("ReplyWithVideo sent successfully")
 	}
 	return err
 }
@@ -320,12 +320,12 @@ func (ctx *Context) SendDocument(data []byte, mimetype, filename, caption string
 		},
 	}
 	*msg.DocumentMessage.FileLength = uint64(len(data))
-	slog.Info("Sending SendDocument", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	slog.Debug("Sending SendDocument", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
 	if err != nil {
 		slog.Error("SendDocument failed", "err", err)
 	} else {
-		slog.Info("SendDocument sent successfully")
+		slog.Debug("SendDocument sent successfully")
 	}
 	return err
 }
@@ -358,12 +358,12 @@ func (ctx *Context) ReplyWithDocument(data []byte, mimetype, filename, caption s
 		},
 	}
 	*msg.DocumentMessage.FileLength = uint64(len(data))
-	slog.Info("Sending ReplyWithDocument", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	slog.Debug("Sending ReplyWithDocument", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
 	if err != nil {
 		slog.Error("ReplyWithDocument failed", "err", err)
 	} else {
-		slog.Info("ReplyWithDocument sent successfully")
+		slog.Debug("ReplyWithDocument sent successfully")
 	}
 	return err
 }
@@ -389,12 +389,12 @@ func (ctx *Context) SendSticker(data []byte) error {
 		},
 	}
 	*msg.StickerMessage.FileLength = uint64(len(data))
-	slog.Info("Sending SendSticker", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	slog.Debug("Sending SendSticker", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
 	if err != nil {
 		slog.Error("SendSticker failed", "err", err)
 	} else {
-		slog.Info("SendSticker sent successfully")
+		slog.Debug("SendSticker sent successfully")
 	}
 	return err
 }
@@ -422,12 +422,12 @@ func (ctx *Context) ReplyWithSticker(data []byte) error {
 		},
 	}
 	*msg.StickerMessage.FileLength = uint64(len(data))
-	slog.Info("Sending ReplyWithSticker", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	slog.Debug("Sending ReplyWithSticker", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
 	if err != nil {
 		slog.Error("ReplyWithSticker failed", "err", err)
 	} else {
-		slog.Info("ReplyWithSticker sent successfully")
+		slog.Debug("ReplyWithSticker sent successfully")
 	}
 	return err
 }
@@ -766,12 +766,12 @@ func (ctx *Context) SendAudio(data []byte, mimetype string) error {
 		},
 	}
 	*msg.AudioMessage.FileLength = uint64(len(data))
-	slog.Info("Sending SendAudio", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	slog.Debug("Sending SendAudio", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
 	if err != nil {
 		slog.Error("SendAudio failed", "err", err)
 	} else {
-		slog.Info("SendAudio sent successfully")
+		slog.Debug("SendAudio sent successfully")
 	}
 	return err
 }
@@ -803,12 +803,12 @@ func (ctx *Context) ReplyWithAudio(data []byte, mimetype string) error {
 		},
 	}
 	*msg.AudioMessage.FileLength = uint64(len(data))
-	slog.Info("Sending ReplyWithAudio", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	slog.Debug("Sending ReplyWithAudio", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
 	if err != nil {
 		slog.Error("ReplyWithAudio failed", "err", err)
 	} else {
-		slog.Info("ReplyWithAudio sent successfully")
+		slog.Debug("ReplyWithAudio sent successfully")
 	}
 	return err
 }
@@ -822,7 +822,7 @@ func (ctx *Context) SendTextWithMentions(text string, jids []types.JID) error {
 		mentioned = append(mentioned, j.ToNonAD().String())
 	}
 	slog.Debug("Building SendTextWithMentions", "text", text, "formatted", formatted, "mentioned_jids", mentioned)
-	slog.Info("Sending SendTextWithMentions", "chat", ctx.Chat.String())
+	slog.Debug("Sending SendTextWithMentions", "chat", ctx.Chat.String())
 	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text: &formatted,
@@ -834,7 +834,7 @@ func (ctx *Context) SendTextWithMentions(text string, jids []types.JID) error {
 	if err != nil {
 		slog.Error("SendTextWithMentions failed", "err", err)
 	} else {
-		slog.Info("SendTextWithMentions sent successfully")
+		slog.Debug("SendTextWithMentions sent successfully")
 	}
 	return err
 }
@@ -856,7 +856,7 @@ func (ctx *Context) ReplyWithMentions(text string, jids []types.JID) error {
 		}
 	}
 	slog.Debug("Building ReplyWithMentions", "text", text, "formatted", formatted, "mentioned_jids", mentioned, "context_info", cInfo)
-	slog.Info("Sending ReplyWithMentions", "chat", ctx.Chat.String())
+	slog.Debug("Sending ReplyWithMentions", "chat", ctx.Chat.String())
 	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text:        &formatted,
@@ -866,7 +866,7 @@ func (ctx *Context) ReplyWithMentions(text string, jids []types.JID) error {
 	if err != nil {
 		slog.Error("ReplyWithMentions failed", "err", err)
 	} else {
-		slog.Info("ReplyWithMentions sent successfully")
+		slog.Debug("ReplyWithMentions sent successfully")
 	}
 	return err
 }

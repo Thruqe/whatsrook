@@ -23,7 +23,7 @@ var downloadClient = &http.Client{Timeout: 60 * time.Second}
 
 // downloadBytes pulls the raw media file from the CDN URL Ember gave us.
 func downloadBytes(ctx context.Context, mediaURL string) ([]byte, error) {
-	slog.Info("ember.downloadBytes: starting download", "url", mediaURL)
+	slog.Debug("ember.downloadBytes: starting download", "url", mediaURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, mediaURL, nil)
 	if err != nil {
 		slog.Error("ember.downloadBytes: failed to create request", "err", err)
@@ -36,7 +36,7 @@ func downloadBytes(ctx context.Context, mediaURL string) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 
-	slog.Info("ember.downloadBytes: HTTP response received", "status_code", resp.StatusCode)
+	slog.Debug("ember.downloadBytes: HTTP response received", "status_code", resp.StatusCode)
 	if resp.StatusCode != http.StatusOK {
 		slog.Warn("ember.downloadBytes: non-OK status code received", "status_code", resp.StatusCode)
 		return nil, fmt.Errorf("media download returned status %d", resp.StatusCode)
@@ -47,21 +47,21 @@ func downloadBytes(ctx context.Context, mediaURL string) ([]byte, error) {
 		slog.Error("ember.downloadBytes: failed to copy response body", "err", err)
 		return nil, fmt.Errorf("media read failed: %w", err)
 	}
-	slog.Info("ember.downloadBytes: download completed", "bytes_read", buf.Len())
+	slog.Debug("ember.downloadBytes: download completed", "bytes_read", buf.Len())
 	return buf.Bytes(), nil
 }
 
 // SendResult downloads the media from an Ember Data result, uploads it to
 // WhatsApp, and sends it as a video/image message with caption to the chat.
 func SendResult(ctx context.Context, client *whatsmeow.Client, chat types.JID, data *ember.Data) error {
-	slog.Info("ember.SendResult: starting", "chat", chat.String())
+	slog.Debug("ember.SendResult: starting", "chat", chat.String())
 	media, ok := data.BestMedia()
 	if !ok {
 		slog.Warn("ember.SendResult: no best media found")
 		return fmt.Errorf("no media found in ember response for %s", data.Source)
 	}
 
-	slog.Info("ember.SendResult: best media found", "url", media.URL, "type", media.Type)
+	slog.Debug("ember.SendResult: best media found", "url", media.URL, "type", media.Type)
 	bytesData, err := downloadBytes(ctx, media.URL)
 	if err != nil {
 		slog.Error("ember.SendResult: download failed", "err", err)
@@ -69,7 +69,7 @@ func SendResult(ctx context.Context, client *whatsmeow.Client, chat types.JID, d
 	}
 
 	caption := data.Caption()
-	slog.Info("ember.SendResult: uploading media to WhatsApp", "type", media.Type, "caption", caption)
+	slog.Debug("ember.SendResult: uploading media to WhatsApp", "type", media.Type, "caption", caption)
 
 	switch media.Type {
 	case "video":
@@ -84,7 +84,7 @@ func SendResult(ctx context.Context, client *whatsmeow.Client, chat types.JID, d
 			slog.Error("ember.SendResult: WhatsApp upload failed", "err", err)
 			return fmt.Errorf("upload failed: %w", err)
 		}
-		slog.Info("ember.SendResult: WhatsApp upload success, sending message")
+		slog.Debug("ember.SendResult: WhatsApp upload success, sending message")
 		msg := &waE2E.Message{
 			VideoMessage: &waE2E.VideoMessage{
 				URL:           new(uploaded.URL),
@@ -101,7 +101,7 @@ func SendResult(ctx context.Context, client *whatsmeow.Client, chat types.JID, d
 		if err != nil {
 			slog.Error("ember.SendResult: SendMessage failed", "err", err)
 		} else {
-			slog.Info("ember.SendResult: SendMessage success")
+			slog.Debug("ember.SendResult: SendMessage success")
 		}
 		return err
 
@@ -111,7 +111,7 @@ func SendResult(ctx context.Context, client *whatsmeow.Client, chat types.JID, d
 			slog.Error("ember.SendResult: WhatsApp upload failed", "err", err)
 			return fmt.Errorf("upload failed: %w", err)
 		}
-		slog.Info("ember.SendResult: WhatsApp upload success, sending message")
+		slog.Debug("ember.SendResult: WhatsApp upload success, sending message")
 		msg := &waE2E.Message{
 			ImageMessage: &waE2E.ImageMessage{
 				URL:           new(uploaded.URL),
@@ -128,7 +128,7 @@ func SendResult(ctx context.Context, client *whatsmeow.Client, chat types.JID, d
 		if err != nil {
 			slog.Error("ember.SendResult: SendMessage failed", "err", err)
 		} else {
-			slog.Info("ember.SendResult: SendMessage success")
+			slog.Debug("ember.SendResult: SendMessage success")
 		}
 		return err
 
@@ -144,7 +144,7 @@ func SendResult(ctx context.Context, client *whatsmeow.Client, chat types.JID, d
 			slog.Error("ember.SendResult: WhatsApp upload failed", "err", err)
 			return fmt.Errorf("upload failed: %w", err)
 		}
-		slog.Info("ember.SendResult: WhatsApp upload success, sending audio message")
+		slog.Debug("ember.SendResult: WhatsApp upload success, sending audio message")
 		msg := &waE2E.Message{
 			AudioMessage: &waE2E.AudioMessage{
 				URL:           new(uploaded.URL),
@@ -160,7 +160,7 @@ func SendResult(ctx context.Context, client *whatsmeow.Client, chat types.JID, d
 		if err != nil {
 			slog.Error("ember.SendResult: SendMessage failed", "err", err)
 		} else {
-			slog.Info("ember.SendResult: SendMessage success")
+			slog.Debug("ember.SendResult: SendMessage success")
 		}
 		return err
 
@@ -171,7 +171,7 @@ func SendResult(ctx context.Context, client *whatsmeow.Client, chat types.JID, d
 }
 
 func transcodeVideo(ctx context.Context, inputData []byte) ([]byte, error) {
-	slog.Info("ember.transcodeVideo: starting transcoding via ffmpeg")
+	slog.Debug("ember.transcodeVideo: starting transcoding via ffmpeg")
 
 	tmpIn, err := os.CreateTemp("", "whatsapp_in_*.mp4")
 	if err != nil {
@@ -208,12 +208,12 @@ func transcodeVideo(ctx context.Context, inputData []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	slog.Info("ember.transcodeVideo: transcoding completed successfully", "orig_size", len(inputData), "new_size", len(convertedData))
+	slog.Debug("ember.transcodeVideo: transcoding completed successfully", "orig_size", len(inputData), "new_size", len(convertedData))
 	return convertedData, nil
 }
 
 func transcodeAudio(ctx context.Context, inputData []byte) ([]byte, error) {
-	slog.Info("ember.transcodeAudio: starting transcoding via ffmpeg")
+	slog.Debug("ember.transcodeAudio: starting transcoding via ffmpeg")
 
 	tmpIn, err := os.CreateTemp("", "whatsapp_in_audio_*")
 	if err != nil {
@@ -248,6 +248,6 @@ func transcodeAudio(ctx context.Context, inputData []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	slog.Info("ember.transcodeAudio: transcoding completed successfully", "orig_size", len(inputData), "new_size", len(convertedData))
+	slog.Debug("ember.transcodeAudio: transcoding completed successfully", "orig_size", len(inputData), "new_size", len(convertedData))
 	return convertedData, nil
 }

@@ -1,23 +1,13 @@
 {
   "name": "whatsrook",
   "image": "mcr.microsoft.com/devcontainers/go:latest",
-  "containerEnv": {
-    "GOPATH": "/home/vscode/go"
-  },
-  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y ffmpeg",
+  "postCreateCommand": "set -e && mkdir -p /tmp/ffmpeg && curl -fL https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o /tmp/ffmpeg.tar.xz && tar xJ --strip-components=1 -C /tmp/ffmpeg -f /tmp/ffmpeg.tar.xz && sudo mv /tmp/ffmpeg/ffmpeg /tmp/ffmpeg/ffprobe /usr/local/bin/ && rm -rf /tmp/ffmpeg /tmp/ffmpeg.tar.xz && sudo curl -fL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && sudo chmod +x /usr/local/bin/yt-dlp && curl -fsSL https://bun.sh/install | bash && sudo mv \"$HOME/.bun/bin/bun\" /usr/local/bin/bun",
   "customizations": {
     "vscode": {
       "extensions": [
         "golang.go",
         "yy0931.vscode-sqlite3-editor"
-      ],
-      "settings": {
-        "editor.formatOnSave": true,
-        "go.useLanguageServer": true,
-        "go.lintTool": "golangci-lint",
-        "go.lintOnSave": "package",
-        "go.formatTool": "goimports"
-      }
+      ]
     }
   }
 }

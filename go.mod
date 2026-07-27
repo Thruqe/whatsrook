@@ -16,6 +16,13 @@ require (
 )
 
 require (
+	github.com/ProtonMail/go-crypto v1.3.0 // indirect
+	github.com/cloudflare/circl v1.6.3 // indirect
+	github.com/lrstanley/go-ytdlp v1.3.5 // indirect
+	github.com/ulikunitz/xz v0.5.15 // indirect
+)
+
+require (
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/beeper/argo-go v1.1.2 // indirect
 	github.com/elliotchance/orderedmap/v3 v3.1.1 // indirect
