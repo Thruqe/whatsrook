@@ -28,10 +28,3 @@ func TestFormatTextResponseRaw(t *testing.T) {
 		t.Errorf("Expected %q, got %q", expectedCleaned, actual3)
 	}
 }
-
-func TestContextSendSignatures(t *testing.T) {
-	ctx := &Context{}
-	if ctx == nil {
-		t.Fatal("expected non-nil context")
-	}
-}
