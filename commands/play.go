@@ -43,6 +43,7 @@ func handlePlay(ctx *Context) error {
 
 	cmd := ytdlp.New().
 		PrintJSON().
+		JsRuntimes("bun").
 		SkipDownload().
 		FlatPlaylist()
 
@@ -187,6 +188,7 @@ func handlePlayDownload(ctx *Context, format string, target string) error {
 
 		cmdAud := ytdlp.New().
 			ExtractAudio().
+			JsRuntimes("bun").
 			Output(rawPath + ".%(ext)s")
 
 		if cookiePath, cleanupCookie, ok := GetYouTubeCookieFile(ctx); ok {
@@ -208,28 +210,28 @@ func handlePlayDownload(ctx *Context, format string, target string) error {
 		downloadedFile := matches[0]
 		defer os.Remove(downloadedFile)
 
-		outMP3 := filepath.Join(tmpDir, fmt.Sprintf("play_%d.mp3", time.Now().UnixNano()))
-		defer os.Remove(outMP3)
+		outMP4 := filepath.Join(tmpDir, fmt.Sprintf("play_%d.mp4", time.Now().UnixNano()))
+		defer os.Remove(outMP4)
 
 		ffmpegCmd := exec.CommandContext(ctx.Ctx, "ffmpeg", "-y", "-i", downloadedFile,
-			"-vn", "-c:a", "libmp3lame", "-b:a", "192k", "-ar", "44100", outMP3)
+			"-vn", "-c:a", "aac", "-b:a", "128k", "-ar", "44100", outMP4)
 
 		if out, err := ffmpegCmd.CombinedOutput(); err != nil {
-			slog.Warn("ffmpeg mp3 transcode failed, trying fallback direct read", "err", err, "out", string(out))
+			slog.Warn("ffmpeg aac transcode failed, trying fallback direct read", "err", err, "out", string(out))
 			audData, rErr := os.ReadFile(downloadedFile)
 			if rErr != nil || len(audData) == 0 {
 				return ctx.Reply("Failed to process audio file.")
 			}
-			return ctx.ReplyWithAudio(audData, "audio/mp3")
+			return ctx.ReplyWithAudio(audData, "audio/mp4")
 		}
 
-		audData, err := os.ReadFile(outMP3)
+		audData, err := os.ReadFile(outMP4)
 		if err != nil || len(audData) == 0 {
-			slog.Error("play audio read failed", "path", outMP3, "err", err)
+			slog.Error("play audio read failed", "path", outMP4, "err", err)
 			return ctx.Reply("Failed to read processed audio file.")
 		}
 
-		return ctx.ReplyWithAudio(audData, "audio/mp3")
+		return ctx.ReplyWithAudio(audData, "audio/mp4")
 	}
 
 	// Video download
@@ -237,6 +239,7 @@ func handlePlayDownload(ctx *Context, format string, target string) error {
 
 	cmdVid := ytdlp.New().
 		Format("bestvideo+bestaudio/best").
+		JsRuntimes("bun").
 		Output(rawPath + ".%(ext)s")
 
 	if cookiePath, cleanupCookie, ok := GetYouTubeCookieFile(ctx); ok {
@@ -247,7 +250,7 @@ func handlePlayDownload(ctx *Context, format string, target string) error {
 	_, err := cmdVid.Run(ctx.Ctx, targetURL)
 	if err != nil {
 		slog.Warn("play video download standard format failed, retrying with default format", "target", targetURL, "err", err)
-		cmdFallback := ytdlp.New().Output(rawPath + ".%(ext)s")
+		cmdFallback := ytdlp.New().JsRuntimes("bun").Output(rawPath + ".%(ext)s")
 		if cookiePath, cleanupCookie, ok := GetYouTubeCookieFile(ctx); ok {
 			defer cleanupCookie()
 			cmdFallback.Cookies(cookiePath)
