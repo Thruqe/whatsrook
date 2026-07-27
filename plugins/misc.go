@@ -79,8 +79,7 @@ func handleSave(ctx *Context) error {
 		return ctx.Reply("Owner ID unavailable.")
 	}
 
-	ownerJID := ctx.Client.Store.ID.ToNonAD()
-	_, err := ctx.Client.SendMessage(ctx.Ctx, ownerJID, quoted)
+	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Sender, quoted)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf("Failed to forward message: %v", err))
 	}
