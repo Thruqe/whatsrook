@@ -1,5 +1,4 @@
 // Ember media download service – downloads media from supported platforms
-// (Twitter/X, Instagram, TikTok, Facebook, Threads) via a remote API.
 package ember
 
 import (
@@ -10,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -40,6 +40,9 @@ type FormatInfo struct {
 	VCodec     *string `json:"vcodec"`
 	ACodec     *string `json:"acodec"`
 	FPS        any     `json:"fps"`
+	Protocol   *string `json:"protocol"`
+	Width      *int    `json:"width"`
+	Height     *int    `json:"height"`
 }
 
 // Result wraps the API response, including error status and downloaded data.
@@ -49,6 +52,15 @@ type Result struct {
 	Data     Data   `json:"data"`
 }
 
+// Thumbnail represents a single thumbnail variant.
+type Thumbnail struct {
+	ID         string `json:"id"`
+	URL        string `json:"url"`
+	Width      int    `json:"width"`
+	Height     int    `json:"height"`
+	Resolution string `json:"resolution"`
+}
+
 // Data holds the full download result including metadata, owner info, and media items.
 type Data struct {
 	ID           *string        `json:"id"`
@@ -56,7 +68,7 @@ type Data struct {
 	Description  *string        `json:"description"`
 	Duration     any            `json:"duration"`
 	RawThumbnail *string        `json:"thumbnail"`
-	Thumbnails   any            `json:"thumbnails"`
+	Thumbnails   []Thumbnail    `json:"thumbnails"`
 	Uploader     *string        `json:"uploader"`
 	UploaderURL  *string        `json:"uploader_url"`
 	WebpageURL   *string        `json:"webpage_url"`
@@ -100,6 +112,11 @@ func Fetch(ctx context.Context, postURL string, cookie string) (*Data, error) {
 	defer resp.Body.Close()
 
 	slog.Debug("ember.Fetch: HTTP response received", "status_code", resp.StatusCode)
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ember API returned status %d", resp.StatusCode)
+	}
+
 	var result Result
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		slog.Error("ember.Fetch: failed to decode JSON", "err", err)
@@ -116,16 +133,19 @@ func Fetch(ctx context.Context, postURL string, cookie string) (*Data, error) {
 	}
 
 	result.Data.PopulateCompat()
-	slog.Debug("ember.Fetch: successfully populated compat data", "title", result.Data.Title, "medias_count", len(result.Data.Medias))
+	slog.Debug("ember.Fetch: successfully populated compat data",
+		"title", result.Data.Title,
+		"medias_count", len(result.Data.Medias))
 
 	return &result.Data, nil
 }
 
 // BestMedia picks the primary video/image to send, skipping audio-only tracks.
 func (d *Data) BestMedia() (*Media, bool) {
-	for _, m := range d.Medias {
+	for i := range d.Medias {
+		m := &d.Medias[i]
 		if m.Type == "video" || m.Type == "image" {
-			return &m, true
+			return m, true
 		}
 	}
 	if len(d.Medias) > 0 {
@@ -161,15 +181,131 @@ func (d *Data) PopulateCompat() {
 	}
 
 	d.Medias = extractMediasFromData(d)
-	if len(d.Medias) > 1 {
-		d.Type = "multiple"
-	} else {
+	switch len(d.Medias) {
+	case 0:
+		d.Type = "none"
+	case 1:
 		d.Type = "single"
+	default:
+		d.Type = "multiple"
 	}
 	if len(d.Medias) > 0 {
 		d.URL = d.Medias[0].URL
 	}
 }
+
+// --- format scoring ---
+
+// formatScore returns a score for a format. Higher is better.
+// We prefer: direct download > HLS, video+audio > video-only > audio-only,
+// larger filesize, higher resolution.
+func formatScore(f *FormatInfo) int {
+	score := 0
+
+	// Direct downloads (https/http) are preferred over HLS/m3u8
+	if f.Protocol != nil {
+		proto := strings.ToLower(*f.Protocol)
+		if proto == "https" || proto == "http" {
+			score += 1000
+		} else if strings.Contains(proto, "m3u8") {
+			score -= 500
+		}
+	}
+
+	// Video + audio is best
+	hasVideo := hasVideo(f)
+	hasAudio := hasAudio(f)
+	if hasVideo && hasAudio {
+		score += 500
+	} else if hasVideo {
+		score += 300
+	} else if hasAudio {
+		score += 100
+	}
+
+	// Prefer larger filesize
+	if fs := filesizeBytes(f.Filesize); fs > 0 {
+		score += int(fs / (1024 * 1024)) // +1 per MB, capped by int range
+	}
+
+	// Prefer higher resolution (width * height)
+	w, h := resolutionDims(f)
+	if w > 0 && h > 0 {
+		score += w * h / 10000
+	}
+
+	return score
+}
+
+func hasVideo(f *FormatInfo) bool {
+	if f.VCodec != nil && *f.VCodec != "" && *f.VCodec != "none" {
+		return true
+	}
+	// Fallback: if resolution looks like dimensions and not "audio only"
+	if res, ok := f.Resolution.(string); ok && res != "" && res != "audio only" {
+		return strings.Contains(res, "x")
+	}
+	// Fallback: has width and height
+	return f.Width != nil && *f.Width > 0 && f.Height != nil && *f.Height > 0
+}
+
+func hasAudio(f *FormatInfo) bool {
+	if f.ACodec != nil && *f.ACodec != "" && *f.ACodec != "none" {
+		return true
+	}
+	// Fallback: resolution says "audio only"
+	if res, ok := f.Resolution.(string); ok && res == "audio only" {
+		return true
+	}
+	return false
+}
+
+func filesizeBytes(v any) int64 {
+	switch val := v.(type) {
+	case float64:
+		return int64(val)
+	case int:
+		return int64(val)
+	case int64:
+		return val
+	case string:
+		if n, err := strconv.ParseInt(val, 10, 64); err == nil {
+			return n
+		}
+	}
+	return 0
+}
+
+func resolutionDims(f *FormatInfo) (int, int) {
+	if f.Width != nil && f.Height != nil {
+		return *f.Width, *f.Height
+	}
+	if res, ok := f.Resolution.(string); ok {
+		parts := strings.Split(res, "x")
+		if len(parts) == 2 {
+			w, _ := strconv.Atoi(strings.TrimSpace(parts[0]))
+			h, _ := strconv.Atoi(strings.TrimSpace(parts[1]))
+			return w, h
+		}
+	}
+	return 0, 0
+}
+
+// isHLS returns true if the format is an HLS/m3u8 stream.
+func isHLS(f *FormatInfo) bool {
+	if f.Ext != nil && *f.Ext == "m3u8" {
+		return true
+	}
+	if f.URL != nil && strings.Contains(strings.ToLower(*f.URL), ".m3u8") {
+		return true
+	}
+	if f.Protocol != nil && strings.Contains(strings.ToLower(*f.Protocol), "m3u8") {
+		return true
+	}
+	return false
+}
+
+// --- media extraction ---
 
 func extractMediasFromData(d *Data) []Media {
 	if d == nil {
@@ -193,117 +329,90 @@ func extractMediasFromData(d *Data) []Media {
 		}
 	}
 
-	// Otherwise, extract from the main Formats list
-	var bestVideoAndAudio *FormatInfo
-	var bestVideoOnly *FormatInfo
-	var bestAudioOnly *FormatInfo
-
+	// Build formats from typed data
+	var candidates []formatCandidate
 	for i := range d.Formats {
 		f := &d.Formats[i]
 		if f.URL == nil || *f.URL == "" {
 			continue
 		}
-
-		// Skip HLS/m3u8 playlists
-		extVal := ""
-		if f.Ext != nil {
-			extVal = *f.Ext
-		}
-		if extVal == "m3u8" || strings.Contains(strings.ToLower(*f.URL), ".m3u8") {
+		if isHLS(f) {
 			continue
 		}
-
-		vcodec := ""
-		if f.VCodec != nil {
-			vcodec = *f.VCodec
-		}
-		acodec := ""
-		if f.ACodec != nil {
-			acodec = *f.ACodec
-		}
-
-		hasVideo := vcodec != "" && vcodec != "none"
-		hasAudio := acodec != "" && acodec != "none"
-
-		if hasVideo && hasAudio {
-			bestVideoAndAudio = f
-		} else if hasVideo {
-			bestVideoOnly = f
-		} else if hasAudio {
-			bestAudioOnly = f
-		}
+		candidates = append(candidates, formatCandidate{
+			url:      *f.URL,
+			score:    formatScore(f),
+			hasVideo: hasVideo(f),
+			hasAudio: hasAudio(f),
+			ext:      stringOrEmpty(f.Ext),
+		})
 	}
 
-	var mediaURL string
-	var mediaType string
-	var ext string
+	if len(candidates) > 0 {
+		// Sort by score descending
+		for i := 0; i < len(candidates)-1; i++ {
+			for j := i + 1; j < len(candidates); j++ {
+				if candidates[j].score > candidates[i].score {
+					candidates[i], candidates[j] = candidates[j], candidates[i]
+				}
+			}
+		}
 
-	if bestVideoAndAudio != nil {
-		mediaURL = *bestVideoAndAudio.URL
-		mediaType = "video"
-		if bestVideoAndAudio.Ext != nil {
-			ext = *bestVideoAndAudio.Ext
-		}
-	} else if bestVideoOnly != nil {
-		mediaURL = *bestVideoOnly.URL
-		mediaType = "video"
-		if bestVideoOnly.Ext != nil {
-			ext = *bestVideoOnly.Ext
-		}
-	} else if bestAudioOnly != nil {
-		mediaURL = *bestAudioOnly.URL
-		mediaType = "audio"
-		if bestAudioOnly.Ext != nil {
-			ext = *bestAudioOnly.Ext
-		}
-	} else {
-		// Fallback to top-level fields
-		// Check raw top-level URL
-		if d.Raw != nil {
-			if topURL, ok := d.Raw["url"].(string); ok && topURL != "" {
-				if !strings.Contains(strings.ToLower(topURL), ".m3u8") {
-					mediaURL = topURL
-					if topExt, ok := d.Raw["ext"].(string); ok {
-						ext = topExt
+		// Pick the best candidate
+		best := candidates[0]
+		mediaType := classifyMedia(best.ext, best.hasVideo, best.hasAudio)
+		return []Media{{
+			URL:       best.url,
+			Type:      mediaType,
+			Extension: best.ext,
+			IsAudio:   mediaType == "audio",
+		}}
+	}
+
+	// Fallback to raw top-level URL
+	if d.Raw != nil {
+		if topURL, ok := d.Raw["url"].(string); ok && topURL != "" {
+			if !strings.Contains(strings.ToLower(topURL), ".m3u8") {
+				ext := ""
+				if topExt, ok := d.Raw["ext"].(string); ok {
+					ext = topExt
+				}
+				if ext == "" {
+					if u, err := url.Parse(topURL); err == nil {
+						ext = filepath.Ext(u.Path)
 					}
 				}
-			}
-		}
-		if mediaURL == "" && d.RawThumbnail != nil && *d.RawThumbnail != "" {
-			mediaURL = *d.RawThumbnail
-			mediaType = "image"
-		}
-
-		if mediaURL != "" {
-			if ext == "" {
-				if u, err := url.Parse(mediaURL); err == nil {
-					ext = filepath.Ext(u.Path)
-				}
-			}
-			ext = strings.TrimPrefix(ext, ".")
-			switch strings.ToLower(ext) {
-			case "jpg", "jpeg", "png", "webp", "gif":
-				mediaType = "image"
-			case "mp3", "m4a", "ogg", "opus", "wav":
-				mediaType = "audio"
-			default:
-				mediaType = "video"
+				ext = strings.TrimPrefix(ext, ".")
+				mediaType := classifyMedia(ext, false, false)
+				return []Media{{
+					URL:       topURL,
+					Type:      mediaType,
+					Extension: ext,
+					IsAudio:   mediaType == "audio",
+				}}
 			}
 		}
 	}
 
-	if mediaURL != "" {
-		return []Media{
-			{
-				URL:       mediaURL,
-				Type:      mediaType,
-				Extension: ext,
-				IsAudio:   mediaType == "audio",
-			},
-		}
+	// Fallback to thumbnail as image
+	if d.RawThumbnail != nil && *d.RawThumbnail != "" {
+		return []Media{{
+			URL:       *d.RawThumbnail,
+			Type:      "image",
+			Extension: "jpg",
+			IsAudio:   false,
+		}}
 	}
 
 	return nil
+}
+
+type formatCandidate struct {
+	url      string
+	score    int
+	hasVideo bool
+	hasAudio bool
+	ext      string
 }
 
 func extractMediasFromMap(info map[string]any) []Media {
@@ -326,95 +435,189 @@ func extractMediasFromMap(info map[string]any) []Media {
 		}
 	}
 
-	// Determine if there are formats
-	var formats []any
+	// Build formats from untyped map
+	var candidates []formatCandidate
+
 	if fmts, ok := info["formats"].([]any); ok {
-		formats = fmts
-	}
+		for _, fVal := range fmts {
+			f, ok := fVal.(map[string]any)
+			if !ok {
+				continue
+			}
+			fURL, _ := f["url"].(string)
+			if fURL == "" {
+				continue
+			}
 
-	var bestVideoAndAudio map[string]any
-	var bestVideoOnly map[string]any
-	var bestAudioOnly map[string]any
+			// Skip HLS/m3u8 playlists
+			extVal, _ := f["ext"].(string)
+			if extVal == "m3u8" || strings.Contains(strings.ToLower(fURL), ".m3u8") {
+				continue
+			}
+			protoVal, _ := f["protocol"].(string)
+			if strings.Contains(strings.ToLower(protoVal), "m3u8") {
+				continue
+			}
 
-	for _, fVal := range formats {
-		f, ok := fVal.(map[string]any)
-		if !ok {
-			continue
-		}
-		fURL, _ := f["url"].(string)
-		if fURL == "" {
-			continue
-		}
+			vcodec, _ := f["vcodec"].(string)
+			acodec, _ := f["acodec"].(string)
+			resolution, _ := f["resolution"].(string)
+			width, _ := f["width"].(float64)
+			height, _ := f["height"].(float64)
 
-		// Skip HLS/m3u8 playlists
-		extVal, _ := f["ext"].(string)
-		if extVal == "m3u8" || strings.Contains(strings.ToLower(fURL), ".m3u8") {
-			continue
-		}
+			hasVid := vcodec != "" && vcodec != "none"
+			hasAud := acodec != "" && acodec != "none"
 
-		vcodec, _ := f["vcodec"].(string)
-		acodec, _ := f["acodec"].(string)
-
-		hasVideo := vcodec != "" && vcodec != "none"
-		hasAudio := acodec != "" && acodec != "none"
-
-		if hasVideo && hasAudio {
-			bestVideoAndAudio = f
-		} else if hasVideo {
-			bestVideoOnly = f
-		} else if hasAudio {
-			bestAudioOnly = f
-		}
-	}
-
-	var mediaURL string
-	var mediaType string
-	var ext string
-
-	if bestVideoAndAudio != nil {
-		mediaURL, _ = bestVideoAndAudio["url"].(string)
-		mediaType = "video"
-		ext, _ = bestVideoAndAudio["ext"].(string)
-	} else if bestVideoOnly != nil {
-		mediaURL, _ = bestVideoOnly["url"].(string)
-		mediaType = "video"
-		ext, _ = bestVideoOnly["ext"].(string)
-	} else if bestAudioOnly != nil {
-		mediaURL, _ = bestAudioOnly["url"].(string)
-		mediaType = "audio"
-		ext, _ = bestAudioOnly["ext"].(string)
-	} else {
-		// Fallback to top-level URL
-		if topURL, ok := info["url"].(string); ok && topURL != "" {
-			mediaURL = topURL
-			ext, _ = info["ext"].(string)
-			if ext == "" {
-				if u, err := url.Parse(topURL); err == nil {
-					ext = filepath.Ext(u.Path)
+			// Fallback detection for null codecs
+			if !hasVid && !hasAud {
+				if resolution != "" && resolution != "audio only" && strings.Contains(resolution, "x") {
+					hasVid = true
+				}
+				if resolution == "audio only" {
+					hasAud = true
+				}
+				if width > 0 && height > 0 {
+					hasVid = true
 				}
 			}
-			ext = strings.TrimPrefix(ext, ".")
-			switch strings.ToLower(ext) {
-			case "jpg", "jpeg", "png", "webp", "gif":
-				mediaType = "image"
-			case "mp3", "m4a", "ogg", "opus", "wav":
-				mediaType = "audio"
-			default:
-				mediaType = "video"
+
+			score := 0
+			proto := strings.ToLower(protoVal)
+			if proto == "https" || proto == "http" {
+				score += 1000
+			} else if strings.Contains(proto, "m3u8") {
+				score -= 500
 			}
+			if hasVid && hasAud {
+				score += 500
+			} else if hasVid {
+				score += 300
+			} else if hasAud {
+				score += 100
+			}
+
+			// filesize
+			var fs int64
+			switch v := f["filesize"].(type) {
+			case float64:
+				fs = int64(v)
+			case int:
+				fs = int64(v)
+			case string:
+				if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+					fs = n
+				}
+			}
+			score += int(fs / (1024 * 1024))
+
+			// resolution
+			if w, h := parseResolution(resolution); w > 0 && h > 0 {
+				score += w * h / 10000
+			}
+			if width > 0 && height > 0 {
+				score += int(width*height) / 10000
+			}
+
+			candidates = append(candidates, formatCandidate{
+				url:      fURL,
+				score:    score,
+				hasVideo: hasVid,
+				hasAudio: hasAud,
+				ext:      extVal,
+			})
 		}
 	}
 
-	if mediaURL != "" {
-		return []Media{
-			{
-				URL:       mediaURL,
-				Type:      mediaType,
-				Extension: ext,
-				IsAudio:   mediaType == "audio",
-			},
+	if len(candidates) > 0 {
+		// Sort by score descending (simple bubble sort for clarity)
+		for i := 0; i < len(candidates)-1; i++ {
+			for j := i + 1; j < len(candidates); j++ {
+				if candidates[j].score > candidates[i].score {
+					candidates[i], candidates[j] = candidates[j], candidates[i]
+				}
+			}
 		}
+
+		best := candidates[0]
+		mediaType := classifyMedia(best.ext, best.hasVideo, best.hasAudio)
+		return []Media{{
+			URL:       best.url,
+			Type:      mediaType,
+			Extension: best.ext,
+			IsAudio:   mediaType == "audio",
+		}}
+	}
+
+	// Fallback to top-level URL
+	if topURL, ok := info["url"].(string); ok && topURL != "" {
+		ext, _ := info["ext"].(string)
+		if ext == "" {
+			if u, err := url.Parse(topURL); err == nil {
+				ext = filepath.Ext(u.Path)
+			}
+		}
+		ext = strings.TrimPrefix(ext, ".")
+		mediaType := classifyMedia(ext, false, false)
+		return []Media{{
+			URL:       topURL,
+			Type:      mediaType,
+			Extension: ext,
+			IsAudio:   mediaType == "audio",
+		}}
+	}
+
+	// Fallback to thumbnail
+	if thumb, ok := info["thumbnail"].(string); ok && thumb != "" {
+		return []Media{{
+			URL:       thumb,
+			Type:      "image",
+			Extension: "jpg",
+			IsAudio:   false,
+		}}
 	}
 
 	return nil
+}
+
+// --- helpers ---
+
+func stringOrEmpty(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func parseResolution(res string) (int, int) {
+	parts := strings.Split(res, "x")
+	if len(parts) != 2 {
+		return 0, 0
+	}
+	w, _ := strconv.Atoi(strings.TrimSpace(parts[0]))
+	h, _ := strconv.Atoi(strings.TrimSpace(parts[1]))
+	return w, h
+}
+
+func classifyMedia(ext string, hasVideo, hasAudio bool) string {
+	ext = strings.ToLower(strings.TrimPrefix(ext, "."))
+
+	// Explicit type based on codec info
+	if hasVideo {
+		return "video"
+	}
+	if hasAudio && !hasVideo {
+		return "audio"
+	}
+
+	// Fallback based on extension
+	switch ext {
+	case "jpg", "jpeg", "png", "webp", "gif", "bmp", "tiff":
+		return "image"
+	case "mp3", "m4a", "ogg", "opus", "wav", "flac", "aac":
+		return "audio"
+	case "mp4", "webm", "mov", "mkv", "avi", "flv":
+		return "video"
+	default:
+		return "video" // safest default
+	}
 }
