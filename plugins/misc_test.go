@@ -2,6 +2,7 @@ package commands
 
 import (
 	"testing"
+	"whatsrook/utils"
 )
 
 func TestMiscCommandsRegistration(t *testing.T) {
@@ -40,7 +41,7 @@ func TestEvalMathExpr(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got, err := evalMathExpr(tt.expr)
+		got, err := utils.EvalMathExpr(tt.expr)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("evalMathExpr(%q) error = %v, wantErr %v", tt.expr, err, tt.wantErr)
 			continue

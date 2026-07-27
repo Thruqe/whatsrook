@@ -9,6 +9,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.48
 	github.com/purpshell/meowcaller v0.0.0-20260722160050-8e4008f12884
 	github.com/rs/zerolog v1.35.1
+	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/writeas/go-strip-markdown/v2 v2.1.1
 	go.mau.fi/libsignal v0.2.2
 	go.mau.fi/util v0.9.12-0.20260717235539-f9ffa7eca58d
