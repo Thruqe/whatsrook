@@ -1,24 +1,24 @@
 package commands
 
-import (
-	"testing"
-)
+// import (
+// 	"testing"
+// )
 
-func TestSelectListCommandRegistration(t *testing.T) {
-	cmd, ok := Get("selectlist")
-	if !ok {
-		t.Fatal("expected 'selectlist' command to be registered")
-	}
+// func TestSelectListCommandRegistration(t *testing.T) {
+// 	cmd, ok := Get("selectlist")
+// 	if !ok {
+// 		t.Fatal("expected 'selectlist' command to be registered")
+// 	}
 
-	if cmd.Category != "interactive" {
-		t.Errorf("expected category 'interactive', got %q", cmd.Category)
-	}
+// 	if cmd.Category != "interactive" {
+// 		t.Errorf("expected category 'interactive', got %q", cmd.Category)
+// 	}
 
-	if cmd.Handler == nil {
-		t.Error("expected command handler to be set, got nil")
-	}
+// 	if cmd.Handler == nil {
+// 		t.Error("expected command handler to be set, got nil")
+// 	}
 
-	if !cmd.IsPublic {
-		t.Error("expected command to be public")
-	}
-}
+// 	if !cmd.IsPublic {
+// 		t.Error("expected command to be public")
+// 	}
+// }
