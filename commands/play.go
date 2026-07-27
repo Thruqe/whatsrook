@@ -45,6 +45,11 @@ func handlePlay(ctx *Context) error {
 		SkipDownload().
 		FlatPlaylist()
 
+	if cookiePath, cleanupCookie, ok := GetYouTubeCookieFile(ctx); ok {
+		defer cleanupCookie()
+		cmd.Cookies(cookiePath)
+	}
+
 	res, err := cmd.Run(ctx.Ctx, "ytsearch1:"+songQuery)
 	if err != nil {
 		slog.Error("play search failed", "query", songQuery, "err", err)
@@ -185,6 +190,11 @@ func handlePlayDownload(ctx *Context, format string, target string) error {
 			AudioFormat("mp3").
 			Output(tmpPath)
 
+		if cookiePath, cleanupCookie, ok := GetYouTubeCookieFile(ctx); ok {
+			defer cleanupCookie()
+			cmdAud.Cookies(cookiePath)
+		}
+
 		_, err := cmdAud.Run(ctx.Ctx, targetURL)
 		if err != nil {
 			slog.Error("play audio download failed", "target", targetURL, "err", err)
@@ -207,10 +217,19 @@ func handlePlayDownload(ctx *Context, format string, target string) error {
 		Format("bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best").
 		Output(tmpPath)
 
+	if cookiePath, cleanupCookie, ok := GetYouTubeCookieFile(ctx); ok {
+		defer cleanupCookie()
+		cmdVid.Cookies(cookiePath)
+	}
+
 	_, err := cmdVid.Run(ctx.Ctx, targetURL)
 	if err != nil {
 		slog.Warn("play video download standard format failed, retrying with default format", "target", targetURL, "err", err)
 		cmdFallback := ytdlp.New().Output(tmpPath)
+		if cookiePath, cleanupCookie, ok := GetYouTubeCookieFile(ctx); ok {
+			defer cleanupCookie()
+			cmdFallback.Cookies(cookiePath)
+		}
 		_, err = cmdFallback.Run(ctx.Ctx, targetURL)
 		if err != nil {
 			slog.Error("play video download failed", "target", targetURL, "err", err)
