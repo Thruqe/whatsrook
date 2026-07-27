@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -182,13 +183,11 @@ func handlePlayDownload(ctx *Context, format string, target string) error {
 	tmpDir := os.TempDir()
 
 	if format == "audio" {
-		tmpPath := filepath.Join(tmpDir, fmt.Sprintf("play_%d.mp3", time.Now().UnixNano()))
-		defer os.Remove(tmpPath)
+		rawPath := filepath.Join(tmpDir, fmt.Sprintf("play_aud_raw_%d", time.Now().UnixNano()))
 
 		cmdAud := ytdlp.New().
 			ExtractAudio().
-			AudioFormat("mp3").
-			Output(tmpPath)
+			Output(rawPath + ".%(ext)s")
 
 		if cookiePath, cleanupCookie, ok := GetYouTubeCookieFile(ctx); ok {
 			defer cleanupCookie()
@@ -201,21 +200,44 @@ func handlePlayDownload(ctx *Context, format string, target string) error {
 			return ctx.Reply("Failed to download audio.")
 		}
 
-		audData, err := os.ReadFile(tmpPath)
+		matches, _ := filepath.Glob(rawPath + ".*")
+		if len(matches) == 0 {
+			slog.Error("play raw audio file not found", "pattern", rawPath+".*")
+			return ctx.Reply("Failed to locate downloaded audio file.")
+		}
+		downloadedFile := matches[0]
+		defer os.Remove(downloadedFile)
+
+		outMP3 := filepath.Join(tmpDir, fmt.Sprintf("play_%d.mp3", time.Now().UnixNano()))
+		defer os.Remove(outMP3)
+
+		ffmpegCmd := exec.CommandContext(ctx.Ctx, "ffmpeg", "-y", "-i", downloadedFile,
+			"-vn", "-c:a", "libmp3lame", "-b:a", "192k", "-ar", "44100", outMP3)
+
+		if out, err := ffmpegCmd.CombinedOutput(); err != nil {
+			slog.Warn("ffmpeg mp3 transcode failed, trying fallback direct read", "err", err, "out", string(out))
+			audData, rErr := os.ReadFile(downloadedFile)
+			if rErr != nil || len(audData) == 0 {
+				return ctx.Reply("Failed to process audio file.")
+			}
+			return ctx.ReplyWithAudio(audData, "audio/mp3")
+		}
+
+		audData, err := os.ReadFile(outMP3)
 		if err != nil || len(audData) == 0 {
-			slog.Error("play audio read failed", "path", tmpPath, "err", err)
-			return ctx.Reply("Failed to read downloaded audio file.")
+			slog.Error("play audio read failed", "path", outMP3, "err", err)
+			return ctx.Reply("Failed to read processed audio file.")
 		}
 
 		return ctx.ReplyWithAudio(audData, "audio/mp3")
 	}
 
-	tmpPath := filepath.Join(tmpDir, fmt.Sprintf("play_%d.mp4", time.Now().UnixNano()))
-	defer os.Remove(tmpPath)
+	// Video download
+	rawPath := filepath.Join(tmpDir, fmt.Sprintf("play_vid_raw_%d", time.Now().UnixNano()))
 
 	cmdVid := ytdlp.New().
-		Format("bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best").
-		Output(tmpPath)
+		Format("bestvideo+bestaudio/best").
+		Output(rawPath + ".%(ext)s")
 
 	if cookiePath, cleanupCookie, ok := GetYouTubeCookieFile(ctx); ok {
 		defer cleanupCookie()
@@ -225,7 +247,7 @@ func handlePlayDownload(ctx *Context, format string, target string) error {
 	_, err := cmdVid.Run(ctx.Ctx, targetURL)
 	if err != nil {
 		slog.Warn("play video download standard format failed, retrying with default format", "target", targetURL, "err", err)
-		cmdFallback := ytdlp.New().Output(tmpPath)
+		cmdFallback := ytdlp.New().Output(rawPath + ".%(ext)s")
 		if cookiePath, cleanupCookie, ok := GetYouTubeCookieFile(ctx); ok {
 			defer cleanupCookie()
 			cmdFallback.Cookies(cookiePath)
@@ -237,10 +259,36 @@ func handlePlayDownload(ctx *Context, format string, target string) error {
 		}
 	}
 
-	vidData, err := os.ReadFile(tmpPath)
+	matches, _ := filepath.Glob(rawPath + ".*")
+	if len(matches) == 0 {
+		slog.Error("play raw video file not found", "pattern", rawPath+".*")
+		return ctx.Reply("Failed to locate downloaded video file.")
+	}
+	downloadedFile := matches[0]
+	defer os.Remove(downloadedFile)
+
+	outMP4 := filepath.Join(tmpDir, fmt.Sprintf("play_%d.mp4", time.Now().UnixNano()))
+	defer os.Remove(outMP4)
+
+	ffmpegCmd := exec.CommandContext(ctx.Ctx, "ffmpeg", "-y", "-i", downloadedFile,
+		"-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-profile:v", "main", "-level:v", "4.0",
+		"-c:a", "aac", "-b:a", "128k",
+		"-movflags", "+faststart",
+		outMP4)
+
+	if out, err := ffmpegCmd.CombinedOutput(); err != nil {
+		slog.Warn("ffmpeg video transcode failed, falling back to direct file read", "err", err, "out", string(out))
+		vidData, rErr := os.ReadFile(downloadedFile)
+		if rErr == nil && len(vidData) > 0 {
+			return ctx.ReplyWithVideo(vidData, "video/mp4", "")
+		}
+		return ctx.Reply("Failed to transcode video to WhatsApp compatible format.")
+	}
+
+	vidData, err := os.ReadFile(outMP4)
 	if err != nil || len(vidData) == 0 {
-		slog.Error("play video read failed", "path", tmpPath, "err", err)
-		return ctx.Reply("Failed to read downloaded video file.")
+		slog.Error("play video read failed", "path", outMP4, "err", err)
+		return ctx.Reply("Failed to read processed video file.")
 	}
 
 	return ctx.ReplyWithVideo(vidData, "video/mp4", "")
