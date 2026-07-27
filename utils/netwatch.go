@@ -52,7 +52,7 @@ func SetNetworkPaused(paused bool, reason string) {
 	} else {
 		globalNetState.reason = ""
 		globalNetState.failureCount = 0
-		slog.Info("process operations manually resumed")
+		slog.Debug("process operations manually resumed")
 	}
 }
 
@@ -71,7 +71,7 @@ func ToggleManualPause() bool {
 	} else {
 		globalNetState.reason = ""
 		globalNetState.failureCount = 0
-		slog.Info("process operations manually resumed")
+		slog.Debug("process operations manually resumed")
 	}
 
 	return newState
@@ -87,7 +87,7 @@ func StartNetworkGuard(ctx context.Context, checkInterval time.Duration) {
 	}
 
 	go func() {
-		slog.Info("starting background network guard", "interval", checkInterval)
+		slog.Debug("starting background network guard", "interval", checkInterval)
 		ticker := time.NewTicker(checkInterval)
 		defer ticker.Stop()
 
@@ -148,7 +148,7 @@ func CheckNetworkHealth() {
 		if globalNetState.paused.Load() {
 			globalNetState.paused.Store(false)
 			globalNetState.reason = ""
-			slog.Info("network connection restored — resuming process operations", "latency", bestLatency.String())
+			slog.Debug("network connection restored — resuming process operations", "latency", bestLatency.String())
 		}
 	} else {
 		globalNetState.failureCount++

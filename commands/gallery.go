@@ -46,7 +46,7 @@ package commands
 // 		urls = ctx.Args
 // 	}
 
-// 	slog.Info("Starting gallery download & upload", "count", len(urls))
+// 	slog.Debug("Starting gallery download & upload", "count", len(urls))
 
 // 	var wg sync.WaitGroup
 // 	results := make([]downloadResult, len(urls))
@@ -172,7 +172,7 @@ package commands
 // 		AdditionalNodes: &[]waBinary.Node{bizNode},
 // 	}
 
-// 	slog.Info("Relaying gallery message", "cards_count", len(cards))
+// 	slog.Debug("Relaying gallery message", "cards_count", len(cards))
 // 	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
 // 	return err
 // }

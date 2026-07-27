@@ -42,10 +42,6 @@ if [ "$LOGOUT" = "true" ]; then
   ARGS="$ARGS --logout"
 fi
 
-if [ "$DEBUG" = "true" ]; then
-  ARGS="$ARGS --debug"
-fi
-
 if [ "$VERBOSE" = "true" ]; then
   ARGS="$ARGS --verbose"
 fi

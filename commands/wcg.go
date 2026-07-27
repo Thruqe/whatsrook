@@ -154,7 +154,7 @@ func HandleWCGInput(ctx *Context, text string) bool {
 		currentTurnPlayer.Score += game.wordLength * 10
 		currentTurnPlayer.CorrectGuesses++
 
-		slog.Info("[WCG] Correct guess!", "player", currentTurnPlayer.Tag, "word", game.currentWord, "timeMs", elapsed.Milliseconds())
+		slog.Debug("[WCG] Correct guess!", "player", currentTurnPlayer.Tag, "word", game.currentWord, "timeMs", elapsed.Milliseconds())
 
 		msg := fmt.Sprintf("🎉 Correct! %s guessed '%s' in %.1fs! (+%d pts)\n\nAdvancing to the next level!",
 			currentTurnPlayer.Tag, game.currentWord, elapsed.Seconds(), game.wordLength*10)
@@ -171,7 +171,7 @@ func HandleWCGInput(ctx *Context, text string) bool {
 	}
 
 	// Wrong guess!
-	slog.Info("[WCG] Incorrect guess", "player", currentTurnPlayer.Tag, "guess", guess, "correct", game.currentWord)
+	slog.Debug("[WCG] Incorrect guess", "player", currentTurnPlayer.Tag, "guess", guess, "correct", game.currentWord)
 	msg := fmt.Sprintf("❌ Incorrect guess by %s!\nThe correct word was: '%s'.\n%s has been eliminated from this match!",
 		currentTurnPlayer.Tag, game.currentWord, currentTurnPlayer.Tag)
 	_ = ctx.ReplyWithMentions(msg, []types.JID{currentTurnPlayer.MentionJID})
@@ -436,7 +436,7 @@ func (g *wcgGame) startGame(ctx *Context) {
 		return
 	}
 
-	slog.Info("[WCG] Starting game", "chat", g.chatKey, "playersCount", len(active))
+	slog.Debug("[WCG] Starting game", "chat", g.chatKey, "playersCount", len(active))
 
 	var playerTags []string
 	var mentions []types.JID
@@ -491,7 +491,7 @@ func (g *wcgGame) startTurn(ctx *Context) {
 			return
 		}
 
-		slog.Info("[WCG] Turn timed out", "player", currentPlayer.Tag, "word", g.currentWord)
+		slog.Debug("[WCG] Turn timed out", "player", currentPlayer.Tag, "word", g.currentWord)
 		currentPlayer.Eliminated = true
 
 		cctx := &Context{

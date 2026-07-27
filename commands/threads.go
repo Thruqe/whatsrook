@@ -22,7 +22,7 @@ func init() {
 }
 
 func handleThreads(ctx *Context) error {
-	slog.Info("handleThreads started", "args", ctx.Args)
+	slog.Debug("handleThreads started", "args", ctx.Args)
 	if len(ctx.Args) == 0 {
 		slog.Warn("handleThreads: no URL provided")
 		return sendText(ctx, "Usage: !threads <url>")
@@ -31,12 +31,12 @@ func handleThreads(ctx *Context) error {
 		slog.Warn("handleThreads: invalid URL", "url", ctx.Args[0])
 		return sendText(ctx, "Invalid threads url!")
 	}
-	slog.Info("handleThreads: calling Fetch", "url", ctx.Args[0])
+	slog.Debug("handleThreads: calling Fetch", "url", ctx.Args[0])
 	data, err := ember.Fetch(ctx.Ctx, ctx.Args[0], "")
 	if err != nil {
 		slog.Error("handleThreads: Fetch failed", "err", err)
 		return sendText(ctx, fmt.Sprintf("Failed: %s", err))
 	}
-	slog.Info("handleThreads: Fetch success, calling SendResult")
+	slog.Debug("handleThreads: Fetch success, calling SendResult")
 	return sender.SendResult(ctx.Ctx, ctx.Client, ctx.Chat, data)
 }

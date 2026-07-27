@@ -87,7 +87,7 @@ func handleMarkets(ctx *Context) error {
 		// Device platform check:
 		// Device != 0 indicates Web/Desktop companion client -> send normal buttons.
 		// Device == 0 indicates Android/iOS mobile client -> send single_select native flow selectlist.
-		slog.Info("handleMarkets: no args provided, routing menu", "device", ctx.Sender.Device)
+		slog.Debug("handleMarkets: no args provided, routing menu", "device", ctx.Sender.Device)
 		if ctx.Sender.Device != 0 {
 			slog.Debug("handleMarkets: routing to sendMarketsButtonsMenu for non-mobile device", "device", ctx.Sender.Device)
 			return sendMarketsButtonsMenu(ctx)
@@ -102,7 +102,7 @@ func handleMarkets(ctx *Context) error {
 	slog.Debug("handleMarkets: parsed query argument", "raw_args", ctx.Args, "parsed_query", queryArg)
 
 	if queryArg == "MENU" || queryArg == "LIST" || queryArg == "ALL" {
-		slog.Info("handleMarkets: requested market summary overview", "query", queryArg)
+		slog.Debug("handleMarkets: requested market summary overview", "query", queryArg)
 		return fetchAndSendAllMarkets(ctx)
 	}
 
@@ -165,7 +165,7 @@ func handleMarkets(ctx *Context) error {
 		queryArg = "DOGE/USD"
 	}
 
-	slog.Info("handleMarkets: querying single instrument", "pair", queryArg)
+	slog.Debug("handleMarkets: querying single instrument", "pair", queryArg)
 	return fetchAndSendSingleMarket(ctx, queryArg)
 }
 
@@ -266,11 +266,11 @@ func fetchAndSendSingleMarket(ctx *Context, pair string) error {
 	}
 
 	// 2. Fallback to bars API (for indices like Dow/USD, SPX/USD, etc.)
-	slog.Info("fetchAndSendSingleMarket: primary API empty or unavailable, querying bars fallback API", "pair", pair)
+	slog.Debug("fetchAndSendSingleMarket: primary API empty or unavailable, querying bars fallback API", "pair", pair)
 	barsRes, err := fetchMarketBars(ctx.Ctx, pair)
 	if err == nil && len(barsRes.Data) > 0 {
 		latest := barsRes.Data[0]
-		slog.Info("fetchAndSendSingleMarket: successfully retrieved bar metrics from fallback API", "pair", pair, "close", latest.Close)
+		slog.Debug("fetchAndSendSingleMarket: successfully retrieved bar metrics from fallback API", "pair", pair, "close", latest.Close)
 
 		var sb strings.Builder
 		sb.WriteString(fmt.Sprintf("Forex Factory Rates - %s\n\n", pair))
@@ -326,7 +326,7 @@ func formatAndSendInstrumentResponse(ctx *Context, pair string, item FFInstrumen
 		marketStatus = "Holiday / Closed"
 	}
 
-	slog.Info("formatAndSendInstrumentResponse: parsed market data", "pair", displayName, "price", price, "bid", bid, "ask", ask, "high", high, "low", low, "spread", spread, "status", marketStatus)
+	slog.Debug("formatAndSendInstrumentResponse: parsed market data", "pair", displayName, "price", price, "bid", bid, "ask", ask, "high", high, "low", low, "spread", spread, "status", marketStatus)
 
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("Forex Factory Rates - %s\n\n", displayName))
@@ -417,7 +417,7 @@ func fetchAndSendAllMarkets(ctx *Context) error {
 		return ctx.Reply("No market rates available at this time.")
 	}
 
-	slog.Info("fetchAndSendAllMarkets: successfully parsed market overview", "item_count", len(res.Data))
+	slog.Debug("fetchAndSendAllMarkets: successfully parsed market overview", "item_count", len(res.Data))
 
 	var sb strings.Builder
 	sb.WriteString("Forex Factory Market Overview\n\n")
@@ -521,7 +521,7 @@ func sendMarketsButtonsMenu(ctx *Context) error {
 		AdditionalNodes: &[]waBinary.Node{bizNode},
 	}
 
-	slog.Info("sendMarketsButtonsMenu: sending buttons message", "chat", ctx.Chat.String())
+	slog.Debug("sendMarketsButtonsMenu: sending buttons message", "chat", ctx.Chat.String())
 	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
 	if err != nil {
 		slog.Error("sendMarketsButtonsMenu: failed to send buttons message", "err", err)
@@ -557,7 +557,7 @@ func sendMarketsSelectListMenu(ctx *Context) error {
 		return ctx.Reply("Failed to fetch market instruments from Forex Factory. Please try again later.")
 	}
 
-	slog.Info("sendMarketsSelectListMenu: fetched live instruments from Forex Factory API", "total_items", len(apiItems))
+	slog.Debug("sendMarketsSelectListMenu: fetched live instruments from Forex Factory API", "total_items", len(apiItems))
 
 	// Sort items by rank (or ID if rank is 0)
 	slices.SortFunc(apiItems, func(a, b FFListItem) int {
@@ -728,7 +728,7 @@ func sendMarketsSelectListMenu(ctx *Context) error {
 		AdditionalNodes: &[]waBinary.Node{bizNode},
 	}
 
-	slog.Info("sendMarketsSelectListMenu: sending live API single_select list message", "chat", ctx.Chat.String())
+	slog.Debug("sendMarketsSelectListMenu: sending live API single_select list message", "chat", ctx.Chat.String())
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
 	if err != nil {
 		slog.Error("sendMarketsSelectListMenu: failed to send list message", "err", err)

@@ -205,7 +205,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 		mu.Lock()
 		if finished {
 			if imgMsg := msgEvt.Message.GetImageMessage(); imgMsg != nil {
-				slog.Info("queryMetaAi: captured follow-up imageMessage after finished", "chat", chatKey)
+				slog.Debug("queryMetaAi: captured follow-up imageMessage after finished", "chat", chatKey)
 				imgBytes, err := client.Download(ctx, imgMsg)
 				if err == nil && len(imgBytes) > 0 {
 					genImgData = imgBytes
@@ -214,7 +214,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 						genImgMime = "image/jpeg"
 					}
 					genImgCap = imgMsg.GetCaption()
-					slog.Info("queryMetaAi: successfully downloaded follow-up imageMessage", "len", len(imgBytes))
+					slog.Debug("queryMetaAi: successfully downloaded follow-up imageMessage", "len", len(imgBytes))
 					closeOnce.Do(func() { close(done) })
 				}
 			}
@@ -223,7 +223,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 		}
 
 		if imgMsg := msgEvt.Message.GetImageMessage(); imgMsg != nil {
-			slog.Info("queryMetaAi: captured direct imageMessage from Meta AI", "chat", chatKey)
+			slog.Debug("queryMetaAi: captured direct imageMessage from Meta AI", "chat", chatKey)
 			imgBytes, err := client.Download(ctx, imgMsg)
 			if err == nil && len(imgBytes) > 0 {
 				genImgData = imgBytes
@@ -232,7 +232,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 					genImgMime = "image/jpeg"
 				}
 				genImgCap = imgMsg.GetCaption()
-				slog.Info("queryMetaAi: successfully downloaded direct imageMessage", "len", len(imgBytes))
+				slog.Debug("queryMetaAi: successfully downloaded direct imageMessage", "len", len(imgBytes))
 				mu.Unlock()
 				closeOnce.Do(func() { close(done) })
 				return
@@ -274,7 +274,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 						genImgMime = mimeType
 						genImgCap = imgCap
 						mu.Unlock()
-						slog.Info("queryMetaAi: downloaded generated image", "len", len(imgBytes), "mime", mimeType)
+						slog.Debug("queryMetaAi: downloaded generated image", "len", len(imgBytes), "mime", mimeType)
 					}
 				}
 			}
@@ -299,7 +299,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 			final = text
 			mu.Unlock()
 			if editType == "last" || editType == "inner" {
-				slog.Info("queryMetaAi: RUN_COMMAND captured", "chat", chatKey, "cmd_text", text, "edit_type", editType)
+				slog.Debug("queryMetaAi: RUN_COMMAND captured", "chat", chatKey, "cmd_text", text, "edit_type", editType)
 				if editType == "last" {
 					mu.Lock()
 					finished = true
@@ -325,7 +325,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 
 			lower := strings.ToLower(text)
 			if !hasImgData && (strings.Contains(lower, "image") || strings.Contains(lower, "creating") || strings.Contains(lower, "ready")) {
-				slog.Info("queryMetaAi: text indicates image generation, waiting briefly for follow-up imageMessage", "chat", chatKey)
+				slog.Debug("queryMetaAi: text indicates image generation, waiting briefly for follow-up imageMessage", "chat", chatKey)
 				go func() {
 					time.Sleep(4 * time.Second)
 					closeOnce.Do(func() { close(done) })
@@ -344,7 +344,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 	case <-done:
 		mu.Lock()
 		defer mu.Unlock()
-		slog.Info("queryMetaAi: completed", "chat", chatKey, "final_text_len", len(final))
+		slog.Debug("queryMetaAi: completed", "chat", chatKey, "final_text_len", len(final))
 		return MetaAiResult{
 			Text:         final,
 			GeneratedImg: genImgData,
@@ -373,7 +373,7 @@ func init() {
 }
 
 func handleAutoAI(ctx *Context) error {
-	slog.Info("handleAutoAI started", "args", ctx.Args)
+	slog.Debug("handleAutoAI started", "args", ctx.Args)
 
 	isAuthorized := ctx.IsSudo()
 	if !isAuthorized && ctx.Chat.Server == "g.us" {
@@ -487,7 +487,7 @@ func handleAI(ctx *Context) error {
 	query += meta_ai.RenderQuotedContext(data)
 	query += data.Question
 
-	slog.Info("handleAI: sending request to Meta AI", "chat", ctx.Chat.String())
+	slog.Debug("handleAI: sending request to Meta AI", "chat", ctx.Chat.String())
 
 	placeholderResp, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
 		Conversation: new("Thinking..."),
@@ -536,7 +536,7 @@ func handleAI(ctx *Context) error {
 		if mType == "" {
 			mType = "image/jpeg"
 		}
-		slog.Info("handleAI: forwarding generated image to chat", "chat", ctx.Chat.String(), "img_len", len(res.GeneratedImg))
+		slog.Debug("handleAI: forwarding generated image to chat", "chat", ctx.Chat.String(), "img_len", len(res.GeneratedImg))
 		_ = ctx.SendImage(res.GeneratedImg, mType, res.ImgCaption)
 	}
 
@@ -612,11 +612,11 @@ func handleAI(ctx *Context) error {
 			Chat:    ctx.Chat,
 			Sender:  ctx.Sender,
 		}
-		slog.Info("handleAI: executing command on behalf of AI", "command", cmdName, "args", cctx.Args)
+		slog.Debug("handleAI: executing command on behalf of AI", "command", cmdName, "args", cctx.Args)
 		return targetCmd.Handler(cctx)
 	}
 
-	slog.Info("handleAI: completed successfully", "chat", ctx.Chat.String())
+	slog.Debug("handleAI: completed successfully", "chat", ctx.Chat.String())
 	return nil
 }
 

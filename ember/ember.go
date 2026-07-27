@@ -85,7 +85,7 @@ func Fetch(ctx context.Context, postURL string, cookie string) (*Data, error) {
 	}
 	fullURL := baseURL + "?" + q.Encode()
 
-	slog.Info("ember.Fetch: sending HTTP request", "url", fullURL)
+	slog.Debug("ember.Fetch: sending HTTP request", "url", fullURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
 	if err != nil {
 		slog.Error("ember.Fetch: failed to create request", "err", err)
@@ -99,7 +99,7 @@ func Fetch(ctx context.Context, postURL string, cookie string) (*Data, error) {
 	}
 	defer resp.Body.Close()
 
-	slog.Info("ember.Fetch: HTTP response received", "status_code", resp.StatusCode)
+	slog.Debug("ember.Fetch: HTTP response received", "status_code", resp.StatusCode)
 	var result Result
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		slog.Error("ember.Fetch: failed to decode JSON", "err", err)
@@ -116,7 +116,7 @@ func Fetch(ctx context.Context, postURL string, cookie string) (*Data, error) {
 	}
 
 	result.Data.PopulateCompat()
-	slog.Info("ember.Fetch: successfully populated compat data", "title", result.Data.Title, "medias_count", len(result.Data.Medias))
+	slog.Debug("ember.Fetch: successfully populated compat data", "title", result.Data.Title, "medias_count", len(result.Data.Medias))
 
 	return &result.Data, nil
 }

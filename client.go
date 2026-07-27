@@ -21,7 +21,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
-	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
 // runDaemon executes the WhatsRook daemon lifecycle.
@@ -47,7 +46,7 @@ func runDaemon() {
 		return
 	}
 
-	if err := logger.InitLogger(cli.Debug || cli.Verbose); err != nil {
+	if err := logger.InitLogger(cli.Verbose); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
@@ -80,7 +79,7 @@ func runDaemon() {
 	}()
 
 	waLevel := "INFO"
-	if cli.Debug {
+	if cli.Verbose {
 		waLevel = "DEBUG"
 	}
 
@@ -140,7 +139,7 @@ func runDaemon() {
 // runs the bot. It returns ErrPairTimeout when --pair stalls so the caller
 // can wipe + retry, or nil on clean shutdown.
 func runSession(ctx context.Context, cli CliArgs, dbPath, waLevel string, hub *Hub) error {
-	dbLog := waLog.Stdout("Database", waLevel, true)
+	dbLog := logger.WhatsmeowStyle("Database", waLevel, true)
 	container, err := sqlstore.New(ctx, "sqlite3", fmt.Sprintf("file:%s?_foreign_keys=on&_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=5000&_pragma=cache_size(-2000)", dbPath), dbLog)
 	if err != nil {
 		return fmt.Errorf("failed to open db: %w", err)
@@ -156,7 +155,7 @@ func runSession(ctx context.Context, cli CliArgs, dbPath, waLevel string, hub *H
 		return fmt.Errorf("failed to get device: %w", err)
 	}
 
-	clientLog := waLog.Stdout("Client", waLevel, true)
+	clientLog := logger.WhatsmeowStyle("Client", waLevel, true)
 	client := whatsmeow.NewClient(deviceStore, clientLog)
 
 	// ── Logout flow

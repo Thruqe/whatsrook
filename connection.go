@@ -49,7 +49,7 @@ func (b *Bot) runPairCode(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("pair code failed: %w", err)
 	}
-	slog.Info("pair code issued", "code", code)
+	slog.Debug("pair code issued", "code", code)
 	fmt.Printf("Enter this code on your phone: %s\n", code)
 	b.hub.Broadcast(EventMessage{
 		Kind:    EventPairCode,
@@ -92,7 +92,7 @@ func (b *Bot) runQR(ctx context.Context) error {
 				Payload: PairQRPayload{Code: evt.Code},
 			})
 		} else {
-			slog.Info("qr channel event", "event", evt.Event)
+			slog.Debug("qr channel event", "event", evt.Event)
 		}
 	}
 	return nil

@@ -61,7 +61,6 @@ Options:
   --qrcode              Print the QR code to stdout for scanning
   --logout              Remove the session auth files and exit
   --update              Check and perform application update, then exit or restart
-  --debug               Enable debug logging
   --verbose             Enable verbose logging for application (excluding whatsmeow)
   --dev                 Dev mode: disables CORS origin check on WebSocket
   -h, --help            Show this help message
@@ -148,7 +147,6 @@ Options:
 		QRCode:  getBoolFlag("--qrcode", "QRCODE"),
 		Logout:  getBoolFlag("--logout", "LOGOUT"),
 		Update:  isUpdate,
-		Debug:   getBoolFlag("--debug", "DEBUG"),
 		Verbose: getBoolFlag("--verbose", "VERBOSE"),
 		Dev:     getBoolFlag("--dev", "DEV"),
 		Client:  client,

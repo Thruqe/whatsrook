@@ -265,7 +265,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	if okStore {
 		autoAIVal, _ := s.GetSetting(ctx, "autoai:"+chatStr)
 		if autoAIVal == "on" && isBotTaggedOrReplied(client, evt, text) {
-			slog.Info("AutoAI triggered by tag/reply", "chat", chatStr, "sender", senderStr)
+			slog.Debug("AutoAI triggered by tag/reply", "chat", chatStr, "sender", senderStr)
 			cctx := &Context{
 				Ctx:     ctx,
 				Client:  client,
@@ -411,7 +411,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 			}
 		}
 
-		slog.Info("Executing command", "command", name, "chat", cctx.Chat.String(), "sender", cctx.Sender.String(), "args", cctx.Args)
+		slog.Debug("Executing command", "command", name, "chat", cctx.Chat.String(), "sender", cctx.Sender.String(), "args", cctx.Args)
 		if err := cmd.Handler(cctx); err != nil {
 			slog.Error("Command handler failed", "command", name, "err", err)
 			logHandlerErr(name, err)
@@ -643,7 +643,7 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 			for _, u := range targetUsers {
 				u = strings.TrimSpace(u)
 				if u != "" && (u == senderStr || u == sender.User+"@s.whatsapp.net") {
-					slog.Info("antimsg: deleting message from targeted participant", "chat", chatStr, "sender", senderStr)
+					slog.Debug("antimsg: deleting message from targeted participant", "chat", chatStr, "sender", senderStr)
 					_, _ = client.SendMessage(ctx, evt.Info.Chat, client.BuildRevoke(evt.Info.Chat, evt.Info.Sender, evt.Info.ID))
 					return true
 				}
@@ -666,7 +666,7 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 				if action == "" {
 					action = "delete"
 				}
-				slog.Info("antispam: message rate limit exceeded", "chat", chatStr, "sender", sender.String(), "action", action)
+				slog.Debug("antispam: message rate limit exceeded", "chat", chatStr, "sender", sender.String(), "action", action)
 				botIsAdmin := false
 				if client.Store.ID != nil {
 					botIsAdmin = waSender.IsAdminRaw(ctx, client, info, *client.Store.ID)

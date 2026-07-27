@@ -740,7 +740,7 @@ func handleListOnline(ctx *Context) error {
 		return ctx.Reply("This command can only be used in a group.")
 	}
 
-	slog.Info("handleListOnline executing", "group", ctx.Chat.String())
+	slog.Debug("handleListOnline executing", "group", ctx.Chat.String())
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
 		slog.Error("handleListOnline: failed to get group info", "group", ctx.Chat.String(), "err", err)
@@ -851,9 +851,9 @@ func handleListOnline(ctx *Context) error {
 	if cachedOnlineCount < 2 {
 		select {
 		case <-doneChan:
-			slog.Info("handleListOnline: presence/receipt stanzas collected", "count", receivedCount)
+			slog.Debug("handleListOnline: presence/receipt stanzas collected", "count", receivedCount)
 		case <-time.After(2000 * time.Millisecond):
-			slog.Info("handleListOnline: presence wait window ended", "received", receivedCount, "total", total)
+			slog.Debug("handleListOnline: presence wait window ended", "received", receivedCount, "total", total)
 		}
 	}
 
@@ -872,7 +872,7 @@ func handleListOnline(ctx *Context) error {
 		}
 	}
 
-	slog.Info("handleListOnline complete", "group", ctx.Chat.String(), "total_participants", total, "online_count", len(onlineJIDs))
+	slog.Debug("handleListOnline complete", "group", ctx.Chat.String(), "total_participants", total, "online_count", len(onlineJIDs))
 
 	if len(onlineJIDs) == 0 {
 		return ctx.Reply("No online participants detected in this group.")

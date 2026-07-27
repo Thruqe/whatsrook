@@ -36,13 +36,13 @@ func init() {
 }
 
 func handleDl(ctx *Context) error {
-	slog.Info("handleDl started", "raw_args", ctx.RawArgs)
+	slog.Debug("handleDl started", "raw_args", ctx.RawArgs)
 	link := resolveFetchURL(ctx)
 	if link == "" {
 		slog.Warn("handleDl: no URL resolved")
 		return sendText(ctx, "Usage: !dl <url> (or reply to a message containing a url)")
 	}
-	slog.Info("handleDl: resolved URL", "url", link)
+	slog.Debug("handleDl: resolved URL", "url", link)
 	if !isSupportedFetchURL(link) {
 		slog.Warn("handleDl: URL is unsupported", "url", link)
 		return sendText(ctx, "Unsupported url. Supported: Instagram, TikTok, YouTube, Facebook, Threads, Twitter/X")
@@ -51,15 +51,15 @@ func handleDl(ctx *Context) error {
 	var cookie string
 	if utils.IsYouTubeURL(link) {
 		cookie = getYouTubeCookie(ctx)
-		slog.Info("handleDl: YouTube cookie retrieved", "cookie_len", len(cookie))
+		slog.Debug("handleDl: YouTube cookie retrieved", "cookie_len", len(cookie))
 	}
-	slog.Info("handleDl: calling ember.Fetch", "url", link)
+	slog.Debug("handleDl: calling ember.Fetch", "url", link)
 	data, err := ember.Fetch(ctx.Ctx, link, cookie)
 	if err != nil {
 		slog.Error("handleDl: ember.Fetch failed", "err", err)
 		return sendText(ctx, fmt.Sprintf("Failed: %s", err))
 	}
-	slog.Info("handleDl: ember.Fetch success, calling SendResult", "title", data.Title, "medias_count", len(data.Medias))
+	slog.Debug("handleDl: ember.Fetch success, calling SendResult", "title", data.Title, "medias_count", len(data.Medias))
 	return sender.SendResult(ctx.Ctx, ctx.Client, ctx.Chat, data)
 }
 
