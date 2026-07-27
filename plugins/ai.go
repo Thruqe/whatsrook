@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"whatsrook/meta_ai"
+	"whatsrook/meta"
 	"whatsrook/store/sqlstore"
 
 	"go.mau.fi/whatsmeow"
@@ -294,7 +294,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 		editType := string(msgEvt.Info.MsgBotInfo.EditType)
 		slog.Debug("queryMetaAi: update", "chat", chatKey, "edit_type", editType, "text", text)
 
-		if _, _, isRunCmd := meta_ai.ParseRunCommand(text); isRunCmd {
+		if _, _, isRunCmd := meta.ParseRunCommand(text); isRunCmd {
 			mu.Lock()
 			final = text
 			mu.Unlock()
@@ -425,18 +425,18 @@ func handleAI(ctx *Context) error {
 
 	// Build (or reuse cached) instruction block describing available
 	// bot commands.
-	instruction := meta_ai.GetOrBuildInstruction(func() string {
+	instruction := meta.GetOrBuildInstruction(func() string {
 		cmdInfos := ListCommands()
-		metaCmds := make([]meta_ai.CommandInfo, 0, len(cmdInfos))
+		metaCmds := make([]meta.CommandInfo, 0, len(cmdInfos))
 		for _, c := range cmdInfos {
-			metaCmds = append(metaCmds, meta_ai.CommandInfo{
+			metaCmds = append(metaCmds, meta.CommandInfo{
 				Name:        c.Name,
 				Aliases:     c.Aliases,
 				Description: c.Description,
 				IsPublic:    c.IsPublic,
 			})
 		}
-		return meta_ai.BuildRunCommandInstruction(metaCmds)
+		return meta.BuildRunCommandInstruction(metaCmds)
 	})
 
 	pushName := ""
@@ -448,7 +448,7 @@ func handleAI(ctx *Context) error {
 		msgID = ctx.Evt.Info.ID
 	}
 
-	data := meta_ai.Data{
+	data := meta.Data{
 		ChatID:    ctx.Chat.String(),
 		Question:  ctx.RawArgs,
 		MessageID: msgID,
@@ -461,7 +461,7 @@ func handleAI(ctx *Context) error {
 
 	if isGroup {
 		data.ChatType = "group"
-		groupInfo, err := meta_ai.GetOrFetchGroupMeta(ctx.Chat.String(), func() (types.GroupInfo, error) {
+		groupInfo, err := meta.GetOrFetchGroupMeta(ctx.Chat.String(), func() (types.GroupInfo, error) {
 			info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 			if err != nil || info == nil {
 				return types.GroupInfo{}, err
@@ -481,10 +481,10 @@ func handleAI(ctx *Context) error {
 	// Assemble the full query sent to Meta AI.
 	query := instruction
 	if isGroup {
-		query += meta_ai.RenderGroupContext(data.GroupMetaData)
+		query += meta.RenderGroupContext(data.GroupMetaData)
 	}
-	query += meta_ai.RenderUserContext(data)
-	query += meta_ai.RenderQuotedContext(data)
+	query += meta.RenderUserContext(data)
+	query += meta.RenderQuotedContext(data)
 	query += data.Question
 
 	slog.Debug("handleAI: sending request to Meta AI", "chat", ctx.Chat.String())
@@ -502,7 +502,7 @@ func handleAI(ctx *Context) error {
 		if trimmed == "" {
 			return nil
 		}
-		if _, _, ok := meta_ai.ParseRunCommand(trimmed); ok {
+		if _, _, ok := meta.ParseRunCommand(trimmed); ok {
 			return nil
 		}
 		editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
@@ -541,7 +541,7 @@ func handleAI(ctx *Context) error {
 	}
 
 	// Check whether the final reply is a RUN_COMMAND request.
-	if cmdName, rawArgs, ok := meta_ai.ParseRunCommand(reply); ok {
+	if cmdName, rawArgs, ok := meta.ParseRunCommand(reply); ok {
 		if cmdName == "sh" || cmdName == "exec" || cmdName == "run" || cmdName == "shell" {
 			if !ctx.IsSudo() {
 				slog.Warn("handleAI: blocked unauthorized shell execution request", "sender", ctx.Sender.String())
@@ -552,7 +552,7 @@ func handleAI(ctx *Context) error {
 				return nil
 			}
 
-			output, err := meta_ai.RunCmd(rawArgs)
+			output, err := meta.RunCmd(rawArgs)
 			if err != nil && output == "" {
 				output = err.Error()
 			}
@@ -620,7 +620,7 @@ func handleAI(ctx *Context) error {
 	return nil
 }
 
-func extractContextFromQuotedMessage(ctx *Context, data *meta_ai.Data) {
+func extractContextFromQuotedMessage(ctx *Context, data *meta.Data) {
 	if ctx.Evt == nil {
 		return
 	}

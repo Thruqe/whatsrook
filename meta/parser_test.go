@@ -1,4 +1,4 @@
-package meta_ai
+package meta
 
 import (
 	"strings"

@@ -5,7 +5,7 @@ Welcome to WhatsRook! This document is a guide for AI coding assistants (Claude 
 ## What is WhatsRook?
 
 WhatsRook is a lightweight, long-running Go daemon that interfaces with WhatsApp using [whatsmeow](https://github.com/tulir/whatsmeow). It behaves both as a standalone WhatsApp bot and a bridge for external applications:
-1. **In-Bot Commands (`./commands`)**: Handles events directly inside the bot (e.g., prefix commands, sticker reactions, group moderation, status/view-once auto-saving).
+1. **In-Bot Commands (`./plugins`)**: Handles events directly inside the bot (e.g., prefix commands, sticker reactions, group moderation, status/view-once auto-saving).
 2. **WebSocket Gateway (`/ws`)**: Streams real-time WhatsApp events out to other applications and accepts control commands (e.g., sending/editing/revoking messages, reactions).
 
 ## Our Programming Style & Philosophy
@@ -34,10 +34,10 @@ We value simplicity, pragmatism, and raw speed. If you contribute code, please a
   * [ws.proto](./proto/ws.proto): Protocol Buffer definitions for WebSocket control frames, event frames, and typed payload messages.
 * [example/](./example/):
   * [client.go](./example/client.go): Working demonstration of connecting to WhatsRook, decoding JSON & Protobuf WebSocket messages, and sending control commands.
-* [commands/](./commands/):
-  * [commands.go](./commands/commands.go): Registers command handlers via an `init()` block using `Register(&Command{...})`.
-  * [dispatch.go](./commands/dispatch.go): The entry point for incoming events. It parses messages, matches prefixes, runs moderation triggers, and routes valid commands asynchronously.
-  * [helper.go](./commands/helper.go): Internal command helpers (e.g. sending raw responses or retrieving configuration settings).
+* [commands/](./plugins/):
+  * [commands.go](./plugins/plugins.go): Registers command handlers via an `init()` block using `Register(&Command{...})`.
+  * [dispatch.go](./plugins/dispatch.go): The entry point for incoming events. It parses messages, matches prefixes, runs moderation triggers, and routes valid commands asynchronously.
+  * [helper.go](./plugins/helper.go): Internal command helpers (e.g. sending raw responses or retrieving configuration settings).
 * [utils/](./utils/):
   * [utils.go](./utils/utils.go): Shared helper functions (FFmpeg audio transcoding, ffprobe audio duration, URL matching, JID sanitization, message extraction).
 

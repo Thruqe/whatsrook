@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"whatsrook/commands"
+	"whatsrook/plugins"
 	"whatsrook/ember"
 	"whatsrook/sender"
 	"whatsrook/store/sqlstore"

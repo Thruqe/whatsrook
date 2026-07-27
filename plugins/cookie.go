@@ -42,10 +42,7 @@ func init() {
 }
 
 func handleCookieInstruction(ctx *Context) error {
-	imgPath := filepath.Join("res", "tutorials", "images", "cookies.png")
-	if _, err := os.Stat(imgPath); os.IsNotExist(err) {
-		imgPath = "/workspaces/whatsrook/res/tutorials/images/cookies.png"
-	}
+	imgPath := filepath.Join("resources", "tutorials", "images", "cookies.png")
 
 	imgBytes, err := os.ReadFile(imgPath)
 	if err == nil && len(imgBytes) > 0 {

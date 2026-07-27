@@ -1,5 +1,5 @@
 // Response parsing and command-instruction generation for Meta AI requests.
-package meta_ai
+package meta
 
 import (
 	"fmt"
@@ -16,8 +16,8 @@ import (
 const RunCommandInstruction = "[If the user is asking you to perform an action the bot itself can do (like tagging everyone, checking uptime, downloading media, etc.), and nothing else, respond with exactly: RUN_COMMAND: !<command_name> [args] — with no other text. Otherwise, just answer normally.]\n\n"
 
 // CommandInfo mirrors commands.CommandInfo — kept as a separate type here
-// so meta_ai has no import dependency on the commands package (which
-// would create an import cycle, since commands imports meta_ai).
+// so meta has no import dependency on the commands package (which
+// would create an import cycle, since commands imports meta).
 type CommandInfo struct {
 	Name        string
 	Aliases     []string

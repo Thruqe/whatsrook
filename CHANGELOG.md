@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated `AGENTS.md` codebase map to document the `utils/` package.
 - Reorganized command categories: created new `interactive` category for UI/button/list demonstration commands (`buttons`, `gallery`, `selectlist`, `locbuttons`, `statusmenu`), updated font customization commands to `tools`, normalized `ai` category casing, and unified `filter` commands under `filters`.
 - Refactored `main.go` to invoke `runDaemon()` directly in `client.go`, and updated `entrypoint.sh` to accept both `--session <phone>` CLI flags and `$SESSION` environment variables seamlessly.
-- Fixed `ParseRunCommand` in `meta_ai/parser.go` to filter out `(link unavailable)` strings and updated `handleAI` streaming in `commands/ai.go` to prevent premature partial `RUN_COMMAND` message edits.
+- Fixed `ParseRunCommand` in `meta/parser.go` to filter out `(link unavailable)` strings and updated `handleAI` streaming in `commands/ai.go` to prevent premature partial `RUN_COMMAND` message edits.
 - Updated `ws.go` and `messages.go` to enforce strict Protocol Buffer (`protobuf`) binary transport over WebSockets (`ControlFrame` / `EventFrame`), dropping legacy text JSON handling.
 - Updated `example/client.go` to demonstrate pure Protobuf binary event decoding and control requests.
 
