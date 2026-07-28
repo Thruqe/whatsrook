@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"whatsrook/font"
 	waSender "whatsrook/sender"
 	"whatsrook/store/sqlstore"
 	"whatsrook/utils"
@@ -116,7 +115,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	if okStore {
 		initTables(ctx, s)
 		if fontStyle, err := s.GetSetting(ctx, "font_style"); err == nil && fontStyle != "" {
-			font.SetStyle(fontStyle)
+			utils.SetFontStyle(fontStyle)
 		}
 	}
 

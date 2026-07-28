@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"whatsrook/font"
 	"whatsrook/store/sqlstore"
+	"whatsrook/utils"
 )
 
 func init() {
@@ -140,5 +140,5 @@ func formatBytes(b uint64) string {
 }
 
 func toFancy(s string) string {
-	return font.Convert(s)
+	return utils.ConvertFontStyle(s)
 }

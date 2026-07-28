@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
-	"whatsrook/font"
 	"whatsrook/store/sqlstore"
+	"whatsrook/utils"
 )
 
 var validStyles = map[string]bool{
@@ -64,7 +64,7 @@ func init() {
 
 func handleFont(ctx *Context) error {
 	if len(ctx.Args) == 0 {
-		return ctx.Reply(fmt.Sprintf("Usage: font <style>. Current font: %s", font.GetStyle()))
+		return ctx.Reply(fmt.Sprintf("Usage: font <style>. Current font: %s", utils.GetFontStyle()))
 	}
 
 	style := strings.ToLower(ctx.Args[0])
@@ -76,7 +76,7 @@ func handleFont(ctx *Context) error {
 		return ctx.Reply("Invalid font style! Use 'fontlist' command to view available options.")
 	}
 
-	font.SetStyle(style)
+	utils.SetFontStyle(style)
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if ok {
 		_ = s.PutSetting(ctx.Ctx, "font_style", style)
@@ -92,7 +92,7 @@ func handleFontList(ctx *Context) error {
 	}
 	sort.Strings(styles)
 
-	current := font.GetStyle()
+	current := utils.GetFontStyle()
 	var sb strings.Builder
 	sb.WriteString("Available Font Styles\n\n")
 
