@@ -69,15 +69,6 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleWCG,
 	})
-
-	Register(&Command{
-		Name:        "wcgleaderboard",
-		Aliases:     []string{"wcglb"},
-		Description: "Show Word Guessing Game (WCG) leaderboard & titles",
-		Category:    "games",
-		IsPublic:    true,
-		Handler:     handleWCGLeaderboard,
-	})
 }
 
 // IsWCGGameActive returns true if there is an active WCG game (lobby or in-progress) in the chat.
