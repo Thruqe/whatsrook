@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -31,17 +32,18 @@ func parseClientType(s string) (ClientType, bool) {
 
 // CliArgs holds all parsed command-line arguments and environment overrides.
 type CliArgs struct {
-	Session string
-	Pair    bool
-	Port    string
-	AuthDir string
-	QRCode  bool
-	Logout  bool
-	Update  bool
-	Debug   bool
-	Verbose bool
-	Dev     bool
-	Client  ClientType
+	Session         string
+	Pair            bool
+	Port            string
+	AuthDir         string
+	QRCode          bool
+	Logout          bool
+	Update          bool
+	Debug           bool
+	Verbose         bool
+	Dev             bool
+	Client          ClientType
+	SkipOldMessages bool
 }
 
 func parseArgs() CliArgs {
@@ -63,6 +65,7 @@ Options:
   -u, --update           Check and perform application update, then exit or restart
   -v, --verbose          Enable verbose logging for application (excluding whatsmeow)
   -d, --dev              Dev mode: disables CORS origin check on WebSocket
+  --no-skip-old          Process messages sent while the bot was offline (default: skip them)
   -h, --help             Show this help message
 `)
 			os.Exit(0)
@@ -86,8 +89,8 @@ Options:
 				}
 				return true
 			}
-			if strings.HasPrefix(a, longFlag+"=") {
-				val := strings.TrimPrefix(a, longFlag+"=")
+			if after, ok := strings.CutPrefix(a, longFlag+"="); ok {
+				val := after
 				return val == "true" || val == "1"
 			}
 			if shortFlag != "" && strings.HasPrefix(a, shortFlag+"=") {
@@ -143,16 +146,19 @@ Options:
 		authDir = "auth"
 	}
 
+	skipOld := !slices.Contains(args, "--no-skip-old")
+
 	return CliArgs{
-		Session: session,
-		Pair:    getBoolFlag("--pair", "-p", "PAIR"),
-		Port:    port,
-		AuthDir: authDir,
-		QRCode:  getBoolFlag("--qrcode", "-q", "QRCODE"),
-		Logout:  getBoolFlag("--logout", "-l", "LOGOUT"),
-		Update:  isUpdate,
-		Verbose: getBoolFlag("--verbose", "-v", "VERBOSE"),
-		Dev:     getBoolFlag("--dev", "-d", "DEV"),
-		Client:  client,
+		Session:         session,
+		Pair:            getBoolFlag("--pair", "-p", "PAIR"),
+		Port:            port,
+		AuthDir:         authDir,
+		QRCode:          getBoolFlag("--qrcode", "-q", "QRCODE"),
+		Logout:          getBoolFlag("--logout", "-l", "LOGOUT"),
+		Update:          isUpdate,
+		Verbose:         getBoolFlag("--verbose", "-v", "VERBOSE"),
+		Dev:             getBoolFlag("--dev", "-d", "DEV"),
+		Client:          client,
+		SkipOldMessages: skipOld,
 	}
 }

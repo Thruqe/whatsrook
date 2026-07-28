@@ -52,6 +52,13 @@ func (b *Bot) handleWAEvent(evt any) {
 		go b.notifyOwnerConnected()
 
 	case *events.Message:
+
+		// Skip messages sent before the bot started running
+		if b.cli.SkipOldMessages && v.Info.Timestamp.Before(b.startupTime) {
+			slog.Debug("skipping old message", "timestamp", v.Info.Timestamp, "startup", b.startupTime)
+			return
+		}
+
 		if v.Info.IsGroup {
 			if s, ok := b.client.Store.Identities.(*sqlstore.SQLStore); ok {
 				_ = s.RecordParticipantActivity(context.Background(), v.Info.Chat, v.Info.Sender, v.Info.Timestamp)

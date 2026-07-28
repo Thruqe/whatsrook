@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"time"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCompanionReg"
@@ -20,15 +21,16 @@ var ErrPairTimeout = errors.New("pairing timed out")
 // Bot manages the state and lifecycle of the WhatsApp client, bridging incoming
 // platform events with the central event hub and handling control messages.
 type Bot struct {
-	client *whatsmeow.Client
-	hub    *Hub
-	cli    CliArgs
+	client      *whatsmeow.Client
+	hub         *Hub
+	cli         CliArgs
+	startupTime time.Time
 }
 
 // newBot initializes and returns a new Bot instance with the provided whatsmeow Client,
 // central Hub, and command-line execution parameters.
 func newBot(client *whatsmeow.Client, hub *Hub, cli CliArgs) *Bot {
-	return &Bot{client: client, hub: hub, cli: cli}
+	return &Bot{client: client, hub: hub, cli: cli, startupTime: time.Now()}
 }
 
 // run configures the client properties, attaches event handlers, manages initial connection
