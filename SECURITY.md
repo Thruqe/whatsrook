@@ -26,6 +26,7 @@ WhatsRook exists to enable legitimate automation, not deception. Contributions o
 WhatsRook talks directly to real people over WhatsApp — treat that responsibly.
 
 Do not use it to:
+
 - Stalk or covertly monitor someone
 - Harass, threaten, or send abusive content
 - Send unsolicited spam or malicious payloads
