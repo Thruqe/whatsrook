@@ -104,37 +104,26 @@ func handlePlay(ctx *Context) error {
 	bodyText += "\n\nWould you like to download this as video or audio?"
 
 	prefix := ctx.GetPrefix()
-	videoBtnID := fmt.Sprintf("%splay video %s", prefix, videoID)
-	audioBtnID := fmt.Sprintf("%splay audio %s", prefix, videoID)
-
-	videoBtnJSON := fmt.Sprintf(`{"display_text":"Video","id":%q}`, videoBtnID)
-	audioBtnJSON := fmt.Sprintf(`{"display_text":"Audio","id":%q}`, audioBtnID)
-
-	msgVersion := int32(1)
+	videoBtnID := prefix + "play video " + videoID
+	audioBtnID := prefix + "play audio " + videoID
 
 	msg := &waE2E.Message{
 		DocumentWithCaptionMessage: &waE2E.FutureProofMessage{
 			Message: &waE2E.Message{
-				InteractiveMessage: &waE2E.InteractiveMessage{
-					Body: &waE2E.InteractiveMessage_Body{
-						Text: &bodyText,
-					},
-					Footer: &waE2E.InteractiveMessage_Footer{
-						Text: new("Powered by WhatsRook"),
-					},
-					InteractiveMessage: &waE2E.InteractiveMessage_NativeFlowMessage_{
-						NativeFlowMessage: &waE2E.InteractiveMessage_NativeFlowMessage{
-							Buttons: []*waE2E.InteractiveMessage_NativeFlowMessage_NativeFlowButton{
-								{
-									Name:             new("quick_reply"),
-									ButtonParamsJSON: &videoBtnJSON,
-								},
-								{
-									Name:             new("quick_reply"),
-									ButtonParamsJSON: &audioBtnJSON,
-								},
-							},
-							MessageVersion: &msgVersion,
+				ButtonsMessage: &waE2E.ButtonsMessage{
+					ContentText: &bodyText,
+					FooterText:  new("Powered by WhatsRook"),
+					HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
+					Buttons: []*waE2E.ButtonsMessage_Button{
+						{
+							ButtonID:   new(videoBtnID),
+							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: new("Video")},
+							Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
+						},
+						{
+							ButtonID:   new(audioBtnID),
+							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: new("Audio")},
+							Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
 						},
 					},
 				},
@@ -170,6 +159,82 @@ func handlePlay(ctx *Context) error {
 	}
 
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
+	return err
+}
+
+// isCookieError checks if the yt-dlp error is caused by missing/invalid cookies
+// (YouTube bot detection requiring sign-in).
+func isCookieError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "sign in to confirm") ||
+		strings.Contains(errStr, "use --cookies-from-browser") ||
+		strings.Contains(errStr, "use --cookies for the authentication") ||
+		strings.Contains(errStr, "login_required")
+}
+
+// sendCookieHelp sends a helpful message with buttons guiding the user to set cookies.
+func sendCookieHelp(ctx *Context) error {
+	prefix := ctx.GetPrefix()
+	bodyText := fmt.Sprintf("You haven't configured your YouTube cookies yet. YouTube is blocking this request because it looks like a bot.\n\nPlease check out the %scookie command for instructions, or use the %sai command for more help.", prefix, prefix)
+
+	cookieBtnID := prefix + "cookie"
+	aiBtnID := prefix + "ai"
+
+	msg := &waE2E.Message{
+		DocumentWithCaptionMessage: &waE2E.FutureProofMessage{
+			Message: &waE2E.Message{
+				ButtonsMessage: &waE2E.ButtonsMessage{
+					ContentText: &bodyText,
+					FooterText:  new("Powered by WhatsRook"),
+					HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
+					Buttons: []*waE2E.ButtonsMessage_Button{
+						{
+							ButtonID:   new(cookieBtnID),
+							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: new("Cookie Tutorial")},
+							Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
+						},
+						{
+							ButtonID:   new(aiBtnID),
+							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: new("Ask AI")},
+							Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	bizNode := waBinary.Node{
+		Tag:   "biz",
+		Attrs: waBinary.Attrs{},
+		Content: []waBinary.Node{
+			{
+				Tag: "interactive",
+				Attrs: waBinary.Attrs{
+					"type": "native_flow",
+					"v":    "1",
+				},
+				Content: []waBinary.Node{
+					{
+						Tag: "native_flow",
+						Attrs: waBinary.Attrs{
+							"v":    "9",
+							"name": "mixed",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	extra := whatsmeow.SendRequestExtra{
+		AdditionalNodes: &[]waBinary.Node{bizNode},
+	}
+
+	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
 	return err
 }
 
@@ -210,6 +275,9 @@ func handlePlayDownload(ctx *Context, format string, target string) error {
 		_, err := cmdAud.Run(ctx.Ctx, targetURL)
 		if err != nil {
 			slog.Error("play audio download failed", "target", targetURL, "err", err)
+			if isCookieError(err) {
+				return sendCookieHelp(ctx)
+			}
 			return ctx.Reply("Failed to download audio.")
 		}
 
@@ -258,6 +326,10 @@ func handlePlayDownload(ctx *Context, format string, target string) error {
 	_, err = cmdVid.Run(ctx.Ctx, targetURL)
 	if err != nil {
 		slog.Warn("play video download standard format failed, retrying", "target", targetURL, "err", err)
+		if isCookieError(err) {
+			return sendCookieHelp(ctx)
+		}
+
 		cmdFallback := ytdlp.New().JsRuntimes("bun").Output(rawPath + ".%(ext)s")
 		if cookiePath, cleanupCookie, ok := GetYouTubeCookieFile(ctx); ok {
 			defer cleanupCookie()
@@ -266,6 +338,9 @@ func handlePlayDownload(ctx *Context, format string, target string) error {
 		_, err = cmdFallback.Run(ctx.Ctx, targetURL)
 		if err != nil {
 			slog.Error("play video download failed", "target", targetURL, "err", err)
+			if isCookieError(err) {
+				return sendCookieHelp(ctx)
+			}
 			return ctx.Reply("Failed to download video.")
 		}
 	}

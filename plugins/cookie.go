@@ -52,30 +52,20 @@ func handleCookieInstruction(ctx *Context) error {
 
 	prefix := ctx.GetPrefix()
 	btnID := prefix + "setcookie"
-	btnJSON := fmt.Sprintf(`{"display_text":"Set Cookie","id":%q}`, btnID)
-	msgVersion := int32(1)
-
 	bodyText := "Bot is awaiting you. Click the button below or paste your Netscape cookies after .setcookie command."
 
 	msg := &waE2E.Message{
 		DocumentWithCaptionMessage: &waE2E.FutureProofMessage{
 			Message: &waE2E.Message{
-				InteractiveMessage: &waE2E.InteractiveMessage{
-					Body: &waE2E.InteractiveMessage_Body{
-						Text: &bodyText,
-					},
-					Footer: &waE2E.InteractiveMessage_Footer{
-						Text: new("Powered by WhatsRook"),
-					},
-					InteractiveMessage: &waE2E.InteractiveMessage_NativeFlowMessage_{
-						NativeFlowMessage: &waE2E.InteractiveMessage_NativeFlowMessage{
-							Buttons: []*waE2E.InteractiveMessage_NativeFlowMessage_NativeFlowButton{
-								{
-									Name:             new("quick_reply"),
-									ButtonParamsJSON: &btnJSON,
-								},
-							},
-							MessageVersion: &msgVersion,
+				ButtonsMessage: &waE2E.ButtonsMessage{
+					ContentText: &bodyText,
+					FooterText:  new("Powered by WhatsRook"),
+					HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
+					Buttons: []*waE2E.ButtonsMessage_Button{
+						{
+							ButtonID:   new(btnID),
+							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: new("Set Cookie")},
+							Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
 						},
 					},
 				},
@@ -128,30 +118,20 @@ func handleSetCookie(ctx *Context) error {
 	if cookieData == "" {
 		prefix := ctx.GetPrefix()
 		btnID := prefix + "cookie"
-		btnJSON := fmt.Sprintf(`{"display_text":"View Tutorial","id":%q}`, btnID)
-		msgVersion := int32(1)
-
 		bodyText := "Bot is awaiting you, paste your cookies and nothing else after .setcookie command."
 
 		msg := &waE2E.Message{
 			DocumentWithCaptionMessage: &waE2E.FutureProofMessage{
 				Message: &waE2E.Message{
-					InteractiveMessage: &waE2E.InteractiveMessage{
-						Body: &waE2E.InteractiveMessage_Body{
-							Text: &bodyText,
-						},
-						Footer: &waE2E.InteractiveMessage_Footer{
-							Text: new("Powered by WhatsRook"),
-						},
-						InteractiveMessage: &waE2E.InteractiveMessage_NativeFlowMessage_{
-							NativeFlowMessage: &waE2E.InteractiveMessage_NativeFlowMessage{
-								Buttons: []*waE2E.InteractiveMessage_NativeFlowMessage_NativeFlowButton{
-									{
-										Name:             new("quick_reply"),
-										ButtonParamsJSON: &btnJSON,
-									},
-								},
-								MessageVersion: &msgVersion,
+					ButtonsMessage: &waE2E.ButtonsMessage{
+						ContentText: &bodyText,
+						FooterText:  new("Powered by WhatsRook"),
+						HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
+						Buttons: []*waE2E.ButtonsMessage_Button{
+							{
+								ButtonID:   new(btnID),
+								ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: new("View Tutorial")},
+								Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
 							},
 						},
 					},
