@@ -14,55 +14,57 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+	"google.golang.org/protobuf/proto"
+	"whatsrook/sender"
 )
 
 func init() {
 	Register(&Command{
 		Name:        "archive",
 		Description: "Archive the current chat",
-		Category:    "chat",
+		Category:    "chats",
 		IsPublic:    false,
 		Handler:     handleArchive,
 	})
 	Register(&Command{
 		Name:        "unarchive",
 		Description: "Unarchive the current chat",
-		Category:    "chat",
+		Category:    "chats",
 		IsPublic:    false,
 		Handler:     handleUnarchive,
 	})
 	Register(&Command{
 		Name:        "pin",
 		Description: "Pin the current chat (or pin the replied message)",
-		Category:    "chat",
+		Category:    "chats",
 		IsPublic:    true,
 		Handler:     handlePin,
 	})
 	Register(&Command{
 		Name:        "unpin",
 		Description: "Unpin the current chat (or unpin the replied message)",
-		Category:    "chat",
+		Category:    "chats",
 		IsPublic:    true,
 		Handler:     handleUnpin,
 	})
 	Register(&Command{
 		Name:        "block",
 		Description: "Block the target contact or current private chat JID",
-		Category:    "chat",
+		Category:    "chats",
 		IsPublic:    false,
 		Handler:     handleBlock,
 	})
 	Register(&Command{
 		Name:        "unblock",
 		Description: "Unblock the target contact or current private chat JID",
-		Category:    "chat",
+		Category:    "chats",
 		IsPublic:    false,
 		Handler:     handleUnblock,
 	})
 	Register(&Command{
 		Name:        "clear",
 		Description: "Clear all messages in the current chat",
-		Category:    "chat",
+		Category:    "chats",
 		IsPublic:    false,
 		Handler:     handleClear,
 	})
@@ -70,16 +72,23 @@ func init() {
 		Name:        "delete",
 		Aliases:     []string{"del", "dlt"},
 		Description: "Delete/revoke a message (must reply to the target message)",
-		Category:    "chat",
+		Category:    "chats",
 		IsPublic:    true,
 		Handler:     handleDelete,
 	})
 	Register(&Command{
 		Name:        "report",
 		Description: "Submit a spam report for the target user or replied message to WhatsApp",
-		Category:    "chat",
+		Category:    "chats",
 		IsPublic:    false,
 		Handler:     handleReport,
+	})
+	Register(&Command{
+		Name:        "vv",
+		Description: "Unwrap a ViewOnce message and resend it as a normal message (replying to a ViewOnce message)",
+		Category:    "chats",
+		IsPublic:    true,
+		Handler:     handleVV,
 	})
 }
 
@@ -478,4 +487,82 @@ func handleReport(ctx *Context) error {
 		return ctx.ReplyWithMentions(fmt.Sprintf("Reported @%s for spam to whatsapp %dx.", username, count), []types.JID{resolvedJID})
 	}
 	return ctx.ReplyWithMentions(fmt.Sprintf("Reported @%s for spam to whatsapp.", username), []types.JID{resolvedJID})
+}
+
+func handleVV(ctx *Context) error {
+	quoted := ctx.GetQuotedMessage()
+	if quoted == nil {
+		return ctx.Reply("Please reply to a ViewOnce message.")
+	}
+
+	isViewOnce := false
+	if quoted.ViewOnceMessage != nil || quoted.ViewOnceMessageV2 != nil || quoted.ViewOnceMessageV2Extension != nil {
+		isViewOnce = true
+	} else if img := quoted.GetImageMessage(); img != nil && img.GetViewOnce() {
+		isViewOnce = true
+	} else if vid := quoted.GetVideoMessage(); vid != nil && vid.GetViewOnce() {
+		isViewOnce = true
+	}
+
+	if !isViewOnce {
+		return ctx.Reply("The replied message is not a ViewOnce message.")
+	}
+
+	unwrapped := sender.ExtractViewOnceMessage(quoted)
+	if unwrapped == nil {
+		return ctx.Reply("Failed to unwrap ViewOnce message.")
+	}
+
+	// Link back to the original ViewOnce message as a quote/reply
+	var quotedStanzaID string
+	var quotedParticipant string
+	if ext := ctx.Evt.Message.GetExtendedTextMessage(); ext != nil {
+		if ci := ext.GetContextInfo(); ci != nil {
+			if ci.StanzaID != nil {
+				quotedStanzaID = *ci.StanzaID
+			}
+			if ci.Participant != nil {
+				quotedParticipant = *ci.Participant
+			}
+		}
+	}
+
+	if quotedStanzaID != "" && quotedParticipant != "" {
+		quotedClone := proto.Clone(quoted).(*waE2E.Message)
+
+		// Clear any context info inside the cloned quoted message to break circular references completely!
+		if quotedClone.ImageMessage != nil {
+			quotedClone.ImageMessage.ContextInfo = nil
+		}
+		if quotedClone.VideoMessage != nil {
+			quotedClone.VideoMessage.ContextInfo = nil
+		}
+		if quotedClone.AudioMessage != nil {
+			quotedClone.AudioMessage.ContextInfo = nil
+		}
+
+		ci := &waE2E.ContextInfo{
+			StanzaID:      &quotedStanzaID,
+			Participant:   &quotedParticipant,
+			QuotedMessage: quotedClone,
+		}
+
+		// Also clone unwrapped.ImageMessage / VideoMessage / AudioMessage to prevent modifying the original quoted message!
+		if unwrapped.ImageMessage != nil {
+			newImg := proto.Clone(unwrapped.ImageMessage).(*waE2E.ImageMessage)
+			newImg.ContextInfo = ci
+			unwrapped.ImageMessage = newImg
+		} else if unwrapped.VideoMessage != nil {
+			newVid := proto.Clone(unwrapped.VideoMessage).(*waE2E.VideoMessage)
+			newVid.ContextInfo = ci
+			unwrapped.VideoMessage = newVid
+		} else if unwrapped.AudioMessage != nil {
+			newAud := proto.Clone(unwrapped.AudioMessage).(*waE2E.AudioMessage)
+			newAud.ContextInfo = ci
+			unwrapped.AudioMessage = newAud
+		}
+	}
+
+	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, unwrapped)
+	return err
 }

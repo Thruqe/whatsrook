@@ -13,10 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"whatsrook/sender"
-
-	"go.mau.fi/whatsmeow/proto/waE2E"
-	"google.golang.org/protobuf/proto"
+	"whatsrook/utils"
 )
 
 func init() {
@@ -84,13 +81,6 @@ func init() {
 		Category:    "media",
 		IsPublic:    true,
 		Handler:     handleTrim,
-	})
-	Register(&Command{
-		Name:        "vv",
-		Description: "Unwrap a ViewOnce message and resend it as a normal message (replying to a ViewOnce message)",
-		Category:    "media",
-		IsPublic:    true,
-		Handler:     handleVV,
 	})
 }
 
@@ -251,7 +241,7 @@ func handleSteal(ctx *Context) error {
 
 	_ = ctx.Reply("Remapping sticker metadata...")
 
-	updatedData, err := AddStickerMetadata(data, packName, author)
+	updatedData, err := utils.AddStickerMetadata(data, packName, author)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf(" Failed to update sticker metadata: %v", err))
 	}
@@ -310,7 +300,7 @@ func processSticker(data []byte, isVideo bool, packName, author, filter string) 
 				continue
 			}
 
-			finalPath, err := writeStickerMetadata(tempOut, packName, author)
+			finalPath, err := utils.WriteStickerMetadata(tempOut, packName, author)
 			if err != nil {
 				lastErr = fmt.Errorf("sticker metadata failed at attempt %d: %w", idx, err)
 				continue
@@ -350,7 +340,7 @@ func processSticker(data []byte, isVideo bool, packName, author, filter string) 
 		return nil, fmt.Errorf("ffmpeg failed: %w (output: %s)", err, string(out))
 	}
 
-	finalPath, err := writeStickerMetadata(tempOut, packName, author)
+	finalPath, err := utils.WriteStickerMetadata(tempOut, packName, author)
 	if err != nil {
 		return nil, err
 	}
@@ -494,82 +484,4 @@ func processTrim(data []byte, start, end string) ([]byte, error) {
 	}
 
 	return os.ReadFile(tempOut)
-}
-
-func handleVV(ctx *Context) error {
-	quoted := ctx.GetQuotedMessage()
-	if quoted == nil {
-		return ctx.Reply("Please reply to a ViewOnce message.")
-	}
-
-	isViewOnce := false
-	if quoted.ViewOnceMessage != nil || quoted.ViewOnceMessageV2 != nil || quoted.ViewOnceMessageV2Extension != nil {
-		isViewOnce = true
-	} else if img := quoted.GetImageMessage(); img != nil && img.GetViewOnce() {
-		isViewOnce = true
-	} else if vid := quoted.GetVideoMessage(); vid != nil && vid.GetViewOnce() {
-		isViewOnce = true
-	}
-
-	if !isViewOnce {
-		return ctx.Reply("The replied message is not a ViewOnce message.")
-	}
-
-	unwrapped := sender.ExtractViewOnceMessage(quoted)
-	if unwrapped == nil {
-		return ctx.Reply("Failed to unwrap ViewOnce message.")
-	}
-
-	// Link back to the original ViewOnce message as a quote/reply
-	var quotedStanzaID string
-	var quotedParticipant string
-	if ext := ctx.Evt.Message.GetExtendedTextMessage(); ext != nil {
-		if ci := ext.GetContextInfo(); ci != nil {
-			if ci.StanzaID != nil {
-				quotedStanzaID = *ci.StanzaID
-			}
-			if ci.Participant != nil {
-				quotedParticipant = *ci.Participant
-			}
-		}
-	}
-
-	if quotedStanzaID != "" && quotedParticipant != "" {
-		quotedClone := proto.Clone(quoted).(*waE2E.Message)
-
-		// Clear any context info inside the cloned quoted message to break circular references completely!
-		if quotedClone.ImageMessage != nil {
-			quotedClone.ImageMessage.ContextInfo = nil
-		}
-		if quotedClone.VideoMessage != nil {
-			quotedClone.VideoMessage.ContextInfo = nil
-		}
-		if quotedClone.AudioMessage != nil {
-			quotedClone.AudioMessage.ContextInfo = nil
-		}
-
-		ci := &waE2E.ContextInfo{
-			StanzaID:      &quotedStanzaID,
-			Participant:   &quotedParticipant,
-			QuotedMessage: quotedClone,
-		}
-
-		// Also clone unwrapped.ImageMessage / VideoMessage / AudioMessage to prevent modifying the original quoted message!
-		if unwrapped.ImageMessage != nil {
-			newImg := proto.Clone(unwrapped.ImageMessage).(*waE2E.ImageMessage)
-			newImg.ContextInfo = ci
-			unwrapped.ImageMessage = newImg
-		} else if unwrapped.VideoMessage != nil {
-			newVid := proto.Clone(unwrapped.VideoMessage).(*waE2E.VideoMessage)
-			newVid.ContextInfo = ci
-			unwrapped.VideoMessage = newVid
-		} else if unwrapped.AudioMessage != nil {
-			newAud := proto.Clone(unwrapped.AudioMessage).(*waE2E.AudioMessage)
-			newAud.ContextInfo = ci
-			unwrapped.AudioMessage = newAud
-		}
-	}
-
-	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, unwrapped)
-	return err
 }

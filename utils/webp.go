@@ -1,5 +1,5 @@
 // WebP image processing – encode, decode, and manipulate WebP images.
-package commands
+package utils
 
 import (
 	"bytes"
@@ -343,8 +343,8 @@ func GetStickerMetadata(webpData []byte) (*exifStickerMetadata, error) {
 	return &meta, nil
 }
 
-// writeStickerMetadata replaces the old webpmux-based implementation and modifies the file in place.
-func writeStickerMetadata(inputPath, packName, author string) (string, error) {
+// WriteStickerMetadata replaces the old webpmux-based implementation and modifies the file in place.
+func WriteStickerMetadata(inputPath, packName, author string) (string, error) {
 	webpData, err := os.ReadFile(inputPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read webp: %w", err)
