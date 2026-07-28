@@ -1,8 +1,18 @@
 FROM golang:1.26-bookworm AS builder
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
 COPY . .
-RUN go build -o whatsrook .
+RUN CGO_ENABLED=1 go build -ldflags="-w -s" -o whatsrook .
 
 FROM debian:bookworm-slim
 
@@ -13,7 +23,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tar \
     gzip \
     ffmpeg \
-    ffprobe \
     python3 \
     && rm -rf /var/lib/apt/lists/* \
     && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \

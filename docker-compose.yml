@@ -7,7 +7,7 @@ services:
       - SESSION=2348000000000
       - PORT=3000
       - CLIENT=chrome
-      - QRCODE=true
+      - PAIR=true
     volumes:
       - whatsrook_auth:/app/auth
     restart: unless-stopped
