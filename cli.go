@@ -49,45 +49,49 @@ func parseArgs() CliArgs {
 
 	for _, a := range args {
 		if a == "-h" || a == "--help" {
-			fmt.Print(`Usage: whatsrook --session <phone_number> [OPTIONS]
+			fmt.Print(`Usage: whatsrook -session <phone_number> [OPTIONS]
        whatsrook --update
 
 Options:
-  --session <phone>     Phone number used to identify the session (required unless --update)
-  --pair                Request a pair code using the --session phone number
-  --port <port>         Specify the HTTP/WebSocket port (default: 3000, or $PORT)
-  --auth-dir <path>     Directory to store session auth files (default: ./auth)
-  --client <type>       Client type: chrome (default), android, ios
-  --qrcode              Print the QR code to stdout for scanning
-  --logout              Remove the session auth files and exit
-  --update              Check and perform application update, then exit or restart
-  --verbose             Enable verbose logging for application (excluding whatsmeow)
-  --dev                 Dev mode: disables CORS origin check on WebSocket
-  -h, --help            Show this help message
+  -s, --session <phone>  Phone number used to identify the session (required unless --update)
+  -p, --pair             Request a pair code using the --session phone number
+  -P, --port <port>      Specify the HTTP/WebSocket port (default: 3000, or $PORT)
+  -a, --auth-dir <path>  Directory to store session auth files (default: ./auth)
+  -c, --client <type>    Client type: chrome (default), android, ios
+  -q, --qrcode           Print the QR code to stdout for scanning
+  -l, --logout           Remove the session auth files and exit
+  -u, --update           Check and perform application update, then exit or restart
+  -v, --verbose          Enable verbose logging for application (excluding whatsmeow)
+  -d, --dev              Dev mode: disables CORS origin check on WebSocket
+  -h, --help             Show this help message
 `)
 			os.Exit(0)
 		}
 	}
 
-	getValue := func(flag string) string {
+	getValue := func(longFlag, shortFlag string) string {
 		for i, a := range args {
-			if a == flag && i+1 < len(args) {
+			if (a == longFlag || a == shortFlag) && i+1 < len(args) {
 				return args[i+1]
 			}
 		}
 		return ""
 	}
 
-	getBoolFlag := func(flag string, envVar string) bool {
+	getBoolFlag := func(longFlag, shortFlag, envVar string) bool {
 		for i, a := range args {
-			if a == flag {
+			if a == longFlag || a == shortFlag {
 				if i+1 < len(args) && (args[i+1] == "true" || args[i+1] == "false") {
 					return args[i+1] == "true"
 				}
 				return true
 			}
-			if strings.HasPrefix(a, flag+"=") {
-				val := strings.TrimPrefix(a, flag+"=")
+			if strings.HasPrefix(a, longFlag+"=") {
+				val := strings.TrimPrefix(a, longFlag+"=")
+				return val == "true" || val == "1"
+			}
+			if shortFlag != "" && strings.HasPrefix(a, shortFlag+"=") {
+				val := strings.TrimPrefix(a, shortFlag+"=")
 				return val == "true" || val == "1"
 			}
 		}
@@ -98,9 +102,9 @@ Options:
 		return false
 	}
 
-	isUpdate := getBoolFlag("--update", "UPDATE")
+	isUpdate := getBoolFlag("--update", "-u", "UPDATE")
 
-	session := getValue("--session")
+	session := getValue("--session", "-s")
 	if session == "" {
 		session = os.Getenv("SESSION")
 	}
@@ -110,7 +114,7 @@ Options:
 	}
 
 	client := ClientChrome
-	if raw := getValue("--client"); raw != "" {
+	if raw := getValue("--client", "-c"); raw != "" {
 		c, ok := parseClientType(raw)
 		if !ok {
 			fmt.Fprintf(os.Stderr, "Error: unknown --client %q. Valid options: chrome, android, ios\n", raw)
@@ -123,7 +127,7 @@ Options:
 		}
 	}
 
-	port := getValue("--port")
+	port := getValue("--port", "-P")
 	if port == "" {
 		port = os.Getenv("PORT")
 	}
@@ -131,7 +135,7 @@ Options:
 		port = "3000"
 	}
 
-	authDir := getValue("--auth-dir")
+	authDir := getValue("--auth-dir", "-a")
 	if authDir == "" {
 		authDir = os.Getenv("AUTH_DIR")
 	}
@@ -141,14 +145,14 @@ Options:
 
 	return CliArgs{
 		Session: session,
-		Pair:    getBoolFlag("--pair", "PAIR"),
+		Pair:    getBoolFlag("--pair", "-p", "PAIR"),
 		Port:    port,
 		AuthDir: authDir,
-		QRCode:  getBoolFlag("--qrcode", "QRCODE"),
-		Logout:  getBoolFlag("--logout", "LOGOUT"),
+		QRCode:  getBoolFlag("--qrcode", "-q", "QRCODE"),
+		Logout:  getBoolFlag("--logout", "-l", "LOGOUT"),
 		Update:  isUpdate,
-		Verbose: getBoolFlag("--verbose", "VERBOSE"),
-		Dev:     getBoolFlag("--dev", "DEV"),
+		Verbose: getBoolFlag("--verbose", "-v", "VERBOSE"),
+		Dev:     getBoolFlag("--dev", "-d", "DEV"),
 		Client:  client,
 	}
 }
