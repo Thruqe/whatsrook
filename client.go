@@ -88,7 +88,7 @@ func initateClient() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", hub.ServeWS(cli.Dev))
 	server := &http.Server{
-		Addr:    "0.0.0.0:" + cli.Port,
+		Addr:    ":" + cli.Port,
 		Handler: mux,
 	}
 	go func() {

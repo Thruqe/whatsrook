@@ -1,0 +1,18 @@
+{
+  "name": "whatsrook-web",
+  "module": "client.ts",
+  "type": "module",
+  "private": false,
+  "scripts": {
+    "generate:proto": "../../scripts/generate-proto-bun.sh",
+    "start": "bun run client.ts",
+    "dev": "bun --watch run client.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "ts-proto": "^2.2.0"
+  },
+  "dependencies": {
+    "protobufjs": "^7.4.0"
+  }
+}

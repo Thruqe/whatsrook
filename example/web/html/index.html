@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>WhatsRook</title>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+			rel="stylesheet"
+		/>
+		<link
+			rel="stylesheet"
+			href="https://cdn-uicons.flaticon.com/2.6.0/uicons-solid-rounded/css/uicons-solid-rounded.css"
+		/>
+		<link rel="stylesheet" href="/css/style.css" />
+		<style>
+			:root {
+				--bg: #f6f7fb;
+				--card: #ffffff;
+				--border: #e7e9f0;
+				--text: #14161f;
+				--text-dim: #6b7086;
+				--brand: #22c55e;
+				--brand-dark: #16a34a;
+				--brand-soft: #e9fbf1;
+				--danger: #ef4444;
+				--shadow: 0 10px 30px rgba(20, 22, 31, 0.06);
+				--radius: 18px;
+			}
+			* {
+				box-sizing: border-box;
+			}
+			html,
+			body {
+				margin: 0;
+				padding: 0;
+				height: 100%;
+				background: var(--bg);
+				font-family: "Inter", system-ui, sans-serif;
+				color: var(--text);
+			}
+			.screen {
+				min-height: 100vh;
+				display: none;
+				align-items: center;
+				justify-content: center;
+				padding: 24px;
+			}
+			.screen.active {
+				display: flex;
+			}
+
+			.card {
+				width: 100%;
+				max-width: 420px;
+				background: var(--card);
+				border: 1px solid var(--border);
+				border-radius: var(--radius);
+				box-shadow: var(--shadow);
+				padding: 36px 32px;
+			}
+
+			.brand {
+				display: flex;
+				align-items: center;
+				gap: 10px;
+				margin-bottom: 28px;
+			}
+			.brand-icon {
+				width: 40px;
+				height: 40px;
+				border-radius: 12px;
+				background: var(--brand-soft);
+				color: var(--brand-dark);
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				font-size: 20px;
+			}
+			.brand-name {
+				font-weight: 800;
+				font-size: 18px;
+				letter-spacing: -0.02em;
+			}
+
+			h1 {
+				font-size: 22px;
+				font-weight: 700;
+				margin: 0 0 6px;
+				letter-spacing: -0.02em;
+			}
+			p.sub {
+				color: var(--text-dim);
+				margin: 0 0 28px;
+				font-size: 14.5px;
+				line-height: 1.5;
+			}
+
+			.field {
+				margin-bottom: 18px;
+			}
+			.field label {
+				display: block;
+				font-size: 13.5px;
+				font-weight: 600;
+				margin-bottom: 8px;
+				color: var(--text);
+			}
+
+			.phone-input {
+				display: flex;
+				border: 1.5px solid var(--border);
+				border-radius: 12px;
+				overflow: hidden;
+				transition: border-color 0.15s;
+			}
+			.phone-input:focus-within {
+				border-color: var(--brand);
+			}
+			.phone-input .prefix {
+				display: flex;
+				align-items: center;
+				padding: 0 14px;
+				background: #fafbfd;
+				color: var(--text-dim);
+				font-weight: 600;
+				border-right: 1.5px solid var(--border);
+			}
+			.phone-input input {
+				border: none;
+				outline: none;
+				padding: 14px 14px;
+				font-size: 15.5px;
+				font-family: inherit;
+				flex: 1;
+				min-width: 0;
+				background: transparent;
+				color: var(--text);
+			}
+
+			button.primary {
+				width: 100%;
+				padding: 14px;
+				border: none;
+				border-radius: 12px;
+				background: var(--brand);
+				color: white;
+				font-family: inherit;
+				font-weight: 700;
+				font-size: 15.5px;
+				cursor: pointer;
+				transition:
+					background 0.15s,
+					transform 0.1s;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				gap: 8px;
+			}
+			button.primary:hover {
+				background: var(--brand-dark);
+			}
+			button.primary:active {
+				transform: scale(0.98);
+			}
+			button.primary:disabled {
+				opacity: 0.55;
+				cursor: not-allowed;
+			}
+
+			.hint {
+				font-size: 13px;
+				color: var(--text-dim);
+				margin-top: 14px;
+				text-align: center;
+			}
+			.error-msg {
+				display: none;
+				align-items: center;
+				gap: 8px;
+				background: #fef2f2;
+				color: #b91c1c;
+				border: 1px solid #fecaca;
+				padding: 10px 12px;
+				border-radius: 10px;
+				font-size: 13.5px;
+				margin-top: 14px;
+			}
+			.error-msg.show {
+				display: flex;
+			}
+
+			/* Choice screen */
+			.choice-grid {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 14px;
+				margin-top: 6px;
+			}
+			.choice-card {
+				border: 1.5px solid var(--border);
+				border-radius: 14px;
+				padding: 22px 16px;
+				text-align: center;
+				cursor: pointer;
+				background: #fff;
+				transition:
+					border-color 0.15s,
+					transform 0.1s,
+					box-shadow 0.15s;
+			}
+			.choice-card:hover {
+				border-color: var(--brand);
+				box-shadow: var(--shadow);
+				transform: translateY(-2px);
+			}
+			.choice-card i {
+				font-size: 26px;
+				color: var(--brand-dark);
+				margin-bottom: 10px;
+				display: block;
+			}
+			.choice-card .title {
+				font-weight: 700;
+				font-size: 14.5px;
+				margin-bottom: 4px;
+			}
+			.choice-card .desc {
+				font-size: 12.5px;
+				color: var(--text-dim);
+			}
+
+			.back-link {
+				display: inline-flex;
+				align-items: center;
+				gap: 6px;
+				color: var(--text-dim);
+				font-size: 13.5px;
+				font-weight: 600;
+				cursor: pointer;
+				margin-bottom: 20px;
+				user-select: none;
+			}
+			.back-link:hover {
+				color: var(--text);
+			}
+
+			/* Pairing screens */
+			.pair-visual {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				padding: 28px 0;
+			}
+			#qr-canvas-wrap {
+				width: 220px;
+				height: 220px;
+				border-radius: 16px;
+				border: 1.5px solid var(--border);
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				background: #fff;
+				overflow: hidden;
+			}
+			#qr-canvas-wrap img {
+				width: 100%;
+				height: 100%;
+				object-fit: contain;
+			}
+
+			.pair-code-display {
+				display: flex;
+				gap: 8px;
+				justify-content: center;
+				flex-wrap: wrap;
+			}
+			.pair-code-display span {
+				font-size: 26px;
+				font-weight: 800;
+				letter-spacing: 0.05em;
+				background: var(--brand-soft);
+				color: var(--brand-dark);
+				padding: 10px 14px;
+				border-radius: 10px;
+				font-variant-numeric: tabular-nums;
+			}
+
+			.spinner {
+				width: 16px;
+				height: 16px;
+				border: 2.5px solid rgba(255, 255, 255, 0.4);
+				border-top-color: #fff;
+				border-radius: 50%;
+				animation: spin 0.7s linear infinite;
+			}
+			@keyframes spin {
+				to {
+					transform: rotate(360deg);
+				}
+			}
+
+			.dot-status {
+				display: inline-flex;
+				align-items: center;
+				gap: 6px;
+				font-size: 13px;
+				color: var(--text-dim);
+				font-weight: 600;
+			}
+			.dot {
+				width: 8px;
+				height: 8px;
+				border-radius: 50%;
+				background: #d1d5db;
+			}
+			.dot.online {
+				background: var(--brand);
+			}
+
+			/* Dashboard */
+			.dash-wrap {
+				max-width: 520px;
+			}
+			.dash-header {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				margin-bottom: 24px;
+			}
+			.dash-profile {
+				display: flex;
+				align-items: center;
+				gap: 12px;
+			}
+			.avatar {
+				width: 44px;
+				height: 44px;
+				border-radius: 50%;
+				background: var(--brand-soft);
+				color: var(--brand-dark);
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				font-weight: 700;
+				font-size: 16px;
+			}
+			.dash-profile .name {
+				font-weight: 700;
+				font-size: 15px;
+			}
+			.dash-profile .status {
+				font-size: 12.5px;
+				color: var(--text-dim);
+			}
+
+			.icon-btn {
+				width: 38px;
+				height: 38px;
+				border-radius: 10px;
+				border: 1.5px solid var(--border);
+				background: #fff;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				cursor: pointer;
+				color: var(--text-dim);
+				transition:
+					border-color 0.15s,
+					color 0.15s;
+			}
+			.icon-btn:hover {
+				border-color: var(--danger);
+				color: var(--danger);
+			}
+
+			.stat-row {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 12px;
+				margin-bottom: 20px;
+			}
+			.stat-box {
+				border: 1.5px solid var(--border);
+				border-radius: 12px;
+				padding: 14px 16px;
+			}
+			.stat-box .label {
+				font-size: 12px;
+				color: var(--text-dim);
+				font-weight: 600;
+				margin-bottom: 4px;
+			}
+			.stat-box .value {
+				font-size: 15.5px;
+				font-weight: 700;
+			}
+
+			.feed-title {
+				font-size: 13.5px;
+				font-weight: 700;
+				color: var(--text-dim);
+				margin: 6px 0 10px;
+				text-transform: uppercase;
+				letter-spacing: 0.04em;
+			}
+			.feed {
+				display: flex;
+				flex-direction: column;
+				gap: 10px;
+				max-height: 320px;
+				overflow-y: auto;
+			}
+			.feed-item {
+				border: 1.5px solid var(--border);
+				border-radius: 12px;
+				padding: 12px 14px;
+			}
+			.feed-item .top {
+				display: flex;
+				justify-content: space-between;
+				font-size: 12.5px;
+				color: var(--text-dim);
+				margin-bottom: 4px;
+			}
+			.feed-item .body {
+				font-size: 14px;
+			}
+			.feed-empty {
+				text-align: center;
+				color: var(--text-dim);
+				font-size: 13.5px;
+				padding: 24px 0;
+			}
+		</style>
+	</head>
+	<body>
+		<!-- Screen 1: Phone number entry -->
+		<div class="screen active" id="screen-phone">
+			<div class="card">
+				<div class="brand">
+					<div class="brand-icon"><i class="fi fi-sr-comment-check"></i></div>
+					<div class="brand-name">WhatsRook</div>
+				</div>
+				<h1>Connect your number</h1>
+				<p class="sub">Enter your WhatsApp phone number to get started.</p>
+
+				<div class="field">
+					<label for="phone-number">Phone number</label>
+					<div class="phone-input">
+						<span class="prefix"><i class="fi fi-sr-phone-flip"></i></span>
+						<input
+							type="tel"
+							id="phone-number"
+							placeholder="e.g. 2348012345678"
+							inputmode="numeric"
+							autocomplete="off"
+						/>
+					</div>
+				</div>
+
+				<button class="primary" id="btn-continue">
+					<span id="btn-continue-text">Continue</span>
+				</button>
+
+				<div class="error-msg" id="phone-error">
+					<i class="fi fi-sr-triangle-warning"></i>
+					<span id="phone-error-text"
+						>Something went wrong. Please try again.</span
+					>
+				</div>
+
+				<p class="hint">
+					Use your number in international format, digits only.
+				</p>
+			</div>
+		</div>
+
+		<!-- Screen 2: Choose QR or Pair Code -->
+		<div class="screen" id="screen-choice">
+			<div class="card">
+				<div class="back-link" id="choice-back">
+					<i class="fi fi-sr-arrow-small-left"></i> Back
+				</div>
+				<h1>Link your device</h1>
+				<p class="sub">Choose how you'd like to connect WhatsApp.</p>
+
+				<div class="choice-grid">
+					<div class="choice-card" id="choice-qr">
+						<i class="fi fi-sr-qrcode"></i>
+						<div class="title">Scan QR code</div>
+						<div class="desc">Use WhatsApp on your phone to scan</div>
+					</div>
+					<div class="choice-card" id="choice-pair">
+						<i class="fi fi-sr-keyboard"></i>
+						<div class="title">Enter a code</div>
+						<div class="desc">Get a code to type on your phone</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Screen 3: QR pairing -->
+		<div class="screen" id="screen-qr">
+			<div class="card">
+				<div class="back-link" id="qr-back">
+					<i class="fi fi-sr-arrow-small-left"></i> Back
+				</div>
+				<h1>Scan with WhatsApp</h1>
+				<p class="sub">
+					Open WhatsApp → Linked Devices → Link a Device, then scan this code.
+				</p>
+
+				<div class="pair-visual">
+					<div id="qr-canvas-wrap">
+						<i
+							class="fi fi-sr-spinner"
+							style="font-size: 22px; color: #c7cad6"
+						></i>
+					</div>
+				</div>
+
+				<div style="display: flex; justify-content: center">
+					<span class="dot-status"
+						><span class="dot" id="qr-dot"></span>
+						<span id="qr-status-text">Waiting for scan…</span></span
+					>
+				</div>
+			</div>
+		</div>
+
+		<!-- Screen 4: Pair code -->
+		<div class="screen" id="screen-code">
+			<div class="card">
+				<div class="back-link" id="code-back">
+					<i class="fi fi-sr-arrow-small-left"></i> Back
+				</div>
+				<h1>Enter this code</h1>
+				<p class="sub">
+					Open WhatsApp → Linked Devices → Link with phone number, then enter
+					this code.
+				</p>
+
+				<div class="pair-visual">
+					<div class="pair-code-display" id="pair-code-display">
+						<span>••••</span><span>••••</span>
+					</div>
+				</div>
+
+				<div style="display: flex; justify-content: center">
+					<span class="dot-status"
+						><span class="dot" id="code-dot"></span>
+						<span id="code-status-text">Waiting for confirmation…</span></span
+					>
+				</div>
+			</div>
+		</div>
+
+		<!-- Screen 5: Dashboard -->
+		<div class="screen" id="screen-dashboard">
+			<div class="card dash-wrap">
+				<div class="dash-header">
+					<div class="dash-profile">
+						<div class="avatar"><i class="fi fi-sr-user"></i></div>
+						<div>
+							<div class="name" id="dash-name">Connected</div>
+							<div class="status">
+								<span class="dot online" style="display: inline-block"></span>
+								<span id="dash-status">Online</span>
+							</div>
+						</div>
+					</div>
+					<div class="icon-btn" id="btn-logout" title="Log out">
+						<i class="fi fi-sr-sign-out-alt"></i>
+					</div>
+				</div>
+
+				<div class="stat-row">
+					<div class="stat-box">
+						<div class="label">Number</div>
+						<div class="value" id="dash-number">—</div>
+					</div>
+					<div class="stat-box">
+						<div class="label">Status</div>
+						<div class="value" id="dash-conn-status">Connected</div>
+					</div>
+				</div>
+
+				<div class="feed-title">Recent activity</div>
+				<div class="feed" id="dash-feed">
+					<div class="feed-empty">
+						No activity yet. Messages will show up here.
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script src="/js/ws-bridge.js"></script>
+		<script src="/js/app.js"></script>
+	</body>
+</html>
