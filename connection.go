@@ -12,6 +12,9 @@ import (
 )
 
 func (b *Bot) runPairCode(ctx context.Context) error {
+	// Cleaner, cron job, hehe
+	go startTempJanitor()
+
 	slog.Info("requesting pair code", "phone", b.cli.Session)
 
 	paired := make(chan error, 1)

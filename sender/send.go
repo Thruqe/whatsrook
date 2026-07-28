@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"whatsrook/ember"
@@ -173,25 +174,22 @@ func SendResult(ctx context.Context, client *whatsmeow.Client, chat types.JID, d
 func transcodeVideo(ctx context.Context, inputData []byte) ([]byte, error) {
 	slog.Debug("ember.transcodeVideo: starting transcoding via ffmpeg")
 
-	tmpIn, err := os.CreateTemp("", "whatsapp_in_*.mp4")
+	tmpDir, err := os.MkdirTemp("", "whatsrook_ember_vid_*")
 	if err != nil {
-		slog.Error("ember.transcodeVideo: failed to create temp input file", "err", err)
-		return nil, fmt.Errorf("failed to create temp input file: %w", err)
+		slog.Error("ember.transcodeVideo: failed to create temp dir", "err", err)
+		return nil, fmt.Errorf("failed to create temp dir: %w", err)
 	}
-	defer os.Remove(tmpIn.Name())
+	defer os.RemoveAll(tmpDir)
 
-	if _, err := tmpIn.Write(inputData); err != nil {
-		slog.Error("ember.transcodeVideo: failed to write input bytes", "err", err)
-		tmpIn.Close()
-		return nil, fmt.Errorf("failed to write input bytes: %w", err)
+	tmpIn := filepath.Join(tmpDir, "input")
+	if err := os.WriteFile(tmpIn, inputData, 0644); err != nil {
+		slog.Error("ember.transcodeVideo: failed to write input", "err", err)
+		return nil, fmt.Errorf("failed to write input: %w", err)
 	}
-	tmpIn.Close()
 
-	tmpOutName := tmpIn.Name() + "_conv.mp4"
-	defer os.Remove(tmpOutName)
+	tmpOutName := filepath.Join(tmpDir, "output.mp4")
 
-	// Run ffmpeg to transcode video to H.264 (libx264) and AAC
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-i", tmpIn.Name(),
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-i", tmpIn,
 		"-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-profile:v", "main", "-level:v", "4.0",
 		"-c:a", "aac", "-b:a", "128k",
 		"-movflags", "+faststart",
@@ -208,32 +206,29 @@ func transcodeVideo(ctx context.Context, inputData []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	slog.Debug("ember.transcodeVideo: transcoding completed successfully", "orig_size", len(inputData), "new_size", len(convertedData))
+	slog.Debug("ember.transcodeVideo: completed", "orig_size", len(inputData), "new_size", len(convertedData))
 	return convertedData, nil
 }
 
 func transcodeAudio(ctx context.Context, inputData []byte) ([]byte, error) {
 	slog.Debug("ember.transcodeAudio: starting transcoding via ffmpeg")
 
-	tmpIn, err := os.CreateTemp("", "whatsapp_in_audio_*")
+	tmpDir, err := os.MkdirTemp("", "whatsrook_ember_aud_*")
 	if err != nil {
-		slog.Error("ember.transcodeAudio: failed to create temp input file", "err", err)
-		return nil, fmt.Errorf("failed to create temp input file: %w", err)
+		slog.Error("ember.transcodeAudio: failed to create temp dir", "err", err)
+		return nil, fmt.Errorf("failed to create temp dir: %w", err)
 	}
-	defer os.Remove(tmpIn.Name())
+	defer os.RemoveAll(tmpDir)
 
-	if _, err := tmpIn.Write(inputData); err != nil {
-		slog.Error("ember.transcodeAudio: failed to write input bytes", "err", err)
-		tmpIn.Close()
-		return nil, fmt.Errorf("failed to write input bytes: %w", err)
+	tmpIn := filepath.Join(tmpDir, "input")
+	if err := os.WriteFile(tmpIn, inputData, 0644); err != nil {
+		slog.Error("ember.transcodeAudio: failed to write input", "err", err)
+		return nil, fmt.Errorf("failed to write input: %w", err)
 	}
-	tmpIn.Close()
 
-	tmpOutName := tmpIn.Name() + "_conv.mp4"
-	defer os.Remove(tmpOutName)
+	tmpOutName := filepath.Join(tmpDir, "output.mp4")
 
-	// Run ffmpeg to transcode audio to AAC in an MP4 container (audio/mp4)
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-i", tmpIn.Name(),
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-i", tmpIn,
 		"-vn", "-c:a", "aac", "-b:a", "128k",
 		tmpOutName)
 
@@ -248,6 +243,6 @@ func transcodeAudio(ctx context.Context, inputData []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	slog.Debug("ember.transcodeAudio: transcoding completed successfully", "orig_size", len(inputData), "new_size", len(convertedData))
+	slog.Debug("ember.transcodeAudio: completed", "orig_size", len(inputData), "new_size", len(convertedData))
 	return convertedData, nil
 }

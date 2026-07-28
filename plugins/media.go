@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -259,21 +260,20 @@ func handleSteal(ctx *Context) error {
 }
 
 func processSticker(data []byte, isVideo bool, packName, author, filter string) ([]byte, error) {
-	tempIn, err := os.CreateTemp("", "sticker_in_*")
+	tmpDir, err := os.MkdirTemp("", "whatsrook_sticker_*")
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(tempIn.Name())
-	if _, err := tempIn.Write(data); err != nil {
+	defer os.RemoveAll(tmpDir)
+
+	tempIn := filepath.Join(tmpDir, "input")
+	if err := os.WriteFile(tempIn, data, 0644); err != nil {
 		return nil, err
 	}
-	tempIn.Close()
 
-	tempOut := tempIn.Name() + ".out.webp"
-	defer os.Remove(tempOut)
+	tempOut := filepath.Join(tmpDir, "output.webp")
 
 	if isVideo {
-		// Define encoding attempts with decreasing quality/fps/preset settings to fit under 500KB (512,000 bytes)
 		type attempt struct {
 			fps     int
 			quality int
@@ -291,7 +291,6 @@ func processSticker(data []byte, isVideo bool, packName, author, filter string) 
 		for idx, att := range attempts {
 			_ = os.Remove(tempOut)
 
-			// Formulate the filter
 			vf := fmt.Sprintf("fps=%d,format=yuva420p,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0", att.fps)
 			if filter != "" {
 				vf = filter
@@ -305,32 +304,28 @@ func processSticker(data []byte, isVideo bool, packName, author, filter string) 
 				}
 			}
 
-			cmd := exec.Command("ffmpeg", "-y", "-i", tempIn.Name(), "-t", "8", "-vf", vf, "-vcodec", "libwebp", "-lossless", "0", "-q:v", fmt.Sprintf("%d", att.quality), "-compression_level", "6", "-loop", "0", "-preset", "default", "-an", "-vsync", "0", "-pix_fmt", "yuva420p", tempOut)
+			cmd := exec.Command("ffmpeg", "-y", "-i", tempIn, "-t", "8", "-vf", vf, "-vcodec", "libwebp", "-lossless", "0", "-q:v", fmt.Sprintf("%d", att.quality), "-compression_level", "6", "-loop", "0", "-preset", "default", "-an", "-vsync", "0", "-pix_fmt", "yuva420p", tempOut)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				lastErr = fmt.Errorf("ffmpeg failed at attempt %d (fps=%d, q=%d): %w (output: %s)", idx, att.fps, att.quality, err, string(out))
 				continue
 			}
 
-			// Add sticker metadata
 			finalPath, err := writeStickerMetadata(tempOut, packName, author)
 			if err != nil {
-				lastErr = fmt.Errorf("failed to write sticker metadata at attempt %d: %w", idx, err)
+				lastErr = fmt.Errorf("sticker metadata failed at attempt %d: %w", idx, err)
 				continue
 			}
 
 			data, err := os.ReadFile(finalPath)
 			_ = os.Remove(finalPath)
 			if err != nil {
-				lastErr = fmt.Errorf("failed to read final sticker path at attempt %d: %w", idx, err)
+				lastErr = fmt.Errorf("read failed at attempt %d: %w", idx, err)
 				continue
 			}
 
-			// Check size (500KB limit)
 			if len(data) <= 500*1024 {
 				return data, nil
 			}
-
-			// Keep track of the last encoded one in case all attempts exceed 500KB
 			finalData = data
 		}
 
@@ -341,44 +336,44 @@ func processSticker(data []byte, isVideo bool, packName, author, filter string) 
 			return nil, lastErr
 		}
 		return nil, fmt.Errorf("failed to process video sticker")
-	} else {
-		vf := "format=yuva420p,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0"
-		if filter != "" {
-			vf = filter
-			if !strings.Contains(vf, "format=yuva420p") {
-				vf = "format=yuva420p," + vf
-			}
-		}
-		cmd := exec.Command("ffmpeg", "-y", "-i", tempIn.Name(), "-vf", vf, "-vcodec", "libwebp", "-lossless", "0", "-q:v", "40", "-compression_level", "6", "-pix_fmt", "yuva420p", tempOut)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return nil, fmt.Errorf("ffmpeg failed: %w (output: %s)", err, string(out))
-		}
-
-		finalPath, err := writeStickerMetadata(tempOut, packName, author)
-		if err != nil {
-			return nil, err
-		}
-		defer os.Remove(finalPath)
-
-		return os.ReadFile(finalPath)
 	}
-}
 
-func processMP4(data []byte) ([]byte, error) {
-	tempIn, err := os.CreateTemp("", "mp4_in_*")
+	vf := "format=yuva420p,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0"
+	if filter != "" {
+		vf = filter
+		if !strings.Contains(vf, "format=yuva420p") {
+			vf = "format=yuva420p," + vf
+		}
+	}
+	cmd := exec.Command("ffmpeg", "-y", "-i", tempIn, "-vf", vf, "-vcodec", "libwebp", "-lossless", "0", "-q:v", "40", "-compression_level", "6", "-pix_fmt", "yuva420p", tempOut)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("ffmpeg failed: %w (output: %s)", err, string(out))
+	}
+
+	finalPath, err := writeStickerMetadata(tempOut, packName, author)
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(tempIn.Name())
-	if _, err := tempIn.Write(data); err != nil {
+	defer os.Remove(finalPath)
+
+	return os.ReadFile(finalPath)
+}
+
+func processMP4(data []byte) ([]byte, error) {
+	tmpDir, err := os.MkdirTemp("", "whatsrook_mp4_*")
+	if err != nil {
 		return nil, err
 	}
-	tempIn.Close()
+	defer os.RemoveAll(tmpDir)
 
-	tempOut := tempIn.Name() + ".mp4"
-	defer os.Remove(tempOut)
+	tempIn := filepath.Join(tmpDir, "input")
+	if err := os.WriteFile(tempIn, data, 0644); err != nil {
+		return nil, err
+	}
 
-	cmd := exec.Command("ffmpeg", "-y", "-i", tempIn.Name(), "-pix_fmt", "yuv420p", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", tempOut)
+	tempOut := filepath.Join(tmpDir, "output.mp4")
+
+	cmd := exec.Command("ffmpeg", "-y", "-i", tempIn, "-pix_fmt", "yuv420p", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", tempOut)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("ffmpeg mp4 failed: %w (output: %s)", err, string(out))
 	}
@@ -387,20 +382,20 @@ func processMP4(data []byte) ([]byte, error) {
 }
 
 func processMP3(data []byte) ([]byte, error) {
-	tempIn, err := os.CreateTemp("", "mp3_in_*")
+	tmpDir, err := os.MkdirTemp("", "whatsrook_mp3_*")
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(tempIn.Name())
-	if _, err := tempIn.Write(data); err != nil {
+	defer os.RemoveAll(tmpDir)
+
+	tempIn := filepath.Join(tmpDir, "input")
+	if err := os.WriteFile(tempIn, data, 0644); err != nil {
 		return nil, err
 	}
-	tempIn.Close()
 
-	tempOut := tempIn.Name() + ".mp3"
-	defer os.Remove(tempOut)
+	tempOut := filepath.Join(tmpDir, "output.mp3")
 
-	cmd := exec.Command("ffmpeg", "-y", "-i", tempIn.Name(), "-q:a", "2", tempOut)
+	cmd := exec.Command("ffmpeg", "-y", "-i", tempIn, "-q:a", "2", tempOut)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("ffmpeg mp3 failed: %w (output: %s)", err, string(out))
 	}
@@ -432,20 +427,20 @@ func downloadFromURL(ctx context.Context, mediaURL string) ([]byte, error) {
 }
 
 func processBlackVideo(data []byte) ([]byte, error) {
-	tempIn, err := os.CreateTemp("", "black_in_*")
+	tmpDir, err := os.MkdirTemp("", "whatsrook_black_*")
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(tempIn.Name())
-	if _, err := tempIn.Write(data); err != nil {
+	defer os.RemoveAll(tmpDir)
+
+	tempIn := filepath.Join(tmpDir, "input")
+	if err := os.WriteFile(tempIn, data, 0644); err != nil {
 		return nil, err
 	}
-	tempIn.Close()
 
-	tempOut := tempIn.Name() + ".mp4"
-	defer os.Remove(tempOut)
+	tempOut := filepath.Join(tmpDir, "output.mp4")
 
-	cmd := exec.Command("ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=black:s=640x360:d=600", "-i", tempIn.Name(), "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-tune", "stillimage", "-c:a", "aac", "-pix_fmt", "yuv420p", "-shortest", tempOut)
+	cmd := exec.Command("ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=black:s=640x360:d=600", "-i", tempIn, "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-tune", "stillimage", "-c:a", "aac", "-pix_fmt", "yuv420p", "-shortest", tempOut)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("ffmpeg black failed: %w (output: %s)", err, string(out))
 	}
@@ -480,20 +475,20 @@ func handleTrim(ctx *Context) error {
 }
 
 func processTrim(data []byte, start, end string) ([]byte, error) {
-	tempIn, err := os.CreateTemp("", "trim_in_*")
+	tmpDir, err := os.MkdirTemp("", "whatsrook_trim_*")
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(tempIn.Name())
-	if _, err := tempIn.Write(data); err != nil {
+	defer os.RemoveAll(tmpDir)
+
+	tempIn := filepath.Join(tmpDir, "input")
+	if err := os.WriteFile(tempIn, data, 0644); err != nil {
 		return nil, err
 	}
-	tempIn.Close()
 
-	tempOut := tempIn.Name() + ".mp4"
-	defer os.Remove(tempOut)
+	tempOut := filepath.Join(tmpDir, "output.mp4")
 
-	cmd := exec.Command("ffmpeg", "-y", "-i", tempIn.Name(), "-ss", start, "-to", end, "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p", tempOut)
+	cmd := exec.Command("ffmpeg", "-y", "-i", tempIn, "-ss", start, "-to", end, "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p", tempOut)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("ffmpeg trim failed: %w (output: %s)", err, string(out))
 	}
