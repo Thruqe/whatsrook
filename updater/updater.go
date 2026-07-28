@@ -291,14 +291,15 @@ func downloadAndApplyRelease(tag string) error {
 		}
 
 		baseName := filepath.Base(hdr.Name)
-		if baseName == "whatsrook" || baseName == "whatsrook.exe" {
+		switch baseName {
+		case "whatsrook", "whatsrook.exe":
 			if _, err := io.Copy(out, tr); err != nil {
 				out.Close()
 				_ = os.Remove(tmpBinary)
 				return err
 			}
 			foundBinary = true
-		} else if baseName == VersionFile {
+		case VersionFile:
 			versionDest := filepath.Join(exeDir, VersionFile)
 			vFile, errV := os.OpenFile(versionDest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 			if errV == nil {
