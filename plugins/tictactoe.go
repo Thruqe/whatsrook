@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"whatsrook/store/sqlstore"
+	"whatsrook/utils"
 
 	"go.mau.fi/whatsmeow/types"
 )
@@ -352,7 +353,7 @@ func handleLeaderboard(ctx *Context) error {
 					jid:       resolved,
 					tag:       tag,
 					xp:        xp,
-					title:     GetCXPTitle(xp),
+					title:     utils.GetCXPTitle(xp),
 					tttWins:   tWins,
 					tttLosses: tLosses,
 					tttDraws:  tDraws,

@@ -1,64 +1,20 @@
-// Word Guessing Game (WCG) – Multiplayer round-robin anagram game with dynamic difficulty, rating system, and XP.
+// Word Guessing Game (WCG) – Command handler using utils/wcg_game.go engine.
 package commands
 
 import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"sync"
 	"time"
 	"unicode"
 
 	"whatsrook/store/sqlstore"
+	"whatsrook/utils"
 
 	"go.mau.fi/whatsmeow"
 	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
-)
-
-type wcgState int
-
-const (
-	wcgStateLobby wcgState = iota
-	wcgStateInProgress
-)
-
-type wcgPlayer struct {
-	LID            types.JID
-	MentionJID     types.JID
-	Tag            string
-	Score          int
-	Eliminated     bool
-	CorrectGuesses int
-	TotalTimeMs    int64
-	GuessesCount   int
-	JoinedAt       time.Time
-}
-
-type wcgGame struct {
-	mu             sync.Mutex
-	chatKey        string
-	state          wcgState
-	hostLID        types.JID
-	hostMention    types.JID
-	hostTag        string
-	players        []*wcgPlayer
-	currentTurnIdx int
-	wordLength     int // 3 to 16
-	currentWord    string
-	scrambledWord  string
-	turnStartTime  time.Time
-	lobbyTimer     *time.Timer
-	turnTimer      *time.Timer
-	gameStartTime  time.Time
-	client         *whatsmeow.Client
-	chatJID        types.JID
-}
-
-var (
-	wcgMu    sync.Mutex
-	wcgGames = make(map[string]*wcgGame) // chat key -> game
 )
 
 func init() {
@@ -71,32 +27,21 @@ func init() {
 	})
 }
 
-// IsWCGGameActive returns true if there is an active WCG game (lobby or in-progress) in the chat.
-func IsWCGGameActive(chatKey string) bool {
-	wcgMu.Lock()
-	defer wcgMu.Unlock()
-	_, exists := wcgGames[chatKey]
-	return exists
-}
-
 // HandleWCGInput intercepts non-prefix text messages in a chat where a WCG game is active.
 // Returns true if the message was handled/swallowed by WCG.
 func HandleWCGInput(ctx *Context, text string) bool {
 	chatKey := ctx.Chat.String()
 
-	wcgMu.Lock()
-	game, exists := wcgGames[chatKey]
-	wcgMu.Unlock()
-
-	if !exists {
+	game := utils.GetWCGGame(chatKey)
+	if game == nil {
 		return false
 	}
 
-	game.mu.Lock()
-	defer game.mu.Unlock()
+	game.Mu.Lock()
 
-	// In lobby phase, ignore normal chat messages (only .wcg commands processed)
-	if game.state == wcgStateLobby {
+	// In lobby phase, ignore normal chat messages
+	if game.State == utils.WCGStateLobby {
+		game.Mu.Unlock()
 		return false
 	}
 
@@ -105,87 +50,75 @@ func HandleWCGInput(ctx *Context, text string) bool {
 	// Check if message is pure emoji or empty -> ignore without reply
 	if isPureEmoji(text) || strings.TrimSpace(text) == "" {
 		slog.Debug("[WCG] Ignored emoji/empty input", "chat", chatKey, "sender", senderLID.String())
+		game.Mu.Unlock()
 		return true
 	}
 
-	// 1. Check if sender is in the game
-	pIdx := game.findPlayerIndex(senderLID)
+	// Check if sender is in the game
+	pIdx := game.FindPlayerIndex(senderLID)
 	if pIdx == -1 {
-		// User is NOT in the game -> silently ignore without replying
 		slog.Debug("[WCG] Ignored input from non-player", "chat", chatKey, "sender", senderLID.String())
+		game.Mu.Unlock()
 		return true
 	}
 
-	// 2. Check if it's the sender's turn
-	activePlayers := game.getActivePlayers()
+	// Check if it's the sender's turn
+	activePlayers := game.GetActivePlayers()
 	if len(activePlayers) == 0 {
+		game.Mu.Unlock()
 		return true
 	}
 
-	currentTurnPlayer := game.players[game.currentTurnIdx]
+	currentTurnPlayer := game.Players[game.CurrentTurnIdx]
 	if currentTurnPlayer.LID.User != senderLID.User {
-		// In game, but NOT sender's turn -> silently ignore without replying
 		slog.Debug("[WCG] Ignored input from player whose turn it is not", "chat", chatKey, "sender", senderLID.String())
+		game.Mu.Unlock()
 		return true
 	}
 
-	// 3. It IS sender's turn to guess!
-	guess := strings.ToLower(strings.TrimSpace(text))
-	elapsed := time.Since(game.turnStartTime)
+	// Process the guess (release lock first, ProcessGuess needs its own lock)
+	game.Mu.Unlock()
+	correct, gameOver, winner, currentPlayer, elapsed := game.ProcessGuess(text, senderLID)
+	game.Mu.Lock()
 
-	if game.turnTimer != nil {
-		game.turnTimer.Stop()
-	}
-
-	currentTurnPlayer.GuessesCount++
-	currentTurnPlayer.TotalTimeMs += elapsed.Milliseconds()
-
-	if guess == game.currentWord {
-		// Correct guess!
-		currentTurnPlayer.Score += game.wordLength * 10
-		currentTurnPlayer.CorrectGuesses++
-
-		slog.Debug("[WCG] Correct guess!", "player", currentTurnPlayer.Tag, "word", game.currentWord, "timeMs", elapsed.Milliseconds())
-
+	if correct {
 		msg := fmt.Sprintf("🎉 Correct! %s guessed '%s' in %.1fs! (+%d pts)\n\nAdvancing to the next level!",
-			currentTurnPlayer.Tag, game.currentWord, elapsed.Seconds(), game.wordLength*10)
-		_ = ctx.ReplyWithMentions(msg, []types.JID{currentTurnPlayer.MentionJID})
+			currentPlayer.Tag, game.CurrentWord, elapsed.Seconds(), game.WordLength*10)
+		_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
 
-		// Increase word length up to 16
-		if game.wordLength < 16 {
-			game.wordLength++
+		if gameOver {
+			game.Mu.Unlock()
+			finishWCGGame(ctx, game, winner)
+			return true
 		}
 
-		// Move to next player and start turn
-		game.advanceTurn(ctx)
+		// Start next turn
+		game.Mu.Unlock()
+		startWCGTurn(ctx, game)
 		return true
 	}
 
-	// Wrong guess!
-	slog.Debug("[WCG] Incorrect guess", "player", currentTurnPlayer.Tag, "guess", guess, "correct", game.currentWord)
+	// Wrong guess
 	msg := fmt.Sprintf("❌ Incorrect guess by %s!\nThe correct word was: '%s'.\n%s has been eliminated from this match!",
-		currentTurnPlayer.Tag, game.currentWord, currentTurnPlayer.Tag)
-	_ = ctx.ReplyWithMentions(msg, []types.JID{currentTurnPlayer.MentionJID})
+		currentPlayer.Tag, game.CurrentWord, currentPlayer.Tag)
+	_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
 
-	currentTurnPlayer.Eliminated = true
-
-	// Check remaining active players
-	rem := game.getActivePlayers()
-	if len(rem) <= 1 {
-		game.finishGame(ctx)
+	if gameOver {
+		game.Mu.Unlock()
+		finishWCGGame(ctx, game, winner)
 		return true
 	}
 
-	game.advanceTurn(ctx)
+	// Start next turn
+	game.Mu.Unlock()
+	startWCGTurn(ctx, game)
 	return true
 }
 
 func handleWCG(ctx *Context) error {
 	chatKey := ctx.Chat.String()
 
-	wcgMu.Lock()
-	existingGame, exists := wcgGames[chatKey]
-	wcgMu.Unlock()
+	existingGame := utils.GetWCGGame(chatKey)
 
 	arg0 := ""
 	if len(ctx.Args) > 0 {
@@ -197,142 +130,314 @@ func handleWCG(ctx *Context) error {
 	}
 
 	if arg0 == "cancel" || arg0 == "stop" {
-		if !exists {
+		if existingGame == nil {
 			return ctx.Reply("No active WCG game to cancel.")
 		}
-		existingGame.mu.Lock()
-		if existingGame.lobbyTimer != nil {
-			existingGame.lobbyTimer.Stop()
-		}
-		if existingGame.turnTimer != nil {
-			existingGame.turnTimer.Stop()
-		}
-		existingGame.mu.Unlock()
-
-		wcgMu.Lock()
-		delete(wcgGames, chatKey)
-		wcgMu.Unlock()
-
+		existingGame.StopTimers()
+		utils.DeleteWCGGame(chatKey)
 		return ctx.Reply("Word Guessing Game cancelled.")
 	}
 
 	// Join sub-command
 	if arg0 == "join" {
-		if !exists {
+		if existingGame == nil {
 			return ctx.Reply("No WCG game lobby open. Type .wcg to start one!")
 		}
-		existingGame.mu.Lock()
-		defer existingGame.mu.Unlock()
 
-		if existingGame.state != wcgStateLobby {
+		existingGame.Mu.Lock()
+		if existingGame.State != utils.WCGStateLobby {
+			existingGame.Mu.Unlock()
 			return ctx.Reply("WCG game is already in progress!")
 		}
 
 		senderLID := ctx.Sender.ToNonAD()
-		if existingGame.findPlayerIndex(senderLID) != -1 {
+		if existingGame.FindPlayerIndex(senderLID) != -1 {
+			existingGame.Mu.Unlock()
 			return ctx.Reply("You are already in the WCG lobby!")
 		}
+		existingGame.Mu.Unlock()
 
 		mentionJID, username := ctx.ResolveMention(senderLID)
-		p := &wcgPlayer{
-			LID:        senderLID,
-			MentionJID: mentionJID,
-			Tag:        "@" + username,
-			JoinedAt:   time.Now(),
+		tag := "@" + username
+		if !existingGame.AddPlayer(senderLID, mentionJID, tag) {
+			return ctx.Reply("Failed to join. Game may have started.")
 		}
-		existingGame.players = append(existingGame.players, p)
 
-		msg := fmt.Sprintf("✅ %s joined the WCG match! (%d players in lobby)\nType .wcg start to begin immediately or wait for timer.", p.Tag, len(existingGame.players))
+		msg := fmt.Sprintf("✅ %s joined the WCG match! (%d players in lobby)\nType .wcg start to begin immediately or wait for timer.", tag, len(existingGame.Players))
 		return ctx.ReplyWithMentions(msg, []types.JID{mentionJID})
 	}
 
-	// Start sub-command (starts lobby immediately if > 0 players)
+	// Start sub-command
 	if arg0 == "start" || arg0 == "create" {
-		if exists {
-			existingGame.mu.Lock()
-			if existingGame.state == wcgStateLobby {
-				if len(existingGame.players) == 0 {
-					existingGame.mu.Unlock()
+		if existingGame != nil {
+			existingGame.Mu.Lock()
+			if existingGame.State == utils.WCGStateLobby {
+				if len(existingGame.Players) == 0 {
+					existingGame.Mu.Unlock()
 					return ctx.Reply("No players in lobby yet! Type .wcg join to join first.")
 				}
-				if existingGame.lobbyTimer != nil {
-					existingGame.lobbyTimer.Stop()
+				if existingGame.LobbyTimer != nil {
+					existingGame.LobbyTimer.Stop()
 				}
-				existingGame.mu.Unlock()
-				existingGame.startGame(ctx)
+				existingGame.Mu.Unlock()
+				startWCGGame(ctx, existingGame)
 				return nil
 			}
-			existingGame.mu.Unlock()
+			existingGame.Mu.Unlock()
 			return ctx.Reply("WCG game is already in progress!")
 		}
 	}
 
 	// Default: if game already active, print status
-	if exists {
-		existingGame.mu.Lock()
-		defer existingGame.mu.Unlock()
-		if existingGame.state == wcgStateLobby {
-			return ctx.Reply(fmt.Sprintf("WCG Lobby Open! (%d players)\nType .wcg join to join or .wcg start to begin!", len(existingGame.players)))
+	if existingGame != nil {
+		existingGame.Mu.Lock()
+		defer existingGame.Mu.Unlock()
+		if existingGame.State == utils.WCGStateLobby {
+			return ctx.Reply(fmt.Sprintf("WCG Lobby Open! (%d players)\nType .wcg join to join or .wcg start to begin!", len(existingGame.Players)))
 		}
 		return ctx.Reply("A WCG game is already in progress in this chat!")
 	}
 
-	// Create new WCG lobby & send interactive menu
+	// Create new WCG lobby
 	hostLID := ctx.Sender.ToNonAD()
 	hostMention, hostUser := ctx.ResolveMention(hostLID)
 	hostTag := "@" + hostUser
 
-	newGame := &wcgGame{
-		chatKey:     chatKey,
-		state:       wcgStateLobby,
-		hostLID:     hostLID,
-		hostMention: hostMention,
-		hostTag:     hostTag,
-		wordLength:  3,
-		chatJID:     ctx.Chat,
-		client:      ctx.Client,
-	}
-
-	// Host automatically joins
-	newGame.players = append(newGame.players, &wcgPlayer{
-		LID:        hostLID,
-		MentionJID: hostMention,
-		Tag:        hostTag,
-		JoinedAt:   time.Now(),
-	})
-
-	wcgMu.Lock()
-	wcgGames[chatKey] = newGame
-	wcgMu.Unlock()
+	newGame := utils.CreateWCGGame(chatKey, hostLID, hostMention, hostTag, ctx.Chat, ctx.Client)
 
 	// Start 30-second lobby countdown timer
-	newGame.lobbyTimer = time.AfterFunc(30*time.Second, func() {
-		newGame.mu.Lock()
-		if newGame.state != wcgStateLobby {
-			newGame.mu.Unlock()
+	timer := time.AfterFunc(30*time.Second, func() {
+		newGame.Mu.Lock()
+		if newGame.State != utils.WCGStateLobby {
+			newGame.Mu.Unlock()
 			return
 		}
-		newGame.mu.Unlock()
+		newGame.Mu.Unlock()
 
-		// Start game asynchronously
 		cctx := &Context{
 			Ctx:    ctx.Ctx,
 			Client: ctx.Client,
 			Chat:   ctx.Chat,
 			Sender: ctx.Sender,
 		}
-		newGame.startGame(cctx)
+		startWCGGame(cctx, newGame)
 	})
+	newGame.SetLobbyTimer(timer)
 
 	// Try sending interactive message with buttons
 	err := sendWCGInteractiveMenu(ctx, hostTag)
 	if err != nil {
-		// Fallback to text menu
 		textMsg := fmt.Sprintf("🔤 WORD GUESSING GAME (WCG) 🔤\n\nHosted by: %s\n\n⏱️ Lobby is open for 30 SECONDS!\nType '.wcg join' to join\nType '.wcg start' to begin now\nType '.wcg lb' for Leaderboard", hostTag)
 		return ctx.ReplyWithMentions(textMsg, []types.JID{hostMention})
 	}
 
 	return nil
+}
+
+func startWCGGame(ctx *Context, game *utils.WCGGame) {
+	if !game.StartGame() {
+		_ = ctx.Reply("WCG Match cancelled — no players joined the lobby.")
+		return
+	}
+
+	active := game.GetActivePlayers()
+
+	slog.Debug("[WCG] Starting game", "chat", game.ChatKey, "playersCount", len(active))
+
+	var playerTags []string
+	var mentions []types.JID
+	for _, p := range active {
+		playerTags = append(playerTags, p.Tag)
+		mentions = append(mentions, p.MentionJID)
+	}
+
+	msg := fmt.Sprintf("🎮 WCG Match Started!\n\nPlayers (%d): %s\n\nStarting at Level 1 (3-Letter Words)!\nNon-players and turn-skipping input will be silently ignored.",
+		len(active), strings.Join(playerTags, ", "))
+	_ = ctx.ReplyWithMentions(msg, mentions)
+
+	startWCGTurn(ctx, game)
+}
+
+func startWCGTurn(ctx *Context, game *utils.WCGGame) {
+	scrambled, timeSec, currentPlayer := game.StartTurn()
+	if currentPlayer == nil {
+		winner, _ := game.FinishGame()
+		finishWCGGame(ctx, game, winner)
+		return
+	}
+
+	msg := fmt.Sprintf("🔤 LEVEL %d (Word Length: %d)\n\nScrambled Word: %s\nTurn: %s\n⏱️ Time Limit: %d seconds!\n\nUnscramble and type the word!",
+		game.WordLength-2, game.WordLength, scrambled, currentPlayer.Tag, timeSec)
+	_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
+
+	// Set turn timer
+	timeDuration := time.Duration(timeSec) * time.Second
+	timer := time.AfterFunc(timeDuration, func() {
+		game.Mu.Lock()
+		if game.State != utils.WCGStateInProgress {
+			game.Mu.Unlock()
+			return
+		}
+
+		slog.Debug("[WCG] Turn timed out", "player", currentPlayer.Tag, "word", game.CurrentWord)
+
+		cctx := &Context{
+			Ctx:    ctx.Ctx,
+			Client: game.Client,
+			Chat:   game.ChatJID,
+			Sender: ctx.Sender,
+		}
+
+		timeoutMsg := fmt.Sprintf("⏱️ Time's up for %s!\nThe word was: '%s'.\n%s has been eliminated!",
+			currentPlayer.Tag, game.CurrentWord, currentPlayer.Tag)
+		_ = cctx.ReplyWithMentions(timeoutMsg, []types.JID{currentPlayer.MentionJID})
+
+		gameOver, winner := game.EliminateCurrentPlayer()
+		game.Mu.Unlock()
+
+		if gameOver {
+			finishWCGGame(cctx, game, winner)
+			return
+		}
+
+		startWCGTurn(cctx, game)
+	})
+	game.SetTurnTimer(timer)
+}
+
+func finishWCGGame(ctx *Context, game *utils.WCGGame, winner *utils.WCGPlayer) {
+	finalWinner, standings := game.FinishGame()
+	if finalWinner != nil {
+		winner = finalWinner
+	}
+
+	// Save stats to DB
+	saveWCGStats(ctx, game, winner)
+
+	var sb strings.Builder
+	sb.WriteString("🏆 WCG MATCH OVER! 🏆\n\n")
+
+	var mentions []types.JID
+
+	if winner != nil {
+		fmt.Fprintf(&sb, "🥇 Winner: %s (+100 Bonus XP!)\nTotal Score: %d pts\nCorrect Words: %d\n\n",
+			winner.Tag, winner.Score, winner.CorrectGuesses)
+		mentions = append(mentions, winner.MentionJID)
+	} else {
+		sb.WriteString("No winner — all players eliminated!\n\n")
+	}
+
+	sb.WriteString("Final Standings:\n")
+	for i, p := range standings {
+		avgTimeSec := 0.0
+		if p.GuessesCount > 0 {
+			avgTimeSec = float64(p.TotalTimeMs) / float64(p.GuessesCount) / 1000.0
+		}
+		fmt.Fprintf(&sb, "%d. %s — %d pts (%d correct, avg %.1fs)\n", i+1, p.Tag, p.Score, p.CorrectGuesses, avgTimeSec)
+		mentions = append(mentions, p.MentionJID)
+	}
+
+	_ = ctx.ReplyWithMentions(sb.String(), mentions)
+}
+
+func saveWCGStats(ctx *Context, game *utils.WCGGame, winner *utils.WCGPlayer) {
+	s, ok := game.Client.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return
+	}
+	db := s.GetDB()
+	if db == nil {
+		return
+	}
+
+	for _, p := range game.Players {
+		if p.LID.User == "" || p.LID.User == "whatsrook_bot" {
+			continue
+		}
+
+		isWin := winner != nil && p.LID.User == winner.LID.User
+		winInc := 0
+		xpEarned := p.Score
+		if isWin {
+			winInc = 1
+			xpEarned += 100
+		} else {
+			xpEarned += 10
+		}
+
+		avgTimeMs := int64(0)
+		if p.GuessesCount > 0 {
+			avgTimeMs = p.TotalTimeMs / int64(p.GuessesCount)
+		}
+
+		ratingDelta := -15
+		if isWin {
+			ratingDelta = 30
+		}
+		if p.CorrectGuesses > 0 && avgTimeMs > 0 {
+			if avgTimeMs < 3000 {
+				ratingDelta += 15
+			} else if avgTimeMs > 10000 {
+				ratingDelta -= 10
+			}
+		}
+		if p.CorrectGuesses == 0 {
+			ratingDelta -= 15
+			if xpEarned > 20 {
+				xpEarned = 5
+			}
+		}
+
+		cleanJID := p.MentionJID.ToNonAD().String()
+
+		_, _ = db.Exec(ctx.Ctx, `INSERT INTO bot_user_xp (user_jid, xp, wcg_wins, wcg_games, wcg_rating)
+			VALUES ($1, $2, $3, 1, $4)
+			ON CONFLICT(user_jid) DO UPDATE SET
+				xp = MAX(0, xp + EXCLUDED.xp),
+				wcg_wins = wcg_wins + EXCLUDED.wcg_wins,
+				wcg_games = wcg_games + 1,
+				wcg_rating = MAX(100, wcg_rating + $5)`,
+			cleanJID, xpEarned, winInc, 1000+ratingDelta, ratingDelta)
+	}
+}
+
+func handleWCGLeaderboard(ctx *Context) error {
+	chatKey := ctx.Chat.String()
+
+	game := utils.GetWCGGame(chatKey)
+	if game == nil {
+		return ctx.Reply("No active WCG game in this chat. Start one with .wcg")
+	}
+
+	sorted := game.GetSortedPlayers()
+	if len(sorted) == 0 {
+		return ctx.Reply("No players in the current WCG game.")
+	}
+
+	game.Mu.Lock()
+	state := game.State
+	game.Mu.Unlock()
+
+	var sb strings.Builder
+	if state == utils.WCGStateLobby {
+		sb.WriteString("📋 WCG LOBBY STANDINGS\n\n")
+	} else {
+		sb.WriteString("📊 WCG MATCH STANDINGS\n\n")
+	}
+
+	var mentions []types.JID
+	for i, p := range sorted {
+		status := ""
+		if p.Eliminated {
+			status = " ❌ Eliminated"
+		} else if state == utils.WCGStateInProgress {
+			status = " ✅ Active"
+		}
+		fmt.Fprintf(&sb, "%d. %s — %d pts (%d correct)%s\n", i+1, p.Tag, p.Score, p.CorrectGuesses, status)
+		mentions = append(mentions, p.MentionJID)
+	}
+
+	return ctx.ReplyWithMentions(strings.TrimSpace(sb.String()), mentions)
 }
 
 func sendWCGInteractiveMenu(ctx *Context, hostTag string) error {
@@ -405,357 +510,6 @@ func sendWCGInteractiveMenu(ctx *Context, hostTag string) error {
 	return err
 }
 
-func (g *wcgGame) startGame(ctx *Context) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	if g.state == wcgStateInProgress {
-		return
-	}
-
-	g.state = wcgStateInProgress
-	g.gameStartTime = time.Now()
-	g.wordLength = 3
-	g.currentTurnIdx = 0
-
-	active := g.getActivePlayers()
-	if len(active) == 0 {
-		wcgMu.Lock()
-		delete(wcgGames, g.chatKey)
-		wcgMu.Unlock()
-		_ = ctx.Reply("WCG Match cancelled — no players joined the lobby.")
-		return
-	}
-
-	slog.Debug("[WCG] Starting game", "chat", g.chatKey, "playersCount", len(active))
-
-	var playerTags []string
-	var mentions []types.JID
-	for _, p := range active {
-		playerTags = append(playerTags, p.Tag)
-		mentions = append(mentions, p.MentionJID)
-	}
-
-	msg := fmt.Sprintf("🎮 WCG Match Started!\n\nPlayers (%d): %s\n\nStarting at Level 1 (3-Letter Words)!\nNon-players and turn-skipping input will be silently ignored.",
-		len(active), strings.Join(playerTags, ", "))
-	_ = ctx.ReplyWithMentions(msg, mentions)
-
-	g.startTurn(ctx)
-}
-
-func (g *wcgGame) startTurn(ctx *Context) {
-	active := g.getActivePlayers()
-	if len(active) == 0 {
-		g.finishGame(ctx)
-		return
-	}
-
-	// Ensure currentTurnIdx points to valid active player
-	if g.currentTurnIdx >= len(g.players) {
-		g.currentTurnIdx = 0
-	}
-	for g.players[g.currentTurnIdx].Eliminated {
-		g.currentTurnIdx = (g.currentTurnIdx + 1) % len(g.players)
-	}
-
-	currentPlayer := g.players[g.currentTurnIdx]
-
-	word, scrambled := getRandomWord(g.wordLength)
-	g.currentWord = word
-	g.scrambledWord = scrambled
-	g.turnStartTime = time.Now()
-
-	// Dynamic time limit: 30s at level 3 down to 6s at level 16
-	timeSec := getTurnTimeLimit(g.wordLength)
-	timeDuration := time.Duration(timeSec) * time.Second
-
-	msg := fmt.Sprintf("🔤 LEVEL %d (Word Length: %d)\n\nScrambled Word: %s\nTurn: %s\n⏱️ Time Limit: %d seconds!\n\nUnscramble and type the word!",
-		g.wordLength-2, g.wordLength, g.scrambledWord, currentPlayer.Tag, timeSec)
-	_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
-
-	// Set turn timer
-	g.turnTimer = time.AfterFunc(timeDuration, func() {
-		g.mu.Lock()
-		defer g.mu.Unlock()
-
-		if g.state != wcgStateInProgress {
-			return
-		}
-
-		slog.Debug("[WCG] Turn timed out", "player", currentPlayer.Tag, "word", g.currentWord)
-		currentPlayer.Eliminated = true
-
-		cctx := &Context{
-			Ctx:    ctx.Ctx,
-			Client: g.client,
-			Chat:   g.chatJID,
-			Sender: ctx.Sender,
-		}
-
-		timeoutMsg := fmt.Sprintf("⏱️ Time's up for %s!\nThe word was: '%s'.\n%s has been eliminated!",
-			currentPlayer.Tag, g.currentWord, currentPlayer.Tag)
-		_ = cctx.ReplyWithMentions(timeoutMsg, []types.JID{currentPlayer.MentionJID})
-
-		rem := g.getActivePlayers()
-		if len(rem) <= 1 {
-			g.finishGame(cctx)
-			return
-		}
-
-		g.advanceTurn(cctx)
-	})
-}
-
-func (g *wcgGame) advanceTurn(ctx *Context) {
-	active := g.getActivePlayers()
-	if len(active) <= 1 {
-		g.finishGame(ctx)
-		return
-	}
-
-	// Advance turn index to next non-eliminated player
-	g.currentTurnIdx = (g.currentTurnIdx + 1) % len(g.players)
-	for g.players[g.currentTurnIdx].Eliminated {
-		g.currentTurnIdx = (g.currentTurnIdx + 1) % len(g.players)
-	}
-
-	g.startTurn(ctx)
-}
-
-func (g *wcgGame) finishGame(ctx *Context) {
-	if g.turnTimer != nil {
-		g.turnTimer.Stop()
-	}
-
-	active := g.getActivePlayers()
-
-	var winner *wcgPlayer
-	if len(active) == 1 {
-		winner = active[0]
-	}
-
-	// Update DB stats & ratings for all players
-	g.saveStatsAndXP(ctx, winner)
-
-	var sb strings.Builder
-	sb.WriteString("🏆 WCG MATCH OVER! 🏆\n\n")
-
-	var mentions []types.JID
-
-	if winner != nil {
-		fmt.Fprintf(&sb, "🥇 Winner: %s (+100 Bonus XP!)\nTotal Score: %d pts\nCorrect Words: %d\n\n",
-			winner.Tag, winner.Score, winner.CorrectGuesses)
-		mentions = append(mentions, winner.MentionJID)
-	} else {
-		sb.WriteString("No winner — all players eliminated!\n\n")
-	}
-
-	sb.WriteString("Final Standings:\n")
-	for i, p := range g.players {
-		avgTimeSec := 0.0
-		if p.GuessesCount > 0 {
-			avgTimeSec = float64(p.TotalTimeMs) / float64(p.GuessesCount) / 1000.0
-		}
-		fmt.Fprintf(&sb, "%d. %s — %d pts (%d correct, avg %.1fs)\n", i+1, p.Tag, p.Score, p.CorrectGuesses, avgTimeSec)
-		mentions = append(mentions, p.MentionJID)
-	}
-
-	wcgMu.Lock()
-	delete(wcgGames, g.chatKey)
-	wcgMu.Unlock()
-
-	_ = ctx.ReplyWithMentions(sb.String(), mentions)
-}
-
-func (g *wcgGame) saveStatsAndXP(ctx *Context, winner *wcgPlayer) {
-	s, ok := g.client.Store.Identities.(*sqlstore.SQLStore)
-	if !ok {
-		return
-	}
-	db := s.GetDB()
-	if db == nil {
-		return
-	}
-
-	for _, p := range g.players {
-		if p.LID.User == "" || p.LID.User == "whatsrook_bot" {
-			continue
-		}
-
-		isWin := winner != nil && p.LID.User == winner.LID.User
-		winInc := 0
-		xpEarned := p.Score // base XP from word length points
-		if isWin {
-			winInc = 1
-			xpEarned += 100 // Winner bonus
-		} else {
-			xpEarned += 10 // Participation XP
-		}
-
-		avgTimeMs := int64(0)
-		if p.GuessesCount > 0 {
-			avgTimeMs = p.TotalTimeMs / int64(p.GuessesCount)
-		}
-
-		// Performance Rating calculation
-		// Base delta: +30 for win, -15 for loss
-		// Speed bonus: up to +20 if fast (< 3s average)
-		ratingDelta := -15
-		if isWin {
-			ratingDelta = 30
-		}
-		if p.CorrectGuesses > 0 && avgTimeMs > 0 {
-			if avgTimeMs < 3000 {
-				ratingDelta += 15
-			} else if avgTimeMs > 10000 {
-				ratingDelta -= 10
-			}
-		}
-		// Poor performance penalty (0 correct guesses)
-		if p.CorrectGuesses == 0 {
-			ratingDelta -= 15
-			if xpEarned > 20 {
-				xpEarned = 5
-			}
-		}
-
-		cleanJID := p.MentionJID.ToNonAD().String()
-
-		_, _ = db.Exec(ctx.Ctx, `INSERT INTO bot_user_xp (user_jid, xp, wcg_wins, wcg_games, wcg_rating)
-			VALUES ($1, $2, $3, 1, $4)
-			ON CONFLICT(user_jid) DO UPDATE SET
-				xp = MAX(0, xp + EXCLUDED.xp),
-				wcg_wins = wcg_wins + EXCLUDED.wcg_wins,
-				wcg_games = wcg_games + 1,
-				wcg_rating = MAX(100, wcg_rating + $5)`,
-			cleanJID, xpEarned, winInc, 1000+ratingDelta, ratingDelta)
-	}
-}
-
-func (g *wcgGame) getActivePlayers() []*wcgPlayer {
-	var active []*wcgPlayer
-	for _, p := range g.players {
-		if !p.Eliminated {
-			active = append(active, p)
-		}
-	}
-	return active
-}
-
-func (g *wcgGame) findPlayerIndex(lid types.JID) int {
-	for i, p := range g.players {
-		if p.LID.User == lid.User {
-			return i
-		}
-	}
-	return -1
-}
-
-// getTurnTimeLimit calculates turn duration: Level 3 (3-letter) = 30s, Level 16 (16-letter) = 6s.
-func getTurnTimeLimit(level int) int {
-	if level <= 3 {
-		return 30
-	}
-	if level >= 16 {
-		return 6
-	}
-	// Linear interpolation: level 3 -> 30s, level 16 -> 6s
-	t := 30 - int(float64(level-3)*(24.0/13.0))
-	if t < 6 {
-		return 6
-	}
-	if t > 30 {
-		return 30
-	}
-	return t
-}
-
-// GetCXPTitle maps cumulative XP (CXP) to player titles.
-func GetCXPTitle(xp int) string {
-	switch {
-	case xp >= 12000:
-		return "👑 Legendary Master"
-	case xp >= 7000:
-		return "🌟 Legend"
-	case xp >= 3500:
-		return "⚡ Prolific"
-	case xp >= 1500:
-		return "🔥 Master"
-	case xp >= 500:
-		return "⚔️ Pro"
-	case xp >= 100:
-		return "🌱 Beginner"
-	default:
-		return "🐣 Novice"
-	}
-}
-
-func handleWCGLeaderboard(ctx *Context) error {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
-	if !ok {
-		return ctx.Reply("Leaderboard store unavailable.")
-	}
-	db := s.GetDB()
-	if db == nil {
-		return ctx.Reply("Database connection unavailable.")
-	}
-
-	rows, err := db.Query(ctx.Ctx, `SELECT user_jid, xp, wcg_wins, wcg_games, wcg_rating FROM bot_user_xp ORDER BY xp DESC LIMIT 10`)
-	if err != nil {
-		return ctx.Reply("Failed to fetch WCG leaderboard.")
-	}
-	defer rows.Close()
-
-	type wcgLBEntry struct {
-		tag    string
-		xp     int
-		title  string
-		wins   int
-		games  int
-		rating int
-	}
-
-	var entries []wcgLBEntry
-	var mentions []types.JID
-
-	for rows.Next() {
-		var jidStr string
-		var xp, wins, games, rating int
-		if err := rows.Scan(&jidStr, &xp, &wins, &games, &rating); err == nil {
-			if rating == 0 {
-				rating = 1000
-			}
-			parsed, pErr := types.ParseJID(jidStr)
-			if pErr == nil {
-				tag, resolved := ctx.FormatMention(parsed)
-				entries = append(entries, wcgLBEntry{
-					tag:    tag,
-					xp:     xp,
-					title:  GetCXPTitle(xp),
-					wins:   wins,
-					games:  games,
-					rating: rating,
-				})
-				mentions = append(mentions, resolved)
-			}
-		}
-	}
-
-	if len(entries) == 0 {
-		return ctx.Reply("No players on the WCG leaderboard yet! Type .wcg to start a game and earn XP.")
-	}
-
-	var sb strings.Builder
-	sb.WriteString("🏆 WCG LEADERBOARD & CUMULATIVE XP (CXP) 🏆\n\n")
-
-	for i, e := range entries {
-		fmt.Fprintf(&sb, "%d. %s — %s (%d CXP)\n   Rating: %d | Wins: %d/%d\n\n",
-			i+1, e.tag, e.title, e.xp, e.rating, e.wins, e.games)
-	}
-
-	return ctx.ReplyWithMentions(strings.TrimSpace(sb.String()), mentions)
-}
-
 // isPureEmoji returns true if the input text consists solely of emoji characters.
 func isPureEmoji(s string) bool {
 	hasRune := false
@@ -764,7 +518,6 @@ func isPureEmoji(s string) bool {
 			continue
 		}
 		hasRune = true
-		// Range checks for common emoji blocks
 		if !isEmojiRune(r) {
 			return false
 		}

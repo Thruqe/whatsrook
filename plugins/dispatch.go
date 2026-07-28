@@ -222,7 +222,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	}
 
 	// Active Word Guessing Game (WCG) listener
-	if IsWCGGameActive(chatStr) {
+	if utils.IsWCGGameActive(chatStr) {
 		cctx := &Context{
 			Ctx:    ctx,
 			Client: client,
