@@ -1,7 +1,6 @@
-// WhatsRook: a lightweight WhatsApp daemon that bridges WhatsApp events to
-// WebSocket clients and provides in-bot commands.
+// The very beginning
 package main
 
 func main() {
-	runDaemon()
+	initateClient()
 }

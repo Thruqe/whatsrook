@@ -23,8 +23,8 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-// runDaemon executes the WhatsRook daemon lifecycle.
-func runDaemon() {
+// initateClient executes the WhatsRook lifecycle.
+func initateClient() {
 	cli := parseArgs()
 
 	if cli.Update {
