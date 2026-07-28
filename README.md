@@ -12,9 +12,6 @@ Connect your app to WhatsApp and receive live events — messages, groups, stori
 [![Release](https://badgen.net/badge/Release/v4.0.0/orange)](https://github.com/Thruqe/whatsrook/releases)
 [![License](https://badgen.net/badge/License/MIT/yellow)](LICENSE)
 
-
-
-
 ## Features
 
 - Real-time event streaming (messages, groups, stories, channels)
@@ -31,17 +28,16 @@ Deploy WhatsRook directly to Heroku as a Docker container using the **Deploy to 
 [![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/Thruqe/whatsrook)
 
 #### Manual Heroku CLI Deployment:
+
 ```bash
 heroku login
 heroku container:login
-heroku create your-whatsrook-app
-heroku stack:set container -a your-whatsrook-app
-heroku config:set SESSION=1234567890 -a your-whatsrook-app
-heroku container:push web -a your-whatsrook-app
-heroku container:release web -a your-whatsrook-app
+heroku create whatsrook-app
+heroku stack:set container -a whatsrook-app
+heroku config:set SESSION=1234567890 -a whatsrook-app
+heroku container:push web -a whatsrook-app
+heroku container:release web -a whatsrook-app
 ```
-
----
 
 ### 2. Render Deployment
 
@@ -51,19 +47,19 @@ Deploy WhatsRook to Render with persistent session volume storage using the **De
 
 Render automatically parses [`render.yaml`](./render.yaml) to build the Docker container and attach persistent volume storage at `/app/auth`.
 
----
-
 ### 3. Local Docker Deployment
 
 You can deploy WhatsRook locally or on a private VPS using Docker or Docker Compose.
 
 #### Using Docker Compose (Recommended):
+
 ```bash
 # Set your SESSION phone number in docker-compose.yml or as an env var
 SESSION=1234567890 docker compose up -d --build
 ```
 
 #### Using Docker CLI:
+
 ```bash
 # Build Docker image
 docker build -t whatsrook .
