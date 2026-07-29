@@ -3,6 +3,8 @@
 > [!CAUTION]
 > Educational project only. See [DISCLAIMER.md](DISCLAIMER.md) before use.
 
+Read [Documentation](Documentation/README.md) for detailed architecture, CLI usage, WebSocket IPC specification, plugin development, and deployment guides.
+
 Real-time WhatsApp API built on [whatsmeow](https://github.com/tulir/whatsmeow).
 
 Connect your app to WhatsApp and receive live events — messages, groups, stories, channels — then send actions back programmatically.
