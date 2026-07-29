@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
 - Created dedicated `utils` package for common helper functions across commands.
 - Added `utils_test.go` with unit test coverage for package helpers.
 - Added automated `CHANGELOG.md` verification workflow (`changelog-check.yml`) in GitHub Actions for per-commit push and pull requests.
@@ -20,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `example/` folder with [`client.go`](./example/client.go) and step-by-step setup documentation in [`README.md`](./example/README.md) demonstrating how to launch the daemon and test Protobuf WebSocket event streaming.
 
 ### Changed
+
 - Upgraded `github.com/purpshell/meowcaller` dependency to latest release (`v0.0.0-20260722160050-8e4008f12884`).
 - Refactored `commands/helper.go` and command handlers (`call`, `callaudioreply`, `callplace`, `facebook`, `instagram`, `threads`, `tiktok`, `twitter`, `fetch`) to utilize `utils` package functions.
 - Updated CLI argument parsing in `cli.go` to support optional boolean values (`--pair=true`, `--qrcode=false`) and environment variable fallbacks (`SESSION`, `PAIR`, `QRCODE`, `CLIENT`, `AUTH_DIR`, `DEBUG`, `VERBOSE`, `DEV`, `LOGOUT`).
@@ -33,5 +35,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [4.0.0] - 2026-07-22
 
 ### Added
+
 - Shell command execution enhancements and stream handling for AI command invocations.
 - Improved media file naming and download processing.
