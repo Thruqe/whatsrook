@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Created dedicated `utils` package for common helper functions across commands.
 - Added `utils_test.go` with unit test coverage for package helpers.
-- Added automated `CHANGELOG.md` verification workflow (`changelog-check.yml`) in GitHub Actions.
+- Added automated `CHANGELOG.md` verification workflow (`changelog-check.yml`) in GitHub Actions for per-commit push and pull requests.
 - Added Heroku deployment manifests (`app.json` and `Procfile`) and Render configuration (`render.yaml`).
 - Implemented outbound video calling support via `!videocall <number>` command (`commands/videocall.go` and `commands/callplace.go`).
 - Added automatic connection metadata notification sent directly to the bot owner's DM upon WhatsApp connection (version, git commit hash, session name, OS/Arch, CPU cores, Go runtime).
