@@ -3,7 +3,7 @@
 > [!CAUTION]
 > Educational project only. See [DISCLAIMER.md](DISCLAIMER.md) before use.
 
-Read [Documentation](Documentation/README.md) for detailed architecture, CLI usage, WebSocket IPC specification, plugin development, and deployment guides.
+Read [Documentation](https://github.com/Thruqe/whatsrook-docs) for detailed architecture, CLI usage, WebSocket IPC specification, plugin development, and deployment guides.
 
 Real-time WhatsApp API built on [whatsmeow](https://github.com/tulir/whatsmeow).
 

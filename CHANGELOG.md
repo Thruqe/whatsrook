@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Correct Docs url
 - Bump deps
 - Format docs
 - Created dedicated `utils` package for common helper functions across commands.
