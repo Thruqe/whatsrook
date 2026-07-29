@@ -13,6 +13,6 @@
     "ts-proto": "^2.2.0"
   },
   "dependencies": {
-    "protobufjs": "^7.4.0"
+    "protobufjs": "^8.7.1"
   }
 }
