@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Format docs
 - Created dedicated `utils` package for common helper functions across commands.
 - Added `utils_test.go` with unit test coverage for package helpers.
 - Added automated `CHANGELOG.md` verification workflow (`changelog-check.yml`) in GitHub Actions for per-commit push and pull requests.
