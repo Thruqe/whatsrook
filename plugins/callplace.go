@@ -23,6 +23,17 @@ var (
 	meowCallerWA     *whatsmeow.Client
 )
 
+func RegisterMeowCaller(wa *whatsmeow.Client) *meowcaller.Client {
+	meowCallerMu.Lock()
+	defer meowCallerMu.Unlock()
+
+	logger := zerolog.Nop()
+	mc := meowcaller.NewClient(wa, meowcaller.WithLogger(logger))
+	meowCallerClient = mc
+	meowCallerWA = wa
+	return mc
+}
+
 func getMeowCallerClient(wa *whatsmeow.Client) *meowcaller.Client {
 	meowCallerMu.Lock()
 	defer meowCallerMu.Unlock()
@@ -31,10 +42,7 @@ func getMeowCallerClient(wa *whatsmeow.Client) *meowcaller.Client {
 		return meowCallerClient
 	}
 
-	logger := zerolog.Nop()
-	meowCallerClient = meowcaller.NewClient(wa, meowcaller.WithLogger(logger))
-	meowCallerWA = wa
-	return meowCallerClient
+	return RegisterMeowCaller(wa)
 }
 
 // placeCallWithAudio places a call and plays audioPath to the peer once media

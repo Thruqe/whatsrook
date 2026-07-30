@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Fixed `meowcaller` client binding across packages via `RegisterMeowCaller(client)` in `client.go` and `plugins/callplace.go`. This guarantees that the exact `meowcaller.Client` registered during pre-connection startup is stored globally and reused across all call execution handlers (`.groupcall`, `.call`, `.videocall`).
 - Adjusted private mode access check in `plugins/dispatch.go`. When the bot is set to `private` mode (`.mode private`), non-sudoer/non-owner command attempts are now silently ignored without sending any text reply.
 - Added **Join WhatsApp Support Channel** badge button (`https://whatsapp.com/channel/0029Vb8Vo0k0bIdsTOTF1G2o`) to `README.md`.
 - Updated `plugins/callplace.go` with `getMeowCallerClient(ctx.Client)` singleton instance reuse so `.groupcall`, `.call`, and `.videocall` share the exact pre-connected `meowcaller.Client` registered during startup, preventing duplicate client instantiations and raw call adapter errors.
