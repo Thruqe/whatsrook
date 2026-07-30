@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Updated `movie` command (`plugins/movie.go`) to display exactly 3 search result titles per page in the message body, matching the 3 item choice buttons and the 4th interactive **Next (Page X)** button.
+- Added `status` command (`plugins/statusmenu.go`) allowing owner/sudo users to post status updates (text, image, or video with optional caption) directly to WhatsApp status broadcast (`status.whatsapp.net`).
 - Removed unused `meowcaller` directory.
 - Removed intermediate `"Running .<command>..."` placeholder status edits so execution status messages are hidden from end users.
 - Prevented raw `RUN_COMMAND:` protocol text from being exposed to end users in edited response messages when AI triggers internal commands.

@@ -1,113 +1,134 @@
-// Status menu command – send interactive status update messages.
+// Status broadcast command – posts status updates (text, image, or video with optional caption) to status.whatsapp.net broadcast.
 package commands
 
-// import (
-// 	"go.mau.fi/whatsmeow"
-// 	waBinary "go.mau.fi/whatsmeow/binary"
-// 	"go.mau.fi/whatsmeow/proto/waE2E"
-// )
+import (
+	"fmt"
+	"log/slog"
+	"strings"
 
-// func init() {
-// 	Register(&Command{
-// 		Name:        "statusmenu",
-// 		Description: "Send a status menu with buttons and location header",
-// 		Category:    "interactive",
-// 		IsPublic:    true,
-// 		Handler:     handleStatusMenu,
-// 	})
-// }
+	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/types"
+)
 
-// func handleStatusMenu(ctx *Context) error {
-// 	bodyText := `┌─ム ᴛʜʀᴜQᴇ ᴍᴜʟᴛɪᴅᴇᴠɪᴄᴇ
-// │ ᴏᴡɴᴇʀ: ᴛʜʀᴜQᴇ
-// │ ᴜsᴇʀ: thruqe
-// │ ᴄᴀᴛᴇɢᴏʀɪᴇs: 10
-// │ ᴄᴏᴍᴍᴀɴᴅs: 271
-// │ sᴘᴇᴇᴅ: 2025.91 ᴍs
-// │ ᴜᴘᴛɪᴍᴇ: 9633 s
-// ╰──────────────────╯
+var statusBroadcastJID = types.JID{User: "status", Server: "broadcast"}
 
-// ┌─ム ʙᴏᴛ sᴛᴀᴛᴜs
-// │
-// ├─ム  ʙᴏᴛ: ᴏɴʟɪɴᴇ
-// ├─ム  sᴛᴀᴛᴜs: ʀᴇᴀᴅʏ
-// ├─ム  sᴇʟᴇᴄᴛ ᴀ ʙᴜᴛᴛᴏɴ ʙᴇʟᴏᴡ
-// │
-// ╰─────────◆────────╯
+func init() {
+	Register(&Command{
+		Name:        "status",
+		Aliases:     []string{"poststatus", "sw"},
+		Description: "Post a status update (text or media) to WhatsApp status broadcast",
+		Category:    "owner",
+		IsPublic:    false,
+		Handler:     handleStatus,
+	})
+}
 
-// > 「 Powered by Thruqe 」`
+func handleStatus(ctx *Context) error {
+	if !ctx.IsSudo() {
+		return ctx.Reply("Only owner/sudo users can post status updates.")
+	}
 
-// 	msg := &waE2E.Message{
-// 		DocumentWithCaptionMessage: &waE2E.FutureProofMessage{
-// 			Message: &waE2E.Message{
-// 				ButtonsMessage: &waE2E.ButtonsMessage{
-// 					Header: &waE2E.ButtonsMessage_LocationMessage{
-// 						LocationMessage: &waE2E.LocationMessage{
-// 							DegreesLatitude:  new(float64),
-// 							DegreesLongitude: new(float64),
-// 							Name:             new("Thruqe"),
-// 							Address:          new("Thruqe Multidevice"),
-// 						},
-// 					},
-// 					ContentText: new(bodyText),
-// 					FooterText:  new("「 Powered by Thruqe 」"),
-// 					HeaderType:  waE2E.ButtonsMessage_LOCATION.Enum(),
-// 					Buttons: []*waE2E.ButtonsMessage_Button{
-// 						{
-// 							ButtonID: new("menu-btn"),
-// 							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
-// 								DisplayText: new("MENU"),
-// 							},
-// 							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
-// 						},
-// 						{
-// 							ButtonID: new("menu all"),
-// 							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
-// 								DisplayText: new("COMMANDS"),
-// 							},
-// 							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
-// 						},
-// 					},
-// 				},
-// 			},
-// 		},
-// 	}
+	text := strings.TrimSpace(ctx.RawArgs)
 
-// 	bizNode := waBinary.Node{
-// 		Tag:   "biz",
-// 		Attrs: waBinary.Attrs{},
-// 		Content: []waBinary.Node{
-// 			{
-// 				Tag: "interactive",
-// 				Attrs: waBinary.Attrs{
-// 					"type": "native_flow",
-// 					"v":    "1",
-// 				},
-// 				Content: []waBinary.Node{
-// 					{
-// 						Tag: "native_flow",
-// 						Attrs: waBinary.Attrs{
-// 							"v":    "9",
-// 							"name": "mixed",
-// 						},
-// 					},
-// 				},
-// 			},
-// 		},
-// 	}
+	// Check if message has media (either directly or via quoted message)
+	mediaBytes, mimetype, err := ctx.GetMedia()
+	if err == nil && len(mediaBytes) > 0 {
+		// Media present (image or video)
+		isImage := strings.HasPrefix(mimetype, "image")
+		isVideo := strings.HasPrefix(mimetype, "video") || strings.Contains(mimetype, "gif")
 
-// 	extra := whatsmeow.SendRequestExtra{
-// 		AdditionalNodes: &[]waBinary.Node{bizNode},
-// 	}
+		if !isImage && !isVideo {
+			// If not strictly image or video, check mimetype or default based on media type
+			if strings.HasPrefix(mimetype, "audio") {
+				return ctx.Reply("Only image and video media can be posted to status broadcast.")
+			}
+			isImage = true // fallback to image upload
+		}
 
-// 	// 1. Send the status message
-// 	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
-// 	if err != nil {
-// 		return err
-// 	}
+		if isImage {
+			if mimetype == "" {
+				mimetype = "image/jpeg"
+			}
+			uploaded, uErr := ctx.Client.Upload(ctx.Ctx, mediaBytes, whatsmeow.MediaImage)
+			if uErr != nil {
+				slog.Error("handleStatus: image upload failed", "err", uErr)
+				return ctx.Reply(fmt.Sprintf("Failed to upload status image: %v", uErr))
+			}
+			msg := &waE2E.Message{
+				ImageMessage: &waE2E.ImageMessage{
+					URL:           &uploaded.URL,
+					DirectPath:    &uploaded.DirectPath,
+					MediaKey:      uploaded.MediaKey,
+					Mimetype:      &mimetype,
+					FileEncSHA256: uploaded.FileEncSHA256,
+					FileSHA256:    uploaded.FileSHA256,
+					FileLength:    new(uint64),
+				},
+			}
+			*msg.ImageMessage.FileLength = uint64(len(mediaBytes))
+			if text != "" {
+				msg.ImageMessage.Caption = &text
+			}
 
-// 	// 2. React to the trigger message
-// 	reactionMsg := ctx.Client.BuildReaction(ctx.Chat, ctx.Sender, ctx.Evt.Info.ID, "")
-// 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, reactionMsg)
-// 	return err
-// }
+			_, sendErr := ctx.Client.SendMessage(ctx.Ctx, statusBroadcastJID, msg)
+			if sendErr != nil {
+				slog.Error("handleStatus: send image status failed", "err", sendErr)
+				return ctx.Reply(fmt.Sprintf("Failed to post image status: %v", sendErr))
+			}
+			return ctx.Reply("Successfully posted image status update.")
+		}
+
+		if isVideo {
+			if mimetype == "" {
+				mimetype = "video/mp4"
+			}
+			uploaded, uErr := ctx.Client.Upload(ctx.Ctx, mediaBytes, whatsmeow.MediaVideo)
+			if uErr != nil {
+				slog.Error("handleStatus: video upload failed", "err", uErr)
+				return ctx.Reply(fmt.Sprintf("Failed to upload status video: %v", uErr))
+			}
+			msg := &waE2E.Message{
+				VideoMessage: &waE2E.VideoMessage{
+					URL:           &uploaded.URL,
+					DirectPath:    &uploaded.DirectPath,
+					MediaKey:      uploaded.MediaKey,
+					Mimetype:      &mimetype,
+					FileEncSHA256: uploaded.FileEncSHA256,
+					FileSHA256:    uploaded.FileSHA256,
+					FileLength:    new(uint64),
+				},
+			}
+			*msg.VideoMessage.FileLength = uint64(len(mediaBytes))
+			if text != "" {
+				msg.VideoMessage.Caption = &text
+			}
+
+			_, sendErr := ctx.Client.SendMessage(ctx.Ctx, statusBroadcastJID, msg)
+			if sendErr != nil {
+				slog.Error("handleStatus: send video status failed", "err", sendErr)
+				return ctx.Reply(fmt.Sprintf("Failed to post video status: %v", sendErr))
+			}
+			return ctx.Reply("Successfully posted video status update.")
+		}
+	}
+
+	// Text status update
+	if text == "" {
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage:\n- %sstatus <text>\n- Reply to image/video with %sstatus [optional caption]", p, p))
+	}
+
+	msg := &waE2E.Message{
+		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+			Text: &text,
+		},
+	}
+
+	_, sendErr := ctx.Client.SendMessage(ctx.Ctx, statusBroadcastJID, msg)
+	if sendErr != nil {
+		slog.Error("handleStatus: send text status failed", "err", sendErr)
+		return ctx.Reply(fmt.Sprintf("Failed to post text status: %v", sendErr))
+	}
+	return ctx.Reply("Successfully posted text status update.")
+}
