@@ -18,6 +18,7 @@ import (
 )
 
 const movieAPIHost = "https://xer-movie-api-ten.vercel.app"
+const maxDirectVideoSize = 200 * 1024 * 1024 // 200MB threshold
 
 type movieSearchItem struct {
 	SubjectID       string `json:"subjectId"`
@@ -147,6 +148,9 @@ func handleMovie(ctx *Context) error {
 	if subCmd == "dl" && len(ctx.Args) >= 3 {
 		return handleMovieDL(ctx, ctx.Args[1], ctx.Args[2])
 	}
+	if subCmd == "get" && len(ctx.Args) >= 3 {
+		return handleMovieGetFile(ctx, ctx.Args[1], ctx.Args[2])
+	}
 
 	query := ctx.RawArgs
 	if query == "" {
@@ -182,7 +186,7 @@ func handleMovie(ctx *Context) error {
 	p := ctx.GetPrefix()
 
 	var sb strings.Builder
-	sb.WriteString("🎬 *Movie Search Result*\n\n")
+	sb.WriteString("*Movie Search Result*\n\n")
 	fmt.Fprintf(&sb, "*Title:* %s\n", item.Title)
 	if item.ReleaseDate != "" {
 		fmt.Fprintf(&sb, "*Release:* %s\n", item.ReleaseDate)
@@ -191,18 +195,18 @@ func handleMovie(ctx *Context) error {
 		fmt.Fprintf(&sb, "*Genre:* %s\n", item.Genre)
 	}
 	if item.IMDBRatingValue != "" {
-		fmt.Fprintf(&sb, "*IMDb Rating:* ⭐ %s\n", item.IMDBRatingValue)
+		fmt.Fprintf(&sb, "*IMDb Rating:* %s\n", item.IMDBRatingValue)
 	}
 	sb.WriteString("\nSelect an action below:")
 
 	buttons := []struct{ ID, Text string }{
 		{
 			ID:   fmt.Sprintf("%smovie info %s %s", p, item.SubjectID, item.DetailPath),
-			Text: "ℹ️ Details",
+			Text: "Details",
 		},
 		{
 			ID:   fmt.Sprintf("%smovie dl %s %s", p, item.SubjectID, item.DetailPath),
-			Text: "📥 Download Links",
+			Text: "Download Links",
 		},
 	}
 
@@ -238,7 +242,7 @@ func handleMovieInfo(ctx *Context, subjectID, detailPath string) error {
 	p := ctx.GetPrefix()
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "🎬 *%s*\n\n", sub.Title)
+	fmt.Fprintf(&sb, "*%s*\n\n", sub.Title)
 	if sub.ReleaseDate != "" {
 		fmt.Fprintf(&sb, "*Release Date:* %s\n", sub.ReleaseDate)
 	}
@@ -246,7 +250,7 @@ func handleMovieInfo(ctx *Context, subjectID, detailPath string) error {
 		fmt.Fprintf(&sb, "*Genre:* %s\n", sub.Genre)
 	}
 	if sub.IMDBRatingValue != "" {
-		fmt.Fprintf(&sb, "*Rating:* ⭐ %s\n", sub.IMDBRatingValue)
+		fmt.Fprintf(&sb, "*Rating:* %s\n", sub.IMDBRatingValue)
 	}
 	if sub.Description != "" {
 		fmt.Fprintf(&sb, "\n*Plot:* %s\n", sub.Description)
@@ -255,7 +259,7 @@ func handleMovieInfo(ctx *Context, subjectID, detailPath string) error {
 	buttons := []struct{ ID, Text string }{
 		{
 			ID:   fmt.Sprintf("%smovie dl %s %s", p, subjectID, detailPath),
-			Text: "📥 Download Links",
+			Text: "Download Links",
 		},
 	}
 
@@ -295,10 +299,19 @@ func handleMovieDL(ctx *Context, subjectID, detailPath string) error {
 		return ctx.Reply("No download links available for this title.")
 	}
 
-	var sb strings.Builder
-	sb.WriteString("📥 *Download Links*\n\n")
+	p := ctx.GetPrefix()
+	var buttons []struct{ ID, Text string }
 
-	for _, src := range sources {
+	// Determine recommended item: exactly one item with size > 0 and size <= 200MB.
+	// Pick the highest quality item matching <= 200MB.
+	recIdx := -1
+	for i, src := range sources {
+		if src.Size > 0 && src.Size <= maxDirectVideoSize {
+			recIdx = i // since sources are usually listed in ascending/descending, pick latest match or first match
+		}
+	}
+
+	for i, src := range sources {
 		qStr := strconv.Itoa(src.Quality) + "p"
 		if src.Quality == 0 {
 			qStr = "HD"
@@ -309,19 +322,119 @@ func handleMovieDL(ctx *Context, subjectID, detailPath string) error {
 		} else {
 			szStr = "Unknown size"
 		}
-		fmt.Fprintf(&sb, "🎥 *Quality:* %s (%s)\n", qStr, szStr)
 
-		link := src.WorkerDownloadUrl
-		if link == "" {
-			link = src.DownloadURL
+		btnText := fmt.Sprintf("%s (%s)", qStr, szStr)
+		if i == recIdx {
+			btnText += " Recommended"
 		}
-		if link == "" {
-			link = src.DirectURL
-		}
-		if link != "" {
-			fmt.Fprintf(&sb, "🔗 Link: %s\n\n", link)
-		}
+
+		btnID := fmt.Sprintf("%smovie get %s %s", p, subjectID, src.ID)
+		buttons = append(buttons, struct{ ID, Text string }{
+			ID:   btnID,
+			Text: btnText,
+		})
 	}
 
-	return ctx.Reply(strings.TrimSpace(sb.String()))
+	// Limit to max 3 buttons supported by WhatsApp ButtonsMessage
+	if len(buttons) > 3 {
+		buttons = buttons[:3]
+	}
+
+	bodyText := "*Download Options*\nChoose a resolution below to download the file directly:"
+	return sendInteractiveButtons(ctx, bodyText, "Powered by WhatsRook", buttons)
+}
+
+func handleMovieGetFile(ctx *Context, subjectID, sourceID string) error {
+	sourcesURL := fmt.Sprintf("%s/api/sources/%s?source=1", movieAPIHost, url.QueryEscape(subjectID))
+	req, err := http.NewRequestWithContext(ctx.Ctx, "GET", sourcesURL, nil)
+	if err != nil {
+		return ctx.Reply("Failed to build movie sources request.")
+	}
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		slog.Error("movie get sources request failed", "subjectID", subjectID, "err", err)
+		return ctx.Reply("Failed to fetch download source.")
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		return ctx.Reply("Error reading download sources.")
+	}
+
+	var sourcesData movieSourcesResponse
+	if err := json.Unmarshal(bodyBytes, &sourcesData); err != nil {
+		return ctx.Reply("Could not parse download source.")
+	}
+
+	sources := sourcesData.Data.Sources
+	if len(sources) == 0 {
+		sources = sourcesData.Data.ProcessedSources
+	}
+
+	var selectedSource *movieSourceItem
+	for _, s := range sources {
+		if s.ID == sourceID {
+			selectedSource = &s
+			break
+		}
+	}
+	if selectedSource == nil && len(sources) > 0 {
+		selectedSource = &sources[0]
+	}
+	if selectedSource == nil {
+		return ctx.Reply("Selected download source not found.")
+	}
+
+	downloadTargetURL := selectedSource.WorkerDownloadUrl
+	if downloadTargetURL == "" {
+		downloadTargetURL = selectedSource.DownloadURL
+	}
+	if downloadTargetURL == "" {
+		downloadTargetURL = selectedSource.DirectURL
+	}
+	if downloadTargetURL == "" {
+		return ctx.Reply("No valid download link found for selected source.")
+	}
+
+	_ = ctx.Reply("Downloading movie file, please wait...")
+
+	dlReq, err := http.NewRequestWithContext(ctx.Ctx, "GET", downloadTargetURL, nil)
+	if err != nil {
+		return ctx.Reply("Failed to initiate file download request.")
+	}
+
+	dlClient := &http.Client{Timeout: 15 * time.Minute}
+	dlResp, err := dlClient.Do(dlReq)
+	if err != nil {
+		slog.Error("movie file download failed", "url", downloadTargetURL, "err", err)
+		return ctx.Reply("Failed to download movie file.")
+	}
+	defer dlResp.Body.Close()
+
+	if dlResp.StatusCode != http.StatusOK {
+		slog.Error("movie file download non-200 status", "status", dlResp.StatusCode)
+		return ctx.Reply("Server returned error when downloading movie file.")
+	}
+
+	fileData, err := io.ReadAll(dlResp.Body)
+	if err != nil || len(fileData) == 0 {
+		slog.Error("movie file read failed", "err", err)
+		return ctx.Reply("Failed to read downloaded movie file.")
+	}
+
+	filename := selectedSource.Filename
+	if filename == "" {
+		filename = "movie.mp4"
+	}
+
+	fileSize := int64(len(fileData))
+	slog.Debug("Downloaded movie file", "filename", filename, "size", fileSize)
+
+	if fileSize > maxDirectVideoSize {
+		return ctx.ReplyWithDocument(fileData, "video/mp4", filename, filename)
+	}
+	return ctx.ReplyWithVideo(fileData, "video/mp4", filename)
 }
