@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added response style guidelines to Meta AI system prompt (prohibiting emojis and mandating a clear, direct, and objective tone).
 - Implemented per-chat request queue for Meta AI queries to execute multiple incoming queries sequentially without rejecting concurrent requests.
 
 - Correct Docs url
