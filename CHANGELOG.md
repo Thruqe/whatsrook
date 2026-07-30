@@ -9,7 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Removed interactive buttons from `.cookie` and YouTube cookie help prompts, directing users to use the `.setcookie <cookies>` command directly.
+- Improved YouTube Netscape cookie validation (`plugins/cookie.go`) to strictly require YouTube/Google domains (`youtube.com`, `googlevideo.com`, `google.com`) and reject non-YouTube or social media platform cookies (Facebook, Instagram, Twitter, TikTok, etc.).
+- Added WhatsApp Business commands (`plugins/business.go`): `.business` and `.catalog` to fetch business profile info, email, address, operating hours, and business catalog items.
+- Added WhatsApp Privacy management command (`plugins/privacy.go`) to view and update account privacy settings (Last Seen, Profile Photo, Status, Read Receipts, Group Add, Online) via interactive buttons.
+- Added instability warning notices to outgoing call commands (`.call` and `.videocall`).
+- Implemented `.groupcall` command (`plugins/call.go` & `plugins/callplace.go`) using `meowcaller` to initiate group voice/video call sessions.
 - Added `status` command (`plugins/statusmenu.go`) allowing owner/sudo users to post status updates (text, image, or video with optional caption) directly to WhatsApp status broadcast (`status.whatsapp.net`).
 - Removed unused `meowcaller` directory.
 - Removed intermediate `"Running .<command>..."` placeholder status edits so execution status messages are hidden from end users.

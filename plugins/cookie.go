@@ -68,7 +68,7 @@ func handleSetCookie(ctx *Context) error {
 	}
 
 	if !IsValidNetscapeCookie(cookieData) {
-		return ctx.Reply("Invalid Netscape cookie format. Please make sure you copy cookies in Netscape format.")
+		return ctx.Reply("Invalid cookie format. Cookies must be specifically exported from YouTube (youtube.com / googlevideo.com) in Netscape format. Non-YouTube or other social media cookies are not accepted.")
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
@@ -89,7 +89,8 @@ func handleSetCookie(ctx *Context) error {
 	return ctx.Reply("Cookie saved successfully. It will expire in 10 minutes.")
 }
 
-// IsValidNetscapeCookie checks if the provided string follows Netscape HTTP Cookie File format.
+// IsValidNetscapeCookie checks if the provided string follows Netscape HTTP Cookie File format
+// AND specifically belongs to YouTube/Google (youtube.com, googlevideo.com, google.com) while rejecting other social media platforms.
 func IsValidNetscapeCookie(data string) bool {
 	trimmed := strings.TrimSpace(data)
 	if trimmed == "" {
@@ -97,7 +98,8 @@ func IsValidNetscapeCookie(data string) bool {
 	}
 
 	lines := strings.Split(trimmed, "\n")
-	hasNetscapeHeader := false
+	hasYouTubeDomain := false
+	hasNonYouTubeSocial := false
 	validCookieLines := 0
 
 	for _, line := range lines {
@@ -106,28 +108,45 @@ func IsValidNetscapeCookie(data string) bool {
 			continue
 		}
 		if strings.HasPrefix(line, "#") {
-			lower := strings.ToLower(line)
-			if strings.Contains(lower, "netscape") || strings.Contains(lower, "cookie") {
-				hasNetscapeHeader = true
-			}
 			continue
 		}
 
 		parts := strings.Split(line, "\t")
 		if len(parts) >= 7 {
-			domain := strings.TrimSpace(parts[0])
-			sub := strings.ToUpper(strings.TrimSpace(parts[1]))
-			sec := strings.ToUpper(strings.TrimSpace(parts[3]))
+			domain := strings.ToLower(strings.TrimSpace(parts[0]))
+			if strings.HasPrefix(domain, "#httponly_") {
+				domain = strings.TrimPrefix(domain, "#httponly_")
+			}
 
-			if len(domain) > 0 && (sub == "TRUE" || sub == "FALSE") && (sec == "TRUE" || sec == "FALSE") {
-				validCookieLines++
-			} else if len(domain) > 0 && strings.Contains(domain, ".") {
+			// Reject other social media platform cookies (facebook, instagram, twitter, tiktok, reddit, etc.)
+			if strings.Contains(domain, "facebook.com") ||
+				strings.Contains(domain, "instagram.com") ||
+				strings.Contains(domain, "twitter.com") ||
+				strings.Contains(domain, "x.com") ||
+				strings.Contains(domain, "tiktok.com") ||
+				strings.Contains(domain, "reddit.com") ||
+				strings.Contains(domain, "linkedin.com") ||
+				strings.Contains(domain, "pinterest.com") ||
+				strings.Contains(domain, "snapchat.com") {
+				hasNonYouTubeSocial = true
+				break
+			}
+
+			if strings.Contains(domain, "youtube.com") ||
+				strings.Contains(domain, "googlevideo.com") ||
+				strings.Contains(domain, "google.com") ||
+				strings.Contains(domain, "youtu.be") {
+				hasYouTubeDomain = true
 				validCookieLines++
 			}
 		}
 	}
 
-	return validCookieLines > 0 || (hasNetscapeHeader && len(lines) > 1)
+	if hasNonYouTubeSocial {
+		return false
+	}
+
+	return hasYouTubeDomain && validCookieLines > 0
 }
 
 // GetYouTubeCookieFile retrieves valid Netscape cookie data from storage.

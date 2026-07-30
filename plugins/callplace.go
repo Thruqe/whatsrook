@@ -240,6 +240,55 @@ func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 	return sendText(ctx, " video calling "+target+"...")
 }
 
+func placeGroupCall(ctx *Context, groupJID string, participants []string, audioPath string) error {
+	logger := zerolog.Nop()
+	client := meowcaller.NewClient(ctx.Client, meowcaller.WithLogger(logger))
+
+	call, err := client.GroupCall(ctx.Ctx, participants...)
+	if err != nil {
+		return sendText(ctx, fmt.Sprintf("group call failed: %v", err))
+	}
+
+	if audioPath != "" {
+		duration, durErr := utils.AudioDuration(audioPath)
+		if durErr != nil {
+			duration = 30 * time.Second
+		}
+
+		var startOnce sync.Once
+		startMedia := func() {
+			startOnce.Do(func() {
+				src, err := openAudioSource(audioPath)
+				if err != nil {
+					logHandlerErr("groupcall", err)
+					_ = call.Hangup()
+					return
+				}
+				call.Play(src)
+				go func() {
+					time.Sleep(duration + 2*time.Second)
+					_ = call.Hangup()
+				}()
+			})
+		}
+
+		call.OnPeerAccept(func() {
+			startMedia()
+		})
+		call.OnReady(func() {
+			startMedia()
+		})
+	}
+
+	call.OnEnd(func(reason string) {
+		if err := sendText(ctx, "group call ended: "+reason); err != nil {
+			logHandlerErr("groupcall", err)
+		}
+	})
+
+	return sendText(ctx, fmt.Sprintf("initiating group call to %d participants in %s...", len(participants), groupJID))
+}
+
 func openAudioSource(path string) (meowcaller.AudioSource, error) {
 	switch {
 	case hasSuffix(path, ".mp3"):

@@ -41,6 +41,8 @@ func handleVideoCall(ctx *Context) error {
 	}
 	target := targets[0].String()
 
+	_ = ctx.Reply("⚠️ Notice: Outgoing video call commands are highly unstable on WhatsApp Web protocol and very unlikely to work reliably.")
+
 	var videoMsg *waE2E.VideoMessage
 	if msg := ctx.Evt.Message.GetVideoMessage(); msg != nil {
 		videoMsg = msg
