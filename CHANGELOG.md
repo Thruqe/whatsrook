@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Preserved raw JID and LID formatting in mention arrays (`sender/abstract.go`, `events.go`, `plugins/dispatch.go`): `ResolveMentionRaw` and mention builders now preserve the exact raw JID/LID strings (including LID server mappings and device AD suffixes) without calling `.ToNonAD()`. This ensures mentions in call commands, group greetings, and system messages are correctly parsed by WhatsApp clients.
 - Per-Group Leaderboard System (`bot_group_user_xp` table):
   - `.leaderboard` (`.lb`, `.top`, `.xp`) is now group-specific. When run in a group chat, it dynamically resolves the group's name and displays `<Group Name> Leaderboard`.
   - Added DM score exclusion: Games played in Direct Messages (P2P chats) will no longer record XP or game statistics to any group leaderboard.

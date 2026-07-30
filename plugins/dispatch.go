@@ -709,7 +709,7 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 						ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 							Text: &textMsg,
 							ContextInfo: &waE2E.ContextInfo{
-								MentionedJID: []string{resolvedJID.ToNonAD().String()},
+								MentionedJID: []string{resolvedJID.String()},
 							},
 						},
 					})
@@ -783,7 +783,7 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 				ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 					Text: &textMsg,
 					ContextInfo: &waE2E.ContextInfo{
-						MentionedJID: []string{resolvedJID.ToNonAD().String()},
+						MentionedJID: []string{resolvedJID.String()},
 					},
 				},
 			})

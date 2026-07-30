@@ -389,7 +389,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 				formatted := sender.FormatTextResponseRaw(body)
 				var mentions []string
 				if tag == "on" {
-					mentions = append(mentions, resolvedJID.ToNonAD().String())
+					mentions = append(mentions, resolvedJID.String())
 				}
 
 				msg := &waE2E.Message{
@@ -456,7 +456,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 				formatted := sender.FormatTextResponseRaw(body)
 				var mentions []string
 				if tag == "on" {
-					mentions = append(mentions, resolvedJID.ToNonAD().String())
+					mentions = append(mentions, resolvedJID.String())
 				}
 
 				msg := &waE2E.Message{

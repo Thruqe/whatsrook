@@ -889,10 +889,9 @@ func (ctx *Context) ReplyWithMentions(text string, jids []types.JID) error {
 
 // ResolveMentionRaw returns the resolved JID and username matching display representation for mentions.
 func ResolveMentionRaw(ctx context.Context, client *whatsmeow.Client, jid types.JID) (types.JID, string) {
-	jid = jid.ToNonAD()
 	if jid.Server == types.HiddenUserServer && client.Store.LIDs != nil {
 		if pn, err := client.Store.LIDs.GetPNForLID(ctx, jid); err == nil && !pn.IsEmpty() {
-			return pn.ToNonAD(), pn.User
+			return pn, pn.User
 		}
 	}
 	return jid, jid.User
