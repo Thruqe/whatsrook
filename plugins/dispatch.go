@@ -114,6 +114,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	s, okStore := client.Store.Identities.(*sqlstore.SQLStore)
 	if okStore {
 		initTables(ctx, s)
+		StartAutoMuteScheduler(ctx, client)
 		if fontStyle, err := s.GetSetting(ctx, "font_style"); err == nil && fontStyle != "" {
 			utils.SetFontStyle(fontStyle)
 		}

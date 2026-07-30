@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Implemented `.automute`, `.autounmute`, and `.listmute` group management commands (`plugins/automute.go`) with automated background schedule execution.
+- Added `.timezone` (`.tz`) configuration command (`plugins/automute.go`) with interactive paginated buttons allowing users to select their local timezone (from all major global timezones) for accurate local schedule execution.
 - Ensured `.fetch` command outputs HTTP headers and body responses strictly using standard plain text without custom font transforms (`plugins/fetch.go`).
 - Improved YouTube Netscape cookie validation (`plugins/cookie.go`) to strictly require YouTube/Google domains (`youtube.com`, `googlevideo.com`, `google.com`) and reject non-YouTube or social media platform cookies (Facebook, Instagram, Twitter, TikTok, etc.).
 - Added WhatsApp Business commands (`plugins/business.go`): `.business` and `.catalog` to fetch business profile info, email, address, operating hours, and business catalog items.
