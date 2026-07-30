@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- remove unused params
 - Configured system prompt identity so AI adopts the name **WhatsRook** when responding to identity queries.
 - Extracted Meta AI system prompt into dedicated prompt file `prompts/meta_ai.txt` with embedded fallback for clean prompt management.
 - Added response style guidelines to Meta AI system prompt (prohibiting emojis and mandating a clear, direct, and objective tone).

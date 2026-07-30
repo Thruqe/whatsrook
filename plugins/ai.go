@@ -52,12 +52,14 @@ func getOrCreateMetaAiQueue(chatKey string) chan metaAiRequest {
 	if !exists {
 		ch = make(chan metaAiRequest, 100)
 		metaAiQueues[chatKey] = ch
-		go processMetaAiQueue(chatKey, ch)
+		go func() {
+			processMetaAiQueue(ch)
+		}()
 	}
 	return ch
 }
 
-func processMetaAiQueue(chatKey string, ch chan metaAiRequest) {
+func processMetaAiQueue(ch chan metaAiRequest) {
 	for req := range ch {
 		res, err := executeMetaAiQuery(req.ctx, req.client, req.chat, req.request, req.onUpdate)
 		req.resCh <- metaAiResponse{res: res, err: err}
