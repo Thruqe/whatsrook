@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added automatic handling for Meta AI server error `488` in `plugins/ai.go`. When Meta AI returns error 488 (uninitialized session), WhatsRook now edits the response to inform the user to start a direct 1-on-1 chat with Meta AI first, and sends a native vCard contact card containing Meta AI's bot JID (`867051314767696@bot`).
+
 - Implemented `.automute`, `.autounmute`, and `.listmute` group management commands (`plugins/automute.go`) with automated background schedule execution.
 - Added `.timezone` (`.tz`) configuration command (`plugins/automute.go`) with interactive paginated buttons allowing users to select their local timezone (from all major global timezones) for accurate local schedule execution.
 - Ensured `.fetch` command outputs HTTP headers and body responses strictly using standard plain text without custom font transforms (`plugins/fetch.go`).

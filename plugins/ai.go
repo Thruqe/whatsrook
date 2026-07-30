@@ -554,6 +554,26 @@ func handleAI(ctx *Context) error {
 	res, err := queryMetaAi(ctx.Ctx, ctx.Client, ctx.Chat, query, onUpdate)
 	if err != nil {
 		slog.Error("handleAI: queryMetaAi failed", "chat", ctx.Chat.String(), "err", err)
+		if strings.Contains(err.Error(), "488") {
+			errMsg := "Meta AI session initialization required.\n\nPlease make sure you have manually started a direct 1-on-1 chat/conversation with Meta AI on WhatsApp first before WhatsRook can interact with it."
+			editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
+				Conversation: &errMsg,
+			})
+			_, _ = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
+
+			// Send Meta AI contact card
+			metaName := "Meta AI"
+			metaVcard := fmt.Sprintf("BEGIN:VCARD\nVERSION:3.0\nN:AI;Meta;;;\nFN:%s\nTEL;type=CELL;waid=%s:+%s\nEND:VCARD", metaName, metaAiBotJID.User, metaAiBotJID.User)
+			contactMsg := &waE2E.Message{
+				ContactMessage: &waE2E.ContactMessage{
+					DisplayName: &metaName,
+					Vcard:       &metaVcard,
+				},
+			}
+			_, _ = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, contactMsg)
+			return err
+		}
+
 		editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
 			Conversation: new("Failed to get a response: " + err.Error()),
 		})
