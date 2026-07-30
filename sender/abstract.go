@@ -224,11 +224,20 @@ func (ctx *Context) ReplyWithImage(data []byte, mimetype, caption string) error 
 
 // SendVideo uploads and sends a video to the current chat.
 func (ctx *Context) SendVideo(data []byte, mimetype, caption string) error {
+	return ctx.sendVideoInternal(data, mimetype, caption, false)
+}
+
+// SendVideoGif uploads and sends a video with GifPlayback enabled so it plays as an inline looping GIF.
+func (ctx *Context) SendVideoGif(data []byte, mimetype, caption string) error {
+	return ctx.sendVideoInternal(data, mimetype, caption, true)
+}
+
+func (ctx *Context) sendVideoInternal(data []byte, mimetype, caption string, gifPlayback bool) error {
 	if mimetype == "" {
 		slog.Warn("SendVideo: mimetype is empty, defaulting to video/mp4")
 		mimetype = "video/mp4"
 	}
-	slog.Debug("Building SendVideo", "data_len", len(data), "mimetype", mimetype, "caption", caption)
+	slog.Debug("Building SendVideo", "data_len", len(data), "mimetype", mimetype, "caption", caption, "gif_playback", gifPlayback)
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaVideo)
 	if err != nil {
 		slog.Error("SendVideo: upload failed", "err", err)
@@ -245,6 +254,9 @@ func (ctx *Context) SendVideo(data []byte, mimetype, caption string) error {
 			FileLength:    new(uint64),
 			Caption:       &caption,
 		},
+	}
+	if gifPlayback {
+		msg.VideoMessage.GifPlayback = proto.Bool(true)
 	}
 	*msg.VideoMessage.FileLength = uint64(len(data))
 	slog.Debug("Sending SendVideo", "chat", ctx.Chat.String(), "url", uploaded.URL)

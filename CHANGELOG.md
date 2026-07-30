@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `SendVideoGif` method to `sender/abstract.go` which sets `GifPlayback: proto.Bool(true)` on `VideoMessage`. Updated `.menu` command (`plugins/menu.go`) to use `SendVideoGif` so that `resources/songs/whatsrook.gif` displays and loops properly as an inline GIF media video on WhatsApp.
 - Renamed previous scrambled word game to `.unscramble` (`plugins/unscramble.go` & `utils/unscramble.go`).
 - Created new `.wcg` (**Word Chain Game**) command (`plugins/wcg.go` & `utils/wcg.go`). Players submit valid English words starting with a random required letter that meet or exceed the required character length. Word validity is verified in parallel across 5 English dictionary APIs (`api.dictionaryapi.dev`, `api.datamuse.com`, Wiktionary API, US/UK dictionary proxies) plus built-in fallback dictionaries.
 - Fixed `meowcaller` client binding across packages via `RegisterMeowCaller(client)` in `client.go` and `plugins/callplace.go`. This guarantees that the exact `meowcaller.Client` registered during pre-connection startup is stored globally and reused across all call execution handlers (`.groupcall`, `.call`, `.videocall`).

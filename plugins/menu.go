@@ -116,7 +116,7 @@ func handleMenu(ctx *Context) error {
 	if menuStyle == "video" {
 		videoPath := "resources/songs/whatsrook.gif"
 		if videoData, err := os.ReadFile(videoPath); err == nil && len(videoData) > 0 {
-			if err := ctx.SendVideo(videoData, "video/mp4", menuText); err == nil {
+			if err := ctx.SendVideoGif(videoData, "video/mp4", menuText); err == nil {
 				return nil
 			}
 		}
