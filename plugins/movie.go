@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"go.mau.fi/whatsmeow"
@@ -165,9 +166,19 @@ func handleMovie(ctx *Context) error {
 	}
 
 	subCmd := strings.ToLower(ctx.Args[0])
+	if idxVal, err := strconv.Atoi(subCmd); err == nil && idxVal >= 1 {
+		// User selected a numeric index directly, e.g. .movie 5
+		return handleMovieSelectByIndex(ctx, idxVal)
+	}
 	if subCmd == "select" && len(ctx.Args) >= 4 {
 		// Args: select <source> <subjectIdOrPath> <detailPath>
 		return handleMovieSelect(ctx, ctx.Args[1], ctx.Args[2], ctx.Args[3])
+	}
+	if subCmd == "select" && len(ctx.Args) == 2 {
+		// Args: select <indexNumber>
+		if idxVal, err := strconv.Atoi(ctx.Args[1]); err == nil && idxVal >= 1 {
+			return handleMovieSelectByIndex(ctx, idxVal)
+		}
 	}
 	if subCmd == "info" && len(ctx.Args) >= 4 {
 		return handleMovieInfo(ctx, ctx.Args[1], ctx.Args[2], ctx.Args[3])
@@ -202,6 +213,29 @@ type unifiedMovieResult struct {
 	Source     int
 	SubjectID  string
 	DetailPath string
+}
+
+var (
+	lastSearchMutex   sync.Mutex
+	lastSearchResults = make(map[string][]unifiedMovieResult)
+)
+
+func handleMovieSelectByIndex(ctx *Context, idxVal int) error {
+	lastSearchMutex.Lock()
+	results, ok := lastSearchResults[ctx.Chat.String()]
+	lastSearchMutex.Unlock()
+
+	if !ok || len(results) == 0 {
+		return ctx.Reply("No recent movie search found for this chat. Please perform a search first using `.movie <query>`.")
+	}
+
+	if idxVal < 1 || idxVal > len(results) {
+		return ctx.Reply(fmt.Sprintf("Invalid selection index %d. Please choose a number between 1 and %d.", idxVal, len(results)))
+	}
+
+	item := results[idxVal-1]
+	sourceStr := strconv.Itoa(item.Source)
+	return handleMovieSelect(ctx, sourceStr, item.SubjectID, item.DetailPath)
 }
 
 func renderMovieSearchResults(ctx *Context, query string, page int) error {
@@ -272,53 +306,45 @@ func renderMovieSearchResults(ctx *Context, query string, page int) error {
 		return ctx.Reply(fmt.Sprintf("No movies or TV shows found matching %q across Source 1 and Source 2.", query))
 	}
 
-	pageSize := 3
-	totalPages := (len(results) + pageSize - 1) / pageSize
-	if page > totalPages {
-		page = totalPages
-	}
-
-	startIdx := (page - 1) * pageSize
-	endIdx := startIdx + pageSize
-	if endIdx > len(results) {
-		endIdx = len(results)
-	}
-
-	pageItems := results[startIdx:endIdx]
+	// Cache full results for this chat
+	lastSearchMutex.Lock()
+	lastSearchResults[ctx.Chat.String()] = results
+	lastSearchMutex.Unlock()
 
 	p := ctx.GetPrefix()
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "*Movie Search Results* (Page %d of %d, Total: %d)\nSelect a movie or TV show below:\n\n", page, totalPages, len(results))
+	fmt.Fprintf(&sb, "*Movie Search Results* (Total: %d)\n\n", len(results))
 
 	var buttons []struct{ ID, Text string }
-	for idx, item := range pageItems {
-		globalIdx := startIdx + idx + 1
+	for idx, item := range results {
+		globalIdx := idx + 1
 		fmt.Fprintf(&sb, "%d. *%s*", globalIdx, item.Title)
 		if item.Year != "" {
 			fmt.Fprintf(&sb, " (%s)", item.Year)
 		}
 		fmt.Fprintf(&sb, " [Source %d]\n", item.Source)
 
-		btnText := item.Title
-		if item.Year != "" {
-			btnText = fmt.Sprintf("%s (%s)", item.Title, item.Year)
-		}
-		if len(btnText) > 20 {
-			btnText = btnText[:20]
-		}
+		// Create selection buttons for top results (up to 3 supported by WhatsApp ButtonsMessage)
+		if idx < 3 {
+			btnText := item.Title
+			if item.Year != "" {
+				btnText = fmt.Sprintf("%d. %s (%s)", globalIdx, item.Title, item.Year)
+			} else {
+				btnText = fmt.Sprintf("%d. %s", globalIdx, item.Title)
+			}
+			if len(btnText) > 20 {
+				btnText = btnText[:20]
+			}
 
-		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   fmt.Sprintf("%smovie select %d %s %s", p, item.Source, url.QueryEscape(item.SubjectID), url.QueryEscape(item.DetailPath)),
-			Text: btnText,
-		})
+			buttons = append(buttons, struct{ ID, Text string }{
+				ID:   fmt.Sprintf("%smovie select %d %s %s", p, item.Source, url.QueryEscape(item.SubjectID), url.QueryEscape(item.DetailPath)),
+				Text: btnText,
+			})
+		}
 	}
 
-	if page < totalPages && len(buttons) < 3 {
-		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   fmt.Sprintf("%smovie page %d %s", p, page+1, query),
-			Text: fmt.Sprintf("Next (Page %d)", page+1),
-		})
-	}
+	sb.WriteString("\nTo select a result, tap a button above or type:\n")
+	fmt.Fprintf(&sb, "`%smovie <number>` (e.g. `%smovie 4`)", p, p)
 
 	return sendInteractiveButtons(ctx, sb.String(), "Powered by WhatsRook", buttons)
 }
