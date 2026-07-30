@@ -2,18 +2,17 @@
 package meta
 
 import (
+	_ "embed"
 	"fmt"
+	"os"
 	"strings"
 
 	stripmd "github.com/writeas/go-strip-markdown/v2"
 	"go.mau.fi/whatsmeow/types"
 )
 
-// RunCommandInstruction is prepended to every request sent to Meta AI so
-// it knows about the bot's command-invocation convention. Meta AI has no
-// persistent system prompt we control, so this must be included with
-// every message rather than configured once.
-const RunCommandInstruction = "[If the user is asking you to perform an action the bot itself can do (like tagging everyone, checking uptime, downloading media, etc.), and nothing else, respond with exactly: RUN_COMMAND: !<command_name> [args] — with no other text. Otherwise, just answer normally.]\n\n"
+//go:embed prompts/meta_ai.txt
+var embeddedMetaAiPrompt string
 
 // CommandInfo mirrors commands.CommandInfo — kept as a separate type here
 // so meta has no import dependency on the commands package (which
@@ -31,44 +30,29 @@ type CommandInfo struct {
 // answer questions about how to use a command, using real data instead
 // of guessing.
 func BuildRunCommandInstruction(cmds []CommandInfo) string {
-	var b strings.Builder
-	b.WriteString("[SYSTEM CONTEXT — Available bot commands:\n")
-	b.WriteString("If the user asks to PERFORM an action (e.g. run a shell command, fetch URL, tag everyone, check uptime, etc.), respond with EXACTLY:\n")
-	b.WriteString("RUN_COMMAND: !<command_name> [args]\n")
-	b.WriteString("— with no other text.\n")
-	b.WriteString("For shell execution requests (like 'run curl ...', 'check IP ...'), use: RUN_COMMAND: !sh <command> [args]\n")
-	b.WriteString("NEVER output RUN_COMMAND for 'ai', 'gpt', or conversational chatter. If the user is chatting or making small talk, answer naturally.\n")
-	b.WriteString("RESPONSE STYLE & TONE GUIDELINES:\n")
-	b.WriteString("- Do NOT use emojis anywhere in your responses.\n")
-	b.WriteString("- Respond in a clear, thoughtful, objective, and direct manner.\n")
-	b.WriteString("- Avoid fluff, filler phrases, performative enthusiasm, or unnecessary preambles.\n")
-	b.WriteString("If the user asks ABOUT how a command works or asks for help/explanation, explain clearly and mention they can ask you to run it.\n")
-	b.WriteString("If a command is [sudo-only] and user isn't authorized, explain it is restricted.\n\n")
-	b.WriteString("[WHATSROOK_AI_BOT_TOOLS (RAW EXECUTION TOOLS)]:\n")
-	b.WriteString("You can invoke raw action tools by responding with RUN_COMMAND: !<tool> <args>:\n")
-	b.WriteString("- !send <text> : Send raw text message to the current chat.\n")
-	b.WriteString("- !edit <msg_id> <new_text> : Edit a message using its Message ID.\n")
-	b.WriteString("- !delete [msg_id] : Delete/revoke a message by Message ID (or omit msg_id when replying to a message).\n")
-	b.WriteString("- !ffmpeg <args> : Execute an ffmpeg command on media or raw arguments.\n")
-	b.WriteString("- !fetch <url> : Fetch raw HTTP content from a URL.\n")
-	b.WriteString("- !downloadMessage [msg_id] : Download media (image, video, audio, document, sticker) from a message using its Message ID or quoted message.\n\n")
-	b.WriteString("Commands list:\n")
+	promptTmpl := embeddedMetaAiPrompt
+	if data, err := os.ReadFile("prompts/meta_ai.txt"); err == nil && len(data) > 0 {
+		promptTmpl = string(data)
+	} else if data, err := os.ReadFile("meta/prompts/meta_ai.txt"); err == nil && len(data) > 0 {
+		promptTmpl = string(data)
+	}
 
+	var cmdsBuf strings.Builder
 	for _, c := range cmds {
-		fmt.Fprintf(&b, "- !%s", c.Name)
+		fmt.Fprintf(&cmdsBuf, "- !%s", c.Name)
 		if len(c.Aliases) > 0 {
-			fmt.Fprintf(&b, " (aliases: %s)", strings.Join(c.Aliases, ", "))
+			fmt.Fprintf(&cmdsBuf, " (aliases: %s)", strings.Join(c.Aliases, ", "))
 		}
 		if !c.IsPublic {
-			b.WriteString(" [sudo-only]")
+			cmdsBuf.WriteString(" [sudo-only]")
 		}
-		b.WriteString(": ")
-		b.WriteString(c.Description)
-		b.WriteString("\n")
+		cmdsBuf.WriteString(": ")
+		cmdsBuf.WriteString(c.Description)
+		cmdsBuf.WriteString("\n")
 	}
-	b.WriteString("]\n\n")
 
-	return b.String()
+	res := strings.ReplaceAll(promptTmpl, "{{COMMANDS_LIST}}", strings.TrimRight(cmdsBuf.String(), "\n"))
+	return res + "\n\n"
 }
 
 // ParseRunCommand checks whether an AI reply is requesting that the bot
