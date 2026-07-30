@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Updated `utils/wcg.go` so `EliminateCurrentPlayer` returns `gameOver = true` when 1 active player remains (as well as 0). This ensures the game immediately ends and displays the complete final leaderboard standings and winner/highest-scorer evaluation once all other players are eliminated.
 - Preserved raw JID/LIDs without stripping or altering them in `SendTextWithMentions` and `ReplyWithMentions` in `sender/abstract.go` so WhatsApp client mention popups work seamlessly.
 - Updated `.wcg` (**Word Chain Game**):
   - Dynamic Turn Time Limits: Time limit now decreases automatically round by round starting at 25 seconds down to a minimum of 6 seconds (`25s - (round-1)*2s`).

@@ -276,7 +276,7 @@ func (g *WCGGame) advanceTurnUnsafe() {
 	}
 }
 
-// EliminateCurrentPlayer eliminates the current turn player. Returns gameOver bool when 0 active players remain.
+// EliminateCurrentPlayer eliminates the current turn player. Returns gameOver bool when 1 or 0 active players remain.
 func (g *WCGGame) EliminateCurrentPlayer() (gameOver bool, winner *WCGPlayer) {
 	g.Mu.Lock()
 	defer g.Mu.Unlock()
@@ -286,8 +286,11 @@ func (g *WCGGame) EliminateCurrentPlayer() (gameOver bool, winner *WCGPlayer) {
 	}
 
 	rem := g.GetActivePlayers()
-	if len(rem) == 0 {
-		return true, nil
+	if len(rem) <= 1 {
+		if len(rem) == 1 {
+			winner = rem[0]
+		}
+		return true, winner
 	}
 
 	activeCount := len(rem)
