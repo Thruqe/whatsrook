@@ -175,67 +175,11 @@ func isCookieError(err error) bool {
 		strings.Contains(errStr, "login_required")
 }
 
-// sendCookieHelp sends a helpful message with buttons guiding the user to set cookies.
+// sendCookieHelp sends a helpful message guiding the user to set cookies.
 func sendCookieHelp(ctx *Context) error {
 	prefix := ctx.GetPrefix()
-	bodyText := fmt.Sprintf("You haven't configured your YouTube cookies yet. YouTube is blocking this request because it looks like a bot.\n\nPlease check out the %scookie command for instructions, or use the %sai command for more help.", prefix, prefix)
-
-	cookieBtnID := prefix + "cookie"
-	aiBtnID := prefix + "ai"
-
-	msg := &waE2E.Message{
-		DocumentWithCaptionMessage: &waE2E.FutureProofMessage{
-			Message: &waE2E.Message{
-				ButtonsMessage: &waE2E.ButtonsMessage{
-					ContentText: &bodyText,
-					FooterText:  new("Powered by WhatsRook"),
-					HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
-					Buttons: []*waE2E.ButtonsMessage_Button{
-						{
-							ButtonID:   new(cookieBtnID),
-							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: new("Cookie Tutorial")},
-							Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
-						},
-						{
-							ButtonID:   new(aiBtnID),
-							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: new("Ask AI")},
-							Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
-						},
-					},
-				},
-			},
-		},
-	}
-
-	bizNode := waBinary.Node{
-		Tag:   "biz",
-		Attrs: waBinary.Attrs{},
-		Content: []waBinary.Node{
-			{
-				Tag: "interactive",
-				Attrs: waBinary.Attrs{
-					"type": "native_flow",
-					"v":    "1",
-				},
-				Content: []waBinary.Node{
-					{
-						Tag: "native_flow",
-						Attrs: waBinary.Attrs{
-							"v":    "9",
-							"name": "mixed",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	extra := whatsmeow.SendRequestExtra{
-		AdditionalNodes: &[]waBinary.Node{bizNode},
-	}
-
-	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
-	return err
+	bodyText := fmt.Sprintf("You haven't configured your YouTube cookies yet or they have expired. YouTube is blocking this request.\n\nPlease check the %scookie command for instructions, then use `%ssetcookie <cookies>` to save your Netscape cookies.", prefix, prefix)
+	return ctx.Reply(bodyText)
 }
 
 func handlePlayDownload(ctx *Context, format string, target string) error {

@@ -10,10 +10,6 @@ import (
 	"time"
 
 	"whatsrook/store/sqlstore"
-
-	"go.mau.fi/whatsmeow"
-	waBinary "go.mau.fi/whatsmeow/binary"
-	"go.mau.fi/whatsmeow/proto/waE2E"
 )
 
 const (
@@ -51,57 +47,8 @@ func handleCookieInstruction(ctx *Context) error {
 	}
 
 	prefix := ctx.GetPrefix()
-	btnID := prefix + "setcookie"
-	bodyText := "Bot is awaiting you. Click the button below or paste your Netscape cookies after .setcookie command."
-
-	msg := &waE2E.Message{
-		DocumentWithCaptionMessage: &waE2E.FutureProofMessage{
-			Message: &waE2E.Message{
-				ButtonsMessage: &waE2E.ButtonsMessage{
-					ContentText: &bodyText,
-					FooterText:  new("Powered by WhatsRook"),
-					HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
-					Buttons: []*waE2E.ButtonsMessage_Button{
-						{
-							ButtonID:   new(btnID),
-							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: new("Set Cookie")},
-							Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
-						},
-					},
-				},
-			},
-		},
-	}
-
-	bizNode := waBinary.Node{
-		Tag:   "biz",
-		Attrs: waBinary.Attrs{},
-		Content: []waBinary.Node{
-			{
-				Tag: "interactive",
-				Attrs: waBinary.Attrs{
-					"type": "native_flow",
-					"v":    "1",
-				},
-				Content: []waBinary.Node{
-					{
-						Tag: "native_flow",
-						Attrs: waBinary.Attrs{
-							"v":    "9",
-							"name": "mixed",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	extra := whatsmeow.SendRequestExtra{
-		AdditionalNodes: &[]waBinary.Node{bizNode},
-	}
-
-	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
-	return err
+	bodyText := fmt.Sprintf("Bot is awaiting you. Paste your Netscape cookies after the %ssetcookie command (e.g., `%ssetcookie <cookies>`).", prefix, prefix)
+	return ctx.Reply(bodyText)
 }
 
 func handleSetCookie(ctx *Context) error {
@@ -117,57 +64,7 @@ func handleSetCookie(ctx *Context) error {
 
 	if cookieData == "" {
 		prefix := ctx.GetPrefix()
-		btnID := prefix + "cookie"
-		bodyText := "Bot is awaiting you, paste your cookies and nothing else after .setcookie command."
-
-		msg := &waE2E.Message{
-			DocumentWithCaptionMessage: &waE2E.FutureProofMessage{
-				Message: &waE2E.Message{
-					ButtonsMessage: &waE2E.ButtonsMessage{
-						ContentText: &bodyText,
-						FooterText:  new("Powered by WhatsRook"),
-						HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
-						Buttons: []*waE2E.ButtonsMessage_Button{
-							{
-								ButtonID:   new(btnID),
-								ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: new("View Tutorial")},
-								Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
-							},
-						},
-					},
-				},
-			},
-		}
-
-		bizNode := waBinary.Node{
-			Tag:   "biz",
-			Attrs: waBinary.Attrs{},
-			Content: []waBinary.Node{
-				{
-					Tag: "interactive",
-					Attrs: waBinary.Attrs{
-						"type": "native_flow",
-						"v":    "1",
-					},
-					Content: []waBinary.Node{
-						{
-							Tag: "native_flow",
-							Attrs: waBinary.Attrs{
-								"v":    "9",
-								"name": "mixed",
-							},
-						},
-					},
-				},
-			},
-		}
-
-		extra := whatsmeow.SendRequestExtra{
-			AdditionalNodes: &[]waBinary.Node{bizNode},
-		}
-
-		_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
-		return err
+		return ctx.Reply(fmt.Sprintf("Bot is awaiting you. Please paste your cookies after the %ssetcookie command (e.g. `%ssetcookie <cookies>`), or reply to a message containing your cookies with `%ssetcookie`.", prefix, prefix, prefix))
 	}
 
 	if !IsValidNetscapeCookie(cookieData) {
