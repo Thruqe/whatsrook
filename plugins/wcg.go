@@ -433,8 +433,10 @@ func startWCGChainTurn(ctx *Context, game *utils.WCGGame) {
 	timeDuration := time.Duration(timeSec) * time.Second
 	timer := time.AfterFunc(timeDuration, func() {
 		game.Mu.Lock()
-		if game.State != utils.WCGStateInProgress {
-			game.Mu.Unlock()
+		inProgress := game.State == utils.WCGStateInProgress
+		game.Mu.Unlock()
+
+		if !inProgress {
 			return
 		}
 
@@ -457,12 +459,8 @@ func startWCGChainTurn(ctx *Context, game *utils.WCGGame) {
 }
 
 func eliminateAndAdvanceWCG(ctx *Context, game *utils.WCGGame) {
-	game.Mu.Lock()
-	if game.TurnTimer != nil {
-		game.TurnTimer.Stop()
-	}
+	game.StopTimers()
 	gameOver, winner := game.EliminateCurrentPlayer()
-	game.Mu.Unlock()
 
 	if gameOver {
 		finishWCGChainGame(ctx, game, winner)

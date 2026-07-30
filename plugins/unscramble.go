@@ -77,7 +77,6 @@ func HandleUnscrambleInput(ctx *Context, text string) bool {
 	// Process the guess (release lock first, ProcessGuess needs its own lock)
 	game.Mu.Unlock()
 	correct, gameOver, winner, currentPlayer, elapsed := game.ProcessGuess(text, senderLID)
-	game.Mu.Lock()
 
 	if correct {
 		msg := fmt.Sprintf("Correct! %s guessed '%s' in %.1fs! (+%d pts)\n\nAdvancing to the next level!",
@@ -85,13 +84,11 @@ func HandleUnscrambleInput(ctx *Context, text string) bool {
 		_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
 
 		if gameOver {
-			game.Mu.Unlock()
 			finishUnscrambleGame(ctx, game, winner)
 			return true
 		}
 
 		// Start next turn
-		game.Mu.Unlock()
 		startUnscrambleTurn(ctx, game)
 		return true
 	}
@@ -102,13 +99,11 @@ func HandleUnscrambleInput(ctx *Context, text string) bool {
 	_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
 
 	if gameOver {
-		game.Mu.Unlock()
 		finishUnscrambleGame(ctx, game, winner)
 		return true
 	}
 
 	// Start next turn
-	game.Mu.Unlock()
 	startUnscrambleTurn(ctx, game)
 	return true
 }
@@ -272,8 +267,10 @@ func startUnscrambleTurn(ctx *Context, game *utils.UnscrambleGame) {
 	timeDuration := time.Duration(timeSec) * time.Second
 	timer := time.AfterFunc(timeDuration, func() {
 		game.Mu.Lock()
-		if game.State != utils.UnscrambleStateInProgress {
-			game.Mu.Unlock()
+		inProgress := game.State == utils.UnscrambleStateInProgress
+		game.Mu.Unlock()
+
+		if !inProgress {
 			return
 		}
 
@@ -290,8 +287,8 @@ func startUnscrambleTurn(ctx *Context, game *utils.UnscrambleGame) {
 			currentPlayer.Tag, game.CurrentWord, currentPlayer.Tag)
 		_ = cctx.ReplyWithMentions(timeoutMsg, []types.JID{currentPlayer.MentionJID})
 
+		game.StopTimers()
 		gameOver, winner := game.EliminateCurrentPlayer()
-		game.Mu.Unlock()
 
 		if gameOver {
 			finishUnscrambleGame(cctx, game, winner)
