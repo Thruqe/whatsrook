@@ -4,6 +4,7 @@ package commands
 import (
 	"fmt"
 	"math"
+	"os"
 	"runtime"
 	"strings"
 	"time"
@@ -98,7 +99,30 @@ func handleMenu(ctx *Context) error {
 		fmt.Fprintf(&sb, "╰─────────────\n\n")
 	}
 
-	return sendText(ctx, strings.TrimRight(sb.String(), "\n"))
+	menuText := strings.TrimRight(sb.String(), "\n")
+
+	// Auto-switch: toggle setting "menu_style" between "text" and "video"
+	menuStyle := "video"
+	if ok {
+		currentStyle, _ := s.GetSetting(ctx.Ctx, "menu_style")
+		if currentStyle == "video" {
+			menuStyle = "text"
+		} else {
+			menuStyle = "video"
+		}
+		_ = s.PutSetting(ctx.Ctx, "menu_style", menuStyle)
+	}
+
+	if menuStyle == "video" {
+		videoPath := "resources/songs/whatsrook.gif"
+		if videoData, err := os.ReadFile(videoPath); err == nil && len(videoData) > 0 {
+			if err := ctx.SendVideo(videoData, "video/mp4", menuText); err == nil {
+				return nil
+			}
+		}
+	}
+
+	return sendText(ctx, menuText)
 }
 
 // menuRuntime formats a duration in seconds as "Xd Xh Xm Xs".

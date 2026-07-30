@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Updated `plugins/callplace.go` with `getMeowCallerClient(ctx.Client)` singleton instance reuse so `.groupcall`, `.call`, and `.videocall` share the exact pre-connected `meowcaller.Client` registered during startup, preventing duplicate client instantiations and raw call adapter errors.
+- Enhanced `.menu` command (`plugins/menu.go`) to automatically alternate between plain text output and video media output (sending `resources/songs/whatsrook.gif` as video with menu text caption).
 - Fixed `meowcaller` raw call adapter initialization in `client.go`. Instantiating `meowcaller.NewClient` immediately after `whatsmeow.NewClient` (before `client.Connect()`) ensures that low-level `<ack>` and `<call>` hooks are installed prior to the WebSocket connection start, resolving the `"raw call adapter is unavailable: construct the client before connecting whatsmeow"` error.
 - Added dynamic HTTP port fallback in `client.go`. When the configured HTTP server port (e.g. `3000`) is already bound/in use (`bind: address already in use`), WhatsRook automatically detects the conflict, logs a warning message (`⚠️ Port 3000 was in use — switched to port 3001`), and binds to the next available open port.
 - Implemented `.csai` (`.customai`, `.aipersona`, `.aipersonality`) command in `plugins/ai.go` (restricted strictly to Sudoers). Allows owner/sudoers to globally override Meta AI's personality traits and relationship behavior across 10 preset personality traits with paginated interactive buttons + button 11 for custom prompts (e.g. how the AI should refer to the user).

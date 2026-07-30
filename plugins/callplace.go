@@ -14,13 +14,33 @@ import (
 
 	"github.com/purpshell/meowcaller"
 	"github.com/rs/zerolog"
+	"go.mau.fi/whatsmeow"
 )
+
+var (
+	meowCallerMu     sync.Mutex
+	meowCallerClient *meowcaller.Client
+	meowCallerWA     *whatsmeow.Client
+)
+
+func getMeowCallerClient(wa *whatsmeow.Client) *meowcaller.Client {
+	meowCallerMu.Lock()
+	defer meowCallerMu.Unlock()
+
+	if meowCallerClient != nil && meowCallerWA == wa {
+		return meowCallerClient
+	}
+
+	logger := zerolog.Nop()
+	meowCallerClient = meowcaller.NewClient(wa, meowcaller.WithLogger(logger))
+	meowCallerWA = wa
+	return meowCallerClient
+}
 
 // placeCallWithAudio places a call and plays audioPath to the peer once media
 // is ready, then hangs up automatically once the audio should have finished.
 func placeCallWithAudio(ctx *Context, target, audioPath string) error {
-	logger := zerolog.Nop()
-	client := meowcaller.NewClient(ctx.Client, meowcaller.WithLogger(logger))
+	client := getMeowCallerClient(ctx.Client)
 
 	call, err := client.Call(ctx.Ctx, target)
 	if err != nil {
@@ -80,8 +100,7 @@ func placeVideoCall(ctx *Context, target string) error {
 
 // placeVideoCallWithMedia places an outbound video call to target, playing videoPath media if provided.
 func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
-	logger := zerolog.Nop()
-	client := meowcaller.NewClient(ctx.Client, meowcaller.WithLogger(logger))
+	client := getMeowCallerClient(ctx.Client)
 
 	call, err := client.CallWithOptions(ctx.Ctx, target, meowcaller.CallOptions{Video: true})
 	if err != nil {
@@ -241,8 +260,7 @@ func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 }
 
 func placeGroupCall(ctx *Context, groupJID string, participants []string, audioPath string) error {
-	logger := zerolog.Nop()
-	client := meowcaller.NewClient(ctx.Client, meowcaller.WithLogger(logger))
+	client := getMeowCallerClient(ctx.Client)
 
 	call, err := client.GroupCall(ctx.Ctx, participants...)
 	if err != nil {
