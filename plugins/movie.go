@@ -332,8 +332,8 @@ func renderMovieSearchResults(ctx *Context, query string, page int) error {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "*Movie Search Results* (Page %d of %d, Total: %d)\n\n", page, totalPages, len(results))
 
-	for idx, item := range results {
-		globalIdx := idx + 1
+	for idx, item := range pageItems {
+		globalIdx := startIdx + idx + 1
 		fmt.Fprintf(&sb, "%d. *%s*", globalIdx, item.Title)
 		if item.Year != "" {
 			fmt.Fprintf(&sb, " (%s)", item.Year)
