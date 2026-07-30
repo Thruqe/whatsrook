@@ -603,7 +603,7 @@ func handleAI(ctx *Context) error {
 		if cmdName == "ai" || cmdName == "autoai" || cmdName == "gpt" || cmdName == "ask" {
 			slog.Warn("handleAI: blocked recursive AI command execution", "command", cmdName)
 			editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
-				Conversation: new(reply),
+				Conversation: new("Recursive AI command execution is not allowed."),
 			})
 			_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
 			return err

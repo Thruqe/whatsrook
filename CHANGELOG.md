@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Prevented raw `RUN_COMMAND:` protocol text from being exposed to end users in edited response messages when AI triggers internal commands.
 - Updated `autoai` trigger logic to automatically respond when `"Rook"` or `"WhatsRook"` is mentioned in a chat message, in addition to tags and replies.
 - Configured system prompt identity so AI adopts the name **WhatsRook** when responding to identity queries.
 - Extracted Meta AI system prompt into dedicated prompt file `prompts/meta_ai.txt` with embedded fallback for clean prompt management.
