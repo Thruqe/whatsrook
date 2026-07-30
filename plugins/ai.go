@@ -401,7 +401,7 @@ func init() {
 	})
 	Register(&Command{
 		Name:        "autoai",
-		Description: "Toggle automatic AI responses when tagged or replied to in this chat (on/off)",
+		Description: "Toggle automatic AI responses when tagged, replied to, or when 'Rook' or 'WhatsRook' is mentioned in this chat (on/off)",
 		Category:    "ai",
 		IsPublic:    true,
 		Handler:     handleAutoAI,

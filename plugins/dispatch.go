@@ -938,6 +938,12 @@ func isBotTaggedOrReplied(client *whatsmeow.Client, evt *events.Message, text st
 	ourJID := client.Store.ID.ToNonAD()
 	ourLID := client.Store.LID.ToNonAD()
 
+	lowerText := strings.ToLower(text)
+	// 0. Check if text contains "rook" or "whatsrook" as keywords
+	if strings.Contains(lowerText, "whatsrook") || strings.Contains(lowerText, "rook") {
+		return true
+	}
+
 	// 1. Check if the text itself contains a mention/tag of the bot
 	if strings.Contains(text, "@"+ourJID.User) || (!ourLID.IsEmpty() && strings.Contains(text, "@"+ourLID.User)) {
 		return true
