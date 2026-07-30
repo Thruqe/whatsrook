@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Implemented per-chat request queue for Meta AI queries to execute multiple incoming queries sequentially without rejecting concurrent requests.
+
 - Correct Docs url
 - Bump deps
 - Format docs

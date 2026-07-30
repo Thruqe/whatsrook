@@ -26,29 +26,42 @@ import (
 // metaAiBotJID is the fixed JID Meta AI's bot account is reached at.
 var metaAiBotJID = types.NewJID("867051314767696", "bot")
 
-// ErrMetaAiBusy is returned by queryMetaAi when a request for the same
-// chat is already in progress.
-var ErrMetaAiBusy = fmt.Errorf("a Meta AI request is already in progress for this chat; please wait")
-
-var (
-	metaAiInFlight   = make(map[string]bool)
-	metaAiInFlightMu sync.Mutex
-)
-
-func tryLockMetaAi(chatKey string) bool {
-	metaAiInFlightMu.Lock()
-	defer metaAiInFlightMu.Unlock()
-	if metaAiInFlight[chatKey] {
-		return false
-	}
-	metaAiInFlight[chatKey] = true
-	return true
+type metaAiRequest struct {
+	ctx      context.Context
+	client   *whatsmeow.Client
+	chat     types.JID
+	request  string
+	onUpdate func(text string) error
+	resCh    chan metaAiResponse
 }
 
-func unlockMetaAi(chatKey string) {
-	metaAiInFlightMu.Lock()
-	defer metaAiInFlightMu.Unlock()
-	delete(metaAiInFlight, chatKey)
+type metaAiResponse struct {
+	res MetaAiResult
+	err error
+}
+
+var (
+	metaAiQueues   = make(map[string]chan metaAiRequest)
+	metaAiQueuesMu sync.Mutex
+)
+
+func getOrCreateMetaAiQueue(chatKey string) chan metaAiRequest {
+	metaAiQueuesMu.Lock()
+	defer metaAiQueuesMu.Unlock()
+	ch, exists := metaAiQueues[chatKey]
+	if !exists {
+		ch = make(chan metaAiRequest, 100)
+		metaAiQueues[chatKey] = ch
+		go processMetaAiQueue(chatKey, ch)
+	}
+	return ch
+}
+
+func processMetaAiQueue(chatKey string, ch chan metaAiRequest) {
+	for req := range ch {
+		res, err := executeMetaAiQuery(req.ctx, req.client, req.chat, req.request, req.onUpdate)
+		req.resCh <- metaAiResponse{res: res, err: err}
+	}
 }
 
 // extractMetaAiText pulls the human-readable text out of a Meta AI
@@ -161,23 +174,16 @@ func extractMetaAiGeneratedImage(msg *waE2E.Message) (mediaURL string, mimeType 
 	return mediaURL, mimeType, text
 }
 
-// queryMetaAi sends request to Meta AI's bot JID and streams Meta AI's
-// response back to the caller as it arrives.
-func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, request string, onUpdate func(text string) error) (MetaAiResult, error) {
+// executeMetaAiQuery performs the raw query to Meta AI's bot JID.
+func executeMetaAiQuery(ctx context.Context, client *whatsmeow.Client, chat types.JID, request string, onUpdate func(text string) error) (MetaAiResult, error) {
 	chatKey := chat.String()
 
-	if !tryLockMetaAi(chatKey) {
-		slog.Warn("queryMetaAi: rejected, already in progress for chat", "chat", chatKey)
-		return MetaAiResult{}, ErrMetaAiBusy
-	}
-	defer unlockMetaAi(chatKey)
-
-	slog.Debug("queryMetaAi: sending request", "chat", chatKey, "request", request)
+	slog.Debug("executeMetaAiQuery: sending request", "chat", chatKey, "request", request)
 
 	if _, err := client.SendMessage(ctx, metaAiBotJID, &waE2E.Message{
 		Conversation: new(request),
 	}); err != nil {
-		slog.Error("queryMetaAi: failed to send request", "chat", chatKey, "err", err)
+		slog.Error("executeMetaAiQuery: failed to send request", "chat", chatKey, "err", err)
 		return MetaAiResult{}, fmt.Errorf("failed to send request to meta ai: %w", err)
 	}
 
@@ -205,7 +211,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 		mu.Lock()
 		if finished {
 			if imgMsg := msgEvt.Message.GetImageMessage(); imgMsg != nil {
-				slog.Debug("queryMetaAi: captured follow-up imageMessage after finished", "chat", chatKey)
+				slog.Debug("executeMetaAiQuery: captured follow-up imageMessage after finished", "chat", chatKey)
 				imgBytes, err := client.Download(ctx, imgMsg)
 				if err == nil && len(imgBytes) > 0 {
 					genImgData = imgBytes
@@ -214,7 +220,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 						genImgMime = "image/jpeg"
 					}
 					genImgCap = imgMsg.GetCaption()
-					slog.Debug("queryMetaAi: successfully downloaded follow-up imageMessage", "len", len(imgBytes))
+					slog.Debug("executeMetaAiQuery: successfully downloaded follow-up imageMessage", "len", len(imgBytes))
 					closeOnce.Do(func() { close(done) })
 				}
 			}
@@ -223,7 +229,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 		}
 
 		if imgMsg := msgEvt.Message.GetImageMessage(); imgMsg != nil {
-			slog.Debug("queryMetaAi: captured direct imageMessage from Meta AI", "chat", chatKey)
+			slog.Debug("executeMetaAiQuery: captured direct imageMessage from Meta AI", "chat", chatKey)
 			imgBytes, err := client.Download(ctx, imgMsg)
 			if err == nil && len(imgBytes) > 0 {
 				genImgData = imgBytes
@@ -232,7 +238,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 					genImgMime = "image/jpeg"
 				}
 				genImgCap = imgMsg.GetCaption()
-				slog.Debug("queryMetaAi: successfully downloaded direct imageMessage", "len", len(imgBytes))
+				slog.Debug("executeMetaAiQuery: successfully downloaded direct imageMessage", "len", len(imgBytes))
 				mu.Unlock()
 				closeOnce.Do(func() { close(done) })
 				return
@@ -247,7 +253,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 			metaMsgID = msgEvt.Info.ID
 			seen = true
 			mu.Unlock()
-			slog.Debug("queryMetaAi: captured meta ai reply message id", "chat", chatKey, "meta_msg_id", metaMsgID)
+			slog.Debug("executeMetaAiQuery: captured meta ai reply message id", "chat", chatKey, "meta_msg_id", metaMsgID)
 		} else if pm == nil || pm.GetKey().GetID() != metaMsgID {
 			mu.Unlock()
 			return
@@ -274,7 +280,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 						genImgMime = mimeType
 						genImgCap = imgCap
 						mu.Unlock()
-						slog.Debug("queryMetaAi: downloaded generated image", "len", len(imgBytes), "mime", mimeType)
+						slog.Debug("executeMetaAiQuery: downloaded generated image", "len", len(imgBytes), "mime", mimeType)
 					}
 				}
 			}
@@ -287,19 +293,19 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 			text = extractMetaAiText(pm.GetEditedMessage())
 		}
 		if text == "" {
-			slog.Debug("queryMetaAi: empty text extracted, skipping update", "chat", chatKey, "info_id", msgEvt.Info.ID)
+			slog.Debug("executeMetaAiQuery: empty text extracted, skipping update", "chat", chatKey, "info_id", msgEvt.Info.ID)
 			return
 		}
 
 		editType := string(msgEvt.Info.MsgBotInfo.EditType)
-		slog.Debug("queryMetaAi: update", "chat", chatKey, "edit_type", editType, "text", text)
+		slog.Debug("executeMetaAiQuery: update", "chat", chatKey, "edit_type", editType, "text", text)
 
 		if _, _, isRunCmd := meta.ParseRunCommand(text); isRunCmd {
 			mu.Lock()
 			final = text
 			mu.Unlock()
 			if editType == "last" || editType == "inner" {
-				slog.Debug("queryMetaAi: RUN_COMMAND captured", "chat", chatKey, "cmd_text", text, "edit_type", editType)
+				slog.Debug("executeMetaAiQuery: RUN_COMMAND captured", "chat", chatKey, "cmd_text", text, "edit_type", editType)
 				if editType == "last" {
 					mu.Lock()
 					finished = true
@@ -310,7 +316,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 			}
 		} else if onUpdate != nil {
 			if err := onUpdate(text); err != nil {
-				slog.Error("queryMetaAi: onUpdate callback failed", "chat", chatKey, "err", err)
+				slog.Error("executeMetaAiQuery: onUpdate callback failed", "chat", chatKey, "err", err)
 			}
 		}
 
@@ -325,7 +331,7 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 
 			lower := strings.ToLower(text)
 			if !hasImgData && (strings.Contains(lower, "image") || strings.Contains(lower, "creating") || strings.Contains(lower, "ready")) {
-				slog.Debug("queryMetaAi: text indicates image generation, waiting briefly for follow-up imageMessage", "chat", chatKey)
+				slog.Debug("executeMetaAiQuery: text indicates image generation, waiting briefly for follow-up imageMessage", "chat", chatKey)
 				go func() {
 					time.Sleep(4 * time.Second)
 					closeOnce.Do(func() { close(done) })
@@ -339,18 +345,46 @@ func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 
 	select {
 	case <-ctx.Done():
-		slog.Warn("queryMetaAi: context cancelled/timed out before completion", "chat", chatKey, "err", ctx.Err())
+		slog.Warn("executeMetaAiQuery: context cancelled/timed out before completion", "chat", chatKey, "err", ctx.Err())
 		return MetaAiResult{}, ctx.Err()
 	case <-done:
 		mu.Lock()
 		defer mu.Unlock()
-		slog.Debug("queryMetaAi: completed", "chat", chatKey, "final_text_len", len(final))
+		slog.Debug("executeMetaAiQuery: completed", "chat", chatKey, "final_text_len", len(final))
 		return MetaAiResult{
 			Text:         final,
 			GeneratedImg: genImgData,
 			ImgMimeType:  genImgMime,
 			ImgCaption:   genImgCap,
 		}, nil
+	}
+}
+
+// queryMetaAi queues and sends request to Meta AI's bot JID, returning Meta AI's response once available.
+func queryMetaAi(ctx context.Context, client *whatsmeow.Client, chat types.JID, request string, onUpdate func(text string) error) (MetaAiResult, error) {
+	chatKey := chat.String()
+	q := getOrCreateMetaAiQueue(chatKey)
+
+	req := metaAiRequest{
+		ctx:      ctx,
+		client:   client,
+		chat:     chat,
+		request:  request,
+		onUpdate: onUpdate,
+		resCh:    make(chan metaAiResponse, 1),
+	}
+
+	select {
+	case q <- req:
+	case <-ctx.Done():
+		return MetaAiResult{}, ctx.Err()
+	}
+
+	select {
+	case res := <-req.resCh:
+		return res.res, res.err
+	case <-ctx.Done():
+		return MetaAiResult{}, ctx.Err()
 	}
 }
 
@@ -517,10 +551,6 @@ func handleAI(ctx *Context) error {
 
 	res, err := queryMetaAi(ctx.Ctx, ctx.Client, ctx.Chat, query, onUpdate)
 	if err != nil {
-		if err == ErrMetaAiBusy {
-			slog.Warn("handleAI: meta ai busy for chat", "chat", ctx.Chat.String())
-			return sendText(ctx, "Please wait while I process another request.")
-		}
 		slog.Error("handleAI: queryMetaAi failed", "chat", ctx.Chat.String(), "err", err)
 		editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
 			Conversation: new("Failed to get a response: " + err.Error()),
