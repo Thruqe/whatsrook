@@ -10,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -406,6 +407,14 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleAutoAI,
 	})
+	Register(&Command{
+		Name:        "csai",
+		Aliases:     []string{"customai", "aipersona", "aipersonality"},
+		Description: "Configure global AI personality traits and relationship behavior (Sudoers only)",
+		Category:    "ai",
+		IsPublic:    false,
+		Handler:     handleCSAI,
+	})
 }
 
 func handleAutoAI(ctx *Context) error {
@@ -451,6 +460,160 @@ func handleAutoAI(ctx *Context) error {
 	}
 
 	return ctx.Reply(fmt.Sprintf("AutoAI has been set to %s for this chat.", val))
+}
+
+type csaiTrait struct {
+	Name        string
+	Instruction string
+}
+
+var defaultCSAITraits = []csaiTrait{
+	{Name: "Professional", Instruction: "Be formal, objective, concise, and highly professional in all responses."},
+	{Name: "Friendly & Warm", Instruction: "Be extremely friendly, encouraging, warm, and approachable in tone."},
+	{Name: "Sarcastic & Witty", Instruction: "Use playful sarcasm, humor, clever retorts, and witty banter in all interactions."},
+	{Name: "Scientific & Precise", Instruction: "Respond with deep technical accuracy, scientific precision, and analytical depth."},
+	{Name: "Poetic & Creative", Instruction: "Use eloquent, expressive, poetic, and creative language when answering."},
+	{Name: "Motivational Coach", Instruction: "Act as an energetic, inspiring, and relentless motivational coach."},
+	{Name: "Pirate", Instruction: "Speak like a pirate using nautical slang, 'Ahoy', 'Matey', and maritime flair."},
+	{Name: "Gen-Z & Trendy", Instruction: "Use modern Gen-Z slang, casual expressions, and trendy internet vibe."},
+	{Name: "Philosophical Thinker", Instruction: "Reflect deeply on questions, offering thoughtful, philosophical perspectives."},
+	{Name: "Strict Sudo Assistant", Instruction: "Treat Sudoers with utmost authority and honor, addressing them respectfully as Master/Boss while serving all requests strictly."},
+}
+
+func handleCSAI(ctx *Context) error {
+	if !ctx.IsSudo() {
+		return ctx.Reply("Only Sudoers can configure global AI personality traits and custom behavior.")
+	}
+
+	s, okStore := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+	if !okStore {
+		return ctx.Reply("Database store is not available.")
+	}
+
+	p := ctx.GetPrefix()
+
+	if len(ctx.Args) >= 2 && strings.ToLower(ctx.Args[0]) == "set" {
+		idxVal, err := strconv.Atoi(ctx.Args[1])
+		if err == nil && idxVal >= 1 && idxVal <= len(defaultCSAITraits) {
+			trait := defaultCSAITraits[idxVal-1]
+			if err := s.PutSetting(ctx.Ctx, "csai_prompt", trait.Instruction); err != nil {
+				return ctx.Reply("Failed to save AI personality trait.")
+			}
+			return ctx.Reply(fmt.Sprintf("Saved AI personality trait to *%s*!\n\nInstruction: %s", trait.Name, trait.Instruction))
+		}
+	}
+
+	if len(ctx.Args) >= 2 && strings.ToLower(ctx.Args[0]) == "custom" {
+		customPrompt := strings.TrimSpace(strings.Join(ctx.Args[1:], " "))
+		if customPrompt == "" {
+			return ctx.Reply(fmt.Sprintf("Usage: `%scsai custom <your prompt / how to refer to you>`\n\nExample: `%scsai custom Always refer to me as Chief and be extremely respectful.`", p, p))
+		}
+		if err := s.PutSetting(ctx.Ctx, "csai_prompt", customPrompt); err != nil {
+			return ctx.Reply("Failed to save custom AI prompt.")
+		}
+		return ctx.Reply(fmt.Sprintf("Saved custom AI personality prompt!\n\nCustom Prompt: %s", customPrompt))
+	}
+
+	if len(ctx.Args) >= 1 && strings.ToLower(ctx.Args[0]) == "reset" {
+		_ = s.DeleteSetting(ctx.Ctx, "csai_prompt")
+		return ctx.Reply("AI personality prompt has been reset to default.")
+	}
+
+	if len(ctx.Args) >= 2 && strings.ToLower(ctx.Args[0]) == "page" {
+		pageNum, _ := strconv.Atoi(ctx.Args[1])
+		return renderCSAIPage(ctx, s, pageNum)
+	}
+
+	// If direct string provided after .csai (e.g. .csai Always call me Boss)
+	if len(ctx.Args) > 0 {
+		subCmd := strings.ToLower(ctx.Args[0])
+		if idxVal, err := strconv.Atoi(subCmd); err == nil && idxVal >= 1 && idxVal <= len(defaultCSAITraits) {
+			trait := defaultCSAITraits[idxVal-1]
+			_ = s.PutSetting(ctx.Ctx, "csai_prompt", trait.Instruction)
+			return ctx.Reply(fmt.Sprintf("Saved AI personality trait to *%s*!\n\nInstruction: %s", trait.Name, trait.Instruction))
+		}
+		if idxVal, err := strconv.Atoi(subCmd); err == nil && idxVal == 11 {
+			return ctx.Reply(fmt.Sprintf("To set a custom trait/prompt, please type:\n`%scsai custom <your custom prompt / how you want the AI to refer to you>`\n\nExample:\n`%scsai custom Always refer to me as Boss and be concise.`", p, p))
+		}
+
+		customPrompt := strings.TrimSpace(ctx.RawArgs)
+		if err := s.PutSetting(ctx.Ctx, "csai_prompt", customPrompt); err != nil {
+			return ctx.Reply("Failed to save custom AI prompt.")
+		}
+		return ctx.Reply(fmt.Sprintf("Saved custom AI personality prompt!\n\nCustom Prompt: %s", customPrompt))
+	}
+
+	return renderCSAIPage(ctx, s, 1)
+}
+
+func renderCSAIPage(ctx *Context, s *sqlstore.SQLStore, page int) error {
+	currentPrompt, _ := s.GetSetting(ctx.Ctx, "csai_prompt")
+	if currentPrompt == "" {
+		currentPrompt = "Standard (Default Meta AI behavior)"
+	}
+
+	pageSize := 3
+	totalPages := (len(defaultCSAITraits) + pageSize - 1) / pageSize
+	if page < 1 {
+		page = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+
+	startIdx := (page - 1) * pageSize
+	endIdx := startIdx + pageSize
+	if endIdx > len(defaultCSAITraits) {
+		endIdx = len(defaultCSAITraits)
+	}
+
+	pageItems := defaultCSAITraits[startIdx:endIdx]
+	p := ctx.GetPrefix()
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "*Custom AI Personality & Trait Configuration* (Page %d of %d)\n\n", page, totalPages)
+	fmt.Fprintf(&sb, "*Active AI Trait/Prompt:* %s\n\n", currentPrompt)
+	sb.WriteString("Select a personality trait for Meta AI below:\n\n")
+
+	for idx, trait := range pageItems {
+		globalIdx := startIdx + idx + 1
+		fmt.Fprintf(&sb, "%d. *%s*: %s\n", globalIdx, trait.Name, trait.Instruction)
+	}
+	sb.WriteString("11. *Custom Trait / How You Refer To Me*: Enter your own custom prompt.\n")
+
+	var buttons []struct{ ID, Text string }
+	for idx, trait := range pageItems {
+		globalIdx := startIdx + idx + 1
+		btnText := fmt.Sprintf("%d. %s", globalIdx, trait.Name)
+		if len(btnText) > 20 {
+			btnText = btnText[:20]
+		}
+		buttons = append(buttons, struct{ ID, Text string }{
+			ID:   fmt.Sprintf("%scsai set %d", p, globalIdx),
+			Text: btnText,
+		})
+	}
+
+	if page < totalPages {
+		nextPage := page + 1
+		buttons = append(buttons, struct{ ID, Text string }{
+			ID:   fmt.Sprintf("%scsai page %d", p, nextPage),
+			Text: fmt.Sprintf("Next (Page %d)", nextPage),
+		})
+	} else {
+		// On final page, show 11. Custom Trait button
+		buttons = append(buttons, struct{ ID, Text string }{
+			ID:   fmt.Sprintf("%scsai custom", p),
+			Text: "11. Custom Trait",
+		})
+	}
+
+	sb.WriteString("\nTo select a personality, tap a button above or type:\n")
+	fmt.Fprintf(&sb, "- `%scsai <number>` (e.g. `%scsai 3`)\n", p, p)
+	fmt.Fprintf(&sb, "- `%scsai custom <prompt>` (e.g. `%scsai custom Refer to me as Sir`)\n", p, p)
+	fmt.Fprintf(&sb, "- `%scsai reset` (to restore default AI behavior)", p)
+
+	return sendInteractiveButtons(ctx, sb.String(), "Powered by WhatsRook", buttons)
 }
 
 func handleAI(ctx *Context) error {
@@ -516,6 +679,11 @@ func handleAI(ctx *Context) error {
 
 	// Assemble the full query sent to Meta AI.
 	query := instruction
+	if s, okStore := ctx.Client.Store.Identities.(*sqlstore.SQLStore); okStore {
+		if customPrompt, _ := s.GetSetting(ctx.Ctx, "csai_prompt"); customPrompt != "" {
+			query += fmt.Sprintf("\n\n[GLOBAL BOT PERSONALITY & RELATIONSHIP BEHAVIOR INSTRUCTION]\n%s\n\n", customPrompt)
+		}
+	}
 	if isGroup {
 		query += meta.RenderGroupContext(data.GroupMetaData)
 	}
