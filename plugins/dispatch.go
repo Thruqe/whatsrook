@@ -380,8 +380,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		if okSetting {
 			botMode, _ := s.GetSetting(ctx, "mode")
 			if botMode == "private" && !cctx.IsSudo() {
-				slog.Warn("Private mode check failed", "command", name, "sender", cctx.Sender.String())
-				_ = cctx.Reply("The bot is currently in private mode. Only sudoers/owners can use it.")
+				slog.Warn("Private mode check failed - silently ignoring non-sudoer", "command", name, "sender", cctx.Sender.String())
 				return
 			}
 		}
