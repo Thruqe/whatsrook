@@ -217,25 +217,33 @@ func HandleWCGInput(ctx *Context, text string) bool {
 
 	// Validation rule 1: Check min length rule (greater than or equal to expected length)
 	if len(guess) < game.MinLength {
-		_ = ctx.Reply(fmt.Sprintf("❌ Word too short! Must be at least %d characters long (got %d). Try again!", game.MinLength, len(guess)))
+		failMsg := fmt.Sprintf("Word too short! Must be at least %d characters long (got %d).\n%s has been eliminated!", game.MinLength, len(guess), currentTurnPlayer.Tag)
+		_ = ctx.ReplyWithMentions(failMsg, []types.JID{currentTurnPlayer.MentionJID})
+		eliminateAndAdvanceWCG(ctx, game)
 		return true
 	}
 
 	// Validation rule 2: Starting character must match RequiredChar
 	if len(guess) == 0 || rune(guess[0]) != game.RequiredChar {
-		_ = ctx.Reply(fmt.Sprintf("❌ Invalid start letter! Word must start with '%c'. Try again!", game.RequiredChar))
+		failMsg := fmt.Sprintf("Invalid start letter! Word must start with '%c'.\n%s has been eliminated!", game.RequiredChar, currentTurnPlayer.Tag)
+		_ = ctx.ReplyWithMentions(failMsg, []types.JID{currentTurnPlayer.MentionJID})
+		eliminateAndAdvanceWCG(ctx, game)
 		return true
 	}
 
 	// Validation rule 3: Cannot reuse word already used in current match
 	if game.IsWordUsed(guess) {
-		_ = ctx.Reply(fmt.Sprintf("❌ Word '%s' was already used in this match! Try a different word!", guess))
+		failMsg := fmt.Sprintf("Word '%s' was already used in this match!\n%s has been eliminated!", guess, currentTurnPlayer.Tag)
+		_ = ctx.ReplyWithMentions(failMsg, []types.JID{currentTurnPlayer.MentionJID})
+		eliminateAndAdvanceWCG(ctx, game)
 		return true
 	}
 
 	// Validation rule 4: Parallel API validation for dictionary correctness
 	if !ValidateWordParallel(guess) {
-		_ = ctx.Reply(fmt.Sprintf("❌ '%s' is not recognized as a valid English word across dictionary sources! Try again!", guess))
+		failMsg := fmt.Sprintf("'%s' is not recognized as a valid English word across dictionary sources!\n%s has been eliminated!", guess, currentTurnPlayer.Tag)
+		_ = ctx.ReplyWithMentions(failMsg, []types.JID{currentTurnPlayer.MentionJID})
+		eliminateAndAdvanceWCG(ctx, game)
 		return true
 	}
 
@@ -443,17 +451,25 @@ func startWCGChainTurn(ctx *Context, game *utils.WCGGame) {
 			currentPlayer.Tag, reqChar, currentPlayer.Tag)
 		_ = cctx.ReplyWithMentions(timeoutMsg, []types.JID{currentPlayer.MentionJID})
 
-		gameOver, winner := game.EliminateCurrentPlayer()
-		game.Mu.Unlock()
-
-		if gameOver {
-			finishWCGChainGame(cctx, game, winner)
-			return
-		}
-
-		startWCGChainTurn(cctx, game)
+		eliminateAndAdvanceWCG(cctx, game)
 	})
 	game.SetTurnTimer(timer)
+}
+
+func eliminateAndAdvanceWCG(ctx *Context, game *utils.WCGGame) {
+	game.Mu.Lock()
+	if game.TurnTimer != nil {
+		game.TurnTimer.Stop()
+	}
+	gameOver, winner := game.EliminateCurrentPlayer()
+	game.Mu.Unlock()
+
+	if gameOver {
+		finishWCGChainGame(ctx, game, winner)
+		return
+	}
+
+	startWCGChainTurn(ctx, game)
 }
 
 func finishWCGChainGame(ctx *Context, game *utils.WCGGame, winner *utils.WCGPlayer) {

@@ -831,7 +831,9 @@ func (ctx *Context) SendTextWithMentions(text string, jids []types.JID) error {
 	formatted := ctx.formatMentionTextResponse(text)
 	var mentioned []string
 	for _, j := range jids {
-		mentioned = append(mentioned, j.ToNonAD().String())
+		if !j.IsEmpty() {
+			mentioned = append(mentioned, j.String())
+		}
 	}
 	slog.Debug("Building SendTextWithMentions", "text", text, "formatted", formatted, "mentioned_jids", mentioned)
 	slog.Debug("Sending SendTextWithMentions", "chat", ctx.Chat.String())
@@ -857,7 +859,9 @@ func (ctx *Context) ReplyWithMentions(text string, jids []types.JID) error {
 	formatted := ctx.formatMentionTextResponse(text)
 	var mentioned []string
 	for _, j := range jids {
-		mentioned = append(mentioned, j.ToNonAD().String())
+		if !j.IsEmpty() {
+			mentioned = append(mentioned, j.String())
+		}
 	}
 	cInfo := ctx.replyContextInfo()
 	if cInfo != nil {

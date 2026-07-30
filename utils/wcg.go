@@ -204,7 +204,12 @@ func (g *WCGGame) StartTurn() (reqChar rune, minLen int, timeLimitSec int, curre
 
 	currentPlayer = g.Players[g.CurrentTurnIdx]
 	g.TurnStartTime = time.Now()
-	timeLimitSec = 25
+
+	// Dynamic time limit: Round 1 = 25s, decreasing by 2s per round down to minimum of 6s
+	timeLimitSec = 25 - (g.RoundCount-1)*2
+	if timeLimitSec < 6 {
+		timeLimitSec = 6
+	}
 
 	return g.RequiredChar, g.MinLength, timeLimitSec, currentPlayer
 }
