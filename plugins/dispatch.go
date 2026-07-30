@@ -221,7 +221,21 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		return runCommand(ctx, client, evt, "ttt "+trimmedText)
 	}
 
-	// Active Word Guessing Game (WCG) listener
+	// Active Unscramble Game listener
+	if utils.IsUnscrambleGameActive(chatStr) {
+		cctx := &Context{
+			Ctx:    ctx,
+			Client: client,
+			Evt:    evt,
+			Chat:   evt.Info.Chat,
+			Sender: evt.Info.Sender,
+		}
+		if HandleUnscrambleInput(cctx, text) {
+			return true
+		}
+	}
+
+	// Active Word Chain Game (WCG) listener
 	if utils.IsWCGGameActive(chatStr) {
 		cctx := &Context{
 			Ctx:    ctx,
