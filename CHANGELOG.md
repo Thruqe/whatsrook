@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added interactive `movie` command (`plugins/movie.go`) integrating with Xer Movie API (MovieBox/Nkiri) using interactive buttons for movie details and download link extraction.
+- Removed unused `meowcaller` directory.
 - Removed intermediate `"Running .<command>..."` placeholder status edits so execution status messages are hidden from end users.
 - Prevented raw `RUN_COMMAND:` protocol text from being exposed to end users in edited response messages when AI triggers internal commands.
 - Updated `autoai` trigger logic to automatically respond when `"Rook"` or `"WhatsRook"` is mentioned in a chat message, in addition to tags and replies.
