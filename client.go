@@ -21,6 +21,8 @@ import (
 	"whatsrook/utils"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/purpshell/meowcaller"
+	"github.com/rs/zerolog"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -188,6 +190,10 @@ func runSession(ctx context.Context, cli CliArgs, dbPath, waLevel string, hub *H
 
 	clientLog := logger.WhatsmeowStyle("Client", waLevel, true)
 	client := whatsmeow.NewClient(deviceStore, clientLog)
+
+	// Initialize meowcaller before connecting whatsmeow so raw call adapter hook is installed
+	zeroLogger := zerolog.Nop()
+	_ = meowcaller.NewClient(client, meowcaller.WithLogger(zeroLogger))
 
 	// ── Logout flow
 	if cli.Logout {
