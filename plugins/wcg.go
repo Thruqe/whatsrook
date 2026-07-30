@@ -493,7 +493,7 @@ func finishWCGChainGame(ctx *Context, game *utils.WCGGame, winner *utils.WCGPlay
 	}
 
 	if winner != nil {
-		fmt.Fprintf(&sb, "1. Last Standing: %s (+100 Bonus XP!)\nTotal Score: %d pts\nCorrect Words: %d\n\n",
+		fmt.Fprintf(&sb, "Winner (Last Standing): %s (+100 Bonus XP!)\nTotal Score: %d pts | Correct Words: %d\n\n",
 			winner.Tag, winner.Score, winner.CorrectGuesses)
 		mentions = append(mentions, winner.MentionJID)
 	} else {
@@ -506,7 +506,11 @@ func finishWCGChainGame(ctx *Context, game *utils.WCGGame, winner *utils.WCGPlay
 		if p.GuessesCount > 0 {
 			avgTimeSec = float64(p.TotalTimeMs) / float64(p.GuessesCount) / 1000.0
 		}
-		fmt.Fprintf(&sb, "%d. %s — %d pts (%d correct, avg %.1fs)\n", i+1, p.Tag, p.Score, p.CorrectGuesses, avgTimeSec)
+		status := "Eliminated"
+		if winner != nil && p.LID.User == winner.LID.User {
+			status = "Last Standing"
+		}
+		fmt.Fprintf(&sb, "%d. %s — %d pts (%d correct, avg %.1fs) [%s]\n", i+1, p.Tag, p.Score, p.CorrectGuesses, avgTimeSec, status)
 		mentions = append(mentions, p.MentionJID)
 	}
 
