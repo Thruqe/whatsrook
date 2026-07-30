@@ -191,24 +191,24 @@ func HandleWCGInput(ctx *Context, text string) bool {
 		return true
 	}
 
-	// Check if sender is in the game
+	// Check if sender is in the game -> if not, let dispatch handle potential commands
 	pIdx := game.FindPlayerIndex(senderLID)
 	if pIdx == -1 {
 		game.Mu.Unlock()
-		return true
+		return false
 	}
 
-	// Check if it's the sender's turn
+	// Check if it's the sender's turn -> if not, let dispatch handle potential commands
 	activePlayers := game.GetActivePlayers()
 	if len(activePlayers) == 0 {
 		game.Mu.Unlock()
-		return true
+		return false
 	}
 
 	currentTurnPlayer := game.Players[game.CurrentTurnIdx]
 	if currentTurnPlayer.LID.User != senderLID.User {
 		game.Mu.Unlock()
-		return true
+		return false
 	}
 
 	game.Mu.Unlock()
