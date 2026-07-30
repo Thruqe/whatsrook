@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Updated `movie` command (`plugins/movie.go`) to display the entire complete list of all search results across Source 1 & Source 2 in the message body (with interactive buttons for quick access and direct index selection `.movie <number>` for all items).
+- Updated `movie` command (`plugins/movie.go`) to display 3 movie choice buttons per page with a 4th interactive **Next (Page X)** button to navigate through all search results from Source 1 & Source 2.
 - Removed unused `meowcaller` directory.
 - Removed intermediate `"Running .<command>..."` placeholder status edits so execution status messages are hidden from end users.
 - Prevented raw `RUN_COMMAND:` protocol text from being exposed to end users in edited response messages when AI triggers internal commands.

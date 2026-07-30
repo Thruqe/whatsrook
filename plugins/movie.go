@@ -190,12 +190,12 @@ func handleMovie(ctx *Context) error {
 		return handleMovieGetFile(ctx, ctx.Args[1], ctx.Args[2], ctx.Args[3])
 	}
 	if subCmd == "page" && len(ctx.Args) >= 3 {
-		// Args: page <pageNumber> <query>
+		// Args: page <pageNumber> <escapedQuery>
 		pageNum, _ := strconv.Atoi(ctx.Args[1])
 		if pageNum < 1 {
 			pageNum = 1
 		}
-		query := strings.Join(ctx.Args[2:], " ")
+		query, _ := url.QueryUnescape(strings.Join(ctx.Args[2:], " "))
 		return renderMovieSearchResults(ctx, query, pageNum)
 	}
 
@@ -311,11 +311,27 @@ func renderMovieSearchResults(ctx *Context, query string, page int) error {
 	lastSearchResults[ctx.Chat.String()] = results
 	lastSearchMutex.Unlock()
 
+	pageSize := 3
+	totalPages := (len(results) + pageSize - 1) / pageSize
+	if page < 1 {
+		page = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+
+	startIdx := (page - 1) * pageSize
+	endIdx := startIdx + pageSize
+	if endIdx > len(results) {
+		endIdx = len(results)
+	}
+
+	pageItems := results[startIdx:endIdx]
+
 	p := ctx.GetPrefix()
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "*Movie Search Results* (Total: %d)\n\n", len(results))
+	fmt.Fprintf(&sb, "*Movie Search Results* (Page %d of %d, Total: %d)\n\n", page, totalPages, len(results))
 
-	var buttons []struct{ ID, Text string }
 	for idx, item := range results {
 		globalIdx := idx + 1
 		fmt.Fprintf(&sb, "%d. *%s*", globalIdx, item.Title)
@@ -323,24 +339,40 @@ func renderMovieSearchResults(ctx *Context, query string, page int) error {
 			fmt.Fprintf(&sb, " (%s)", item.Year)
 		}
 		fmt.Fprintf(&sb, " [Source %d]\n", item.Source)
+	}
 
-		// Create selection buttons for top results (up to 3 supported by WhatsApp ButtonsMessage)
-		if idx < 3 {
-			btnText := item.Title
-			if item.Year != "" {
-				btnText = fmt.Sprintf("%d. %s (%s)", globalIdx, item.Title, item.Year)
-			} else {
-				btnText = fmt.Sprintf("%d. %s", globalIdx, item.Title)
-			}
-			if len(btnText) > 20 {
-				btnText = btnText[:20]
-			}
-
-			buttons = append(buttons, struct{ ID, Text string }{
-				ID:   fmt.Sprintf("%smovie select %d %s %s", p, item.Source, url.QueryEscape(item.SubjectID), url.QueryEscape(item.DetailPath)),
-				Text: btnText,
-			})
+	var buttons []struct{ ID, Text string }
+	for idx, item := range pageItems {
+		globalIdx := startIdx + idx + 1
+		btnText := item.Title
+		if item.Year != "" {
+			btnText = fmt.Sprintf("%d. %s (%s)", globalIdx, item.Title, item.Year)
+		} else {
+			btnText = fmt.Sprintf("%d. %s", globalIdx, item.Title)
 		}
+		if len(btnText) > 20 {
+			btnText = btnText[:20]
+		}
+
+		buttons = append(buttons, struct{ ID, Text string }{
+			ID:   fmt.Sprintf("%smovie select %d %s %s", p, item.Source, url.QueryEscape(item.SubjectID), url.QueryEscape(item.DetailPath)),
+			Text: btnText,
+		})
+	}
+
+	// Add 4th button as Next button if there are more pages
+	if page < totalPages {
+		nextPage := page + 1
+		buttons = append(buttons, struct{ ID, Text string }{
+			ID:   fmt.Sprintf("%smovie page %d %s", p, nextPage, url.QueryEscape(query)),
+			Text: fmt.Sprintf("Next (Page %d)", nextPage),
+		})
+	} else if page > 1 {
+		// If on last page, offer 4th button as Back to Page 1
+		buttons = append(buttons, struct{ ID, Text string }{
+			ID:   fmt.Sprintf("%smovie page 1 %s", p, url.QueryEscape(query)),
+			Text: "First Page",
+		})
 	}
 
 	sb.WriteString("\nTo select a result, tap a button above or type:\n")
