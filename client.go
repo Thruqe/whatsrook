@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -87,13 +89,42 @@ func initateClient() {
 	hub := newHub()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", hub.ServeWS(cli.Dev))
+
+	startPort, _ := strconv.Atoi(cli.Port)
+	if startPort <= 0 {
+		startPort = 3000
+	}
+
+	var listener net.Listener
+	var actualPort int
+	for p := startPort; p < startPort+100; p++ {
+		l, err := net.Listen("tcp", fmt.Sprintf(":%d", p))
+		if err == nil {
+			listener = l
+			actualPort = p
+			break
+		}
+		if p == startPort {
+			slog.Warn("port in use, attempting to bind alternative port", "attempted_port", p, "err", err)
+		}
+	}
+
+	if listener == nil {
+		slog.Error("failed to find an available port to bind HTTP server")
+		os.Exit(1)
+	}
+
+	if actualPort != startPort {
+		fmt.Printf("⚠️ Port %d was in use — switched to port %d\n", startPort, actualPort)
+		slog.Info("switched to alternative port", "original_port", startPort, "new_port", actualPort)
+	}
+
 	server := &http.Server{
-		Addr:    ":" + cli.Port,
 		Handler: mux,
 	}
 	go func() {
-		slog.Info("listening", "port", cli.Port, "session", cli.Session)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		slog.Info("listening", "port", actualPort, "session", cli.Session)
+		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 			slog.Error("http server error", "err", err)
 		}
 	}()
