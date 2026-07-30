@@ -41,6 +41,8 @@ type WCGGame struct {
 	CurrentTurnIdx int
 	RequiredChar   rune
 	MinLength      int
+	RoundCount     int
+	AnswersInRound int
 	UsedWords      map[string]bool
 	TurnStartTime  time.Time
 	LobbyTimer     *time.Timer
@@ -73,16 +75,17 @@ func GetWCGGame(chatKey string) *WCGGame {
 // CreateWCGGame creates a new lobby for a chat.
 func CreateWCGGame(chatKey string, hostLID, hostMention types.JID, hostTag string, chatJID types.JID, client *whatsmeow.Client) *WCGGame {
 	game := &WCGGame{
-		ChatKey:     chatKey,
-		State:       WCGStateLobby,
-		HostLID:     hostLID,
-		HostMention: hostMention,
-		HostTag:     hostTag,
+		ChatKey:      chatKey,
+		State:        WCGStateLobby,
+		HostLID:      hostLID,
+		HostMention:  hostMention,
+		HostTag:      hostTag,
 		RequiredChar: rune('a' + rand.Intn(26)),
-		MinLength:   3,
-		UsedWords:   make(map[string]bool),
-		ChatJID:     chatJID,
-		Client:      client,
+		MinLength:    3,
+		RoundCount:   1,
+		UsedWords:    make(map[string]bool),
+		ChatJID:      chatJID,
+		Client:       client,
 	}
 
 	game.Players = append(game.Players, &WCGPlayer{
@@ -168,6 +171,8 @@ func (g *WCGGame) StartGame() bool {
 	g.GameStartTime = time.Now()
 	g.RequiredChar = rune('a' + rand.Intn(26))
 	g.MinLength = 3
+	g.RoundCount = 1
+	g.AnswersInRound = 0
 	g.CurrentTurnIdx = 0
 	g.UsedWords = make(map[string]bool)
 
@@ -246,8 +251,12 @@ func (g *WCGGame) ProcessGuess(word string, senderLID types.JID) (correct bool, 
 	// Next required starting character is the last character of the submitted word
 	g.RequiredChar = rune(word[len(word)-1])
 
-	// Slowly increase minimum length requirement as word chain grows
-	if len(g.UsedWords)%3 == 0 && g.MinLength < 10 {
+	g.AnswersInRound++
+	activeCount := len(g.GetActivePlayers())
+	// After all active players have answered in the current round, increase word length and start next round
+	if g.AnswersInRound >= activeCount {
+		g.AnswersInRound = 0
+		g.RoundCount++
 		g.MinLength++
 	}
 
@@ -262,7 +271,7 @@ func (g *WCGGame) advanceTurnUnsafe() {
 	}
 }
 
-// EliminateCurrentPlayer eliminates the current turn player and advances.
+// EliminateCurrentPlayer eliminates the current turn player. Returns gameOver bool when 0 active players remain.
 func (g *WCGGame) EliminateCurrentPlayer() (gameOver bool, winner *WCGPlayer) {
 	g.Mu.Lock()
 	defer g.Mu.Unlock()
@@ -272,11 +281,15 @@ func (g *WCGGame) EliminateCurrentPlayer() (gameOver bool, winner *WCGPlayer) {
 	}
 
 	rem := g.GetActivePlayers()
-	if len(rem) <= 1 {
-		if len(rem) == 1 {
-			winner = rem[0]
-		}
-		return true, winner
+	if len(rem) == 0 {
+		return true, nil
+	}
+
+	activeCount := len(rem)
+	if g.AnswersInRound >= activeCount {
+		g.AnswersInRound = 0
+		g.RoundCount++
+		g.MinLength++
 	}
 
 	g.advanceTurnUnsafe()

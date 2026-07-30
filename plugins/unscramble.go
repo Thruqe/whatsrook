@@ -11,9 +11,6 @@ import (
 	"whatsrook/store/sqlstore"
 	"whatsrook/utils"
 
-	"go.mau.fi/whatsmeow"
-	waBinary "go.mau.fi/whatsmeow/binary"
-	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 )
 
@@ -83,7 +80,7 @@ func HandleUnscrambleInput(ctx *Context, text string) bool {
 	game.Mu.Lock()
 
 	if correct {
-		msg := fmt.Sprintf("🎉 Correct! %s guessed '%s' in %.1fs! (+%d pts)\n\nAdvancing to the next level!",
+		msg := fmt.Sprintf("Correct! %s guessed '%s' in %.1fs! (+%d pts)\n\nAdvancing to the next level!",
 			currentPlayer.Tag, game.CurrentWord, elapsed.Seconds(), game.WordLength*10)
 		_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
 
@@ -100,7 +97,7 @@ func HandleUnscrambleInput(ctx *Context, text string) bool {
 	}
 
 	// Wrong guess
-	msg := fmt.Sprintf("❌ Incorrect guess by %s!\nThe correct word was: '%s'.\n%s has been eliminated from this match!",
+	msg := fmt.Sprintf("Incorrect guess by %s!\nThe correct word was: '%s'.\n%s has been eliminated from this match!",
 		currentPlayer.Tag, game.CurrentWord, currentPlayer.Tag)
 	_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
 
@@ -164,7 +161,7 @@ func handleUnscramble(ctx *Context) error {
 			return ctx.Reply("Failed to join. Game may have started.")
 		}
 
-		msg := fmt.Sprintf("✅ %s joined the Unscramble match! (%d players in lobby)\nType .unscramble start to begin immediately or wait for timer.", tag, len(existingGame.Players))
+		msg := fmt.Sprintf("%s joined the Unscramble match! (%d players in lobby)\nType .unscramble start to begin immediately or wait for timer.", tag, len(existingGame.Players))
 		return ctx.ReplyWithMentions(msg, []types.JID{mentionJID})
 	}
 
@@ -228,7 +225,7 @@ func handleUnscramble(ctx *Context) error {
 	// Try sending interactive message with buttons
 	err := sendUnscrambleInteractiveMenu(ctx, hostTag)
 	if err != nil {
-		textMsg := fmt.Sprintf("🔤 UNSCRAMBLE GAME 🔤\n\nHosted by: %s\n\n⏱️ Lobby is open for 30 SECONDS!\nType '.unscramble join' to join\nType '.unscramble start' to begin now\nType '.unscramble lb' for Leaderboard", hostTag)
+		textMsg := fmt.Sprintf("UNSCRAMBLE GAME\n\nHosted by: %s\n\nLobby is open for 30 SECONDS!\nType '.unscramble join' to join\nType '.unscramble start' to begin now\nType '.unscramble lb' for Leaderboard", hostTag)
 		return ctx.ReplyWithMentions(textMsg, []types.JID{hostMention})
 	}
 
@@ -252,7 +249,7 @@ func startUnscrambleGame(ctx *Context, game *utils.UnscrambleGame) {
 		mentions = append(mentions, p.MentionJID)
 	}
 
-	msg := fmt.Sprintf("🎮 Unscramble Match Started!\n\nPlayers (%d): %s\n\nStarting at Level 1 (3-Letter Words)!\nNon-players and turn-skipping input will be silently ignored.",
+	msg := fmt.Sprintf("Unscramble Match Started!\n\nPlayers (%d): %s\n\nStarting at Level 1 (3-Letter Words)!\nNon-players and turn-skipping input will be silently ignored.",
 		len(active), strings.Join(playerTags, ", "))
 	_ = ctx.ReplyWithMentions(msg, mentions)
 
@@ -267,7 +264,7 @@ func startUnscrambleTurn(ctx *Context, game *utils.UnscrambleGame) {
 		return
 	}
 
-	msg := fmt.Sprintf("🔤 LEVEL %d (Word Length: %d)\n\nScrambled Word: %s\nTurn: %s\n⏱️ Time Limit: %d seconds!\n\nUnscramble and type the word!",
+	msg := fmt.Sprintf("LEVEL %d (Word Length: %d)\n\nScrambled Word: %s\nTurn: %s\nTime Limit: %d seconds!\n\nUnscramble and type the word!",
 		game.WordLength-2, game.WordLength, scrambled, currentPlayer.Tag, timeSec)
 	_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
 
@@ -289,7 +286,7 @@ func startUnscrambleTurn(ctx *Context, game *utils.UnscrambleGame) {
 			Sender: ctx.Sender,
 		}
 
-		timeoutMsg := fmt.Sprintf("⏱️ Time's up for %s!\nThe word was: '%s'.\n%s has been eliminated!",
+		timeoutMsg := fmt.Sprintf("Time's up for %s!\nThe word was: '%s'.\n%s has been eliminated!",
 			currentPlayer.Tag, game.CurrentWord, currentPlayer.Tag)
 		_ = cctx.ReplyWithMentions(timeoutMsg, []types.JID{currentPlayer.MentionJID})
 
@@ -316,12 +313,12 @@ func finishUnscrambleGame(ctx *Context, game *utils.UnscrambleGame, winner *util
 	saveUnscrambleStats(ctx, game, winner)
 
 	var sb strings.Builder
-	sb.WriteString("🏆 UNSCRAMBLE MATCH OVER! 🏆\n\n")
+	sb.WriteString("UNSCRAMBLE MATCH OVER!\n\n")
 
 	var mentions []types.JID
 
 	if winner != nil {
-		fmt.Fprintf(&sb, "🥇 Winner: %s (+100 Bonus XP!)\nTotal Score: %d pts\nCorrect Words: %d\n\n",
+		fmt.Fprintf(&sb, "1. Winner: %s (+100 Bonus XP!)\nTotal Score: %d pts\nCorrect Words: %d\n\n",
 			winner.Tag, winner.Score, winner.CorrectGuesses)
 		mentions = append(mentions, winner.MentionJID)
 	} else {
@@ -421,18 +418,18 @@ func handleUnscrambleLeaderboard(ctx *Context) error {
 
 	var sb strings.Builder
 	if state == utils.UnscrambleStateLobby {
-		sb.WriteString("📋 UNSCRAMBLE LOBBY STANDINGS\n\n")
+		sb.WriteString("UNSCRAMBLE LOBBY STANDINGS\n\n")
 	} else {
-		sb.WriteString("📊 UNSCRAMBLE MATCH STANDINGS\n\n")
+		sb.WriteString("UNSCRAMBLE MATCH STANDINGS\n\n")
 	}
 
 	var mentions []types.JID
 	for i, p := range sorted {
 		status := ""
 		if p.Eliminated {
-			status = " ❌ Eliminated"
+			status = " (Eliminated)"
 		} else if state == utils.UnscrambleStateInProgress {
-			status = " ✅ Active"
+			status = " (Active)"
 		}
 		fmt.Fprintf(&sb, "%d. %s — %d pts (%d correct)%s\n", i+1, p.Tag, p.Score, p.CorrectGuesses, status)
 		mentions = append(mentions, p.MentionJID)
@@ -442,73 +439,16 @@ func handleUnscrambleLeaderboard(ctx *Context) error {
 }
 
 func sendUnscrambleInteractiveMenu(ctx *Context, hostTag string) error {
-	msgVersion := int32(1)
+	p := ctx.GetPrefix()
+	bodyText := fmt.Sprintf("UNSCRAMBLE GAME\n\nHosted by %s\n\n30s Join Window Open!\nClick 'Join Match' or type '%sunscramble join' to play.\n\nRules:\n- Words progress from 3 to 16 letters\n- Turn time decreases as difficulty rises (30s -> 6s)\n- Non-players are ignored\n- Win XP and climb performance ratings!", hostTag, p)
 
-	bodyText := fmt.Sprintf("🔤 UNSCRAMBLE GAME\n\nHosted by %s\n\n⏱️ 30s Join Window Open!\nClick 'Join Match' or type '.unscramble join' to play.\n\nRules:\n• Words progress from 3 to 16 letters\n• Turn time decreases as difficulty rises (30s → 6s)\n• Emojis & non-players are ignored\n• Win XP & climb performance ratings!", hostTag)
-
-	msg := &waE2E.Message{
-		DocumentWithCaptionMessage: &waE2E.FutureProofMessage{
-			Message: &waE2E.Message{
-				InteractiveMessage: &waE2E.InteractiveMessage{
-					Body: &waE2E.InteractiveMessage_Body{
-						Text: &bodyText,
-					},
-					Footer: &waE2E.InteractiveMessage_Footer{
-						Text: new("WhatsRook Unscramble Game"),
-					},
-					InteractiveMessage: &waE2E.InteractiveMessage_NativeFlowMessage_{
-						NativeFlowMessage: &waE2E.InteractiveMessage_NativeFlowMessage{
-							Buttons: []*waE2E.InteractiveMessage_NativeFlowMessage_NativeFlowButton{
-								{
-									Name:             new("quick_reply"),
-									ButtonParamsJSON: new(`{"display_text":"🎮 Join Match","id":".unscramble join"}`),
-								},
-								{
-									Name:             new("quick_reply"),
-									ButtonParamsJSON: new(`{"display_text":"▶️ Start Match","id":".unscramble start"}`),
-								},
-								{
-									Name:             new("quick_reply"),
-									ButtonParamsJSON: new(`{"display_text":"🏆 Leaderboard","id":".unscramble lb"}`),
-								},
-							},
-							MessageVersion: &msgVersion,
-						},
-					},
-				},
-			},
-		},
+	buttons := []struct{ ID, Text string }{
+		{ID: p + "unscramble join", Text: "Join Match"},
+		{ID: p + "unscramble start", Text: "Start Match"},
+		{ID: p + "unscramble lb", Text: "Leaderboard"},
 	}
 
-	bizNode := waBinary.Node{
-		Tag:   "biz",
-		Attrs: waBinary.Attrs{},
-		Content: []waBinary.Node{
-			{
-				Tag: "interactive",
-				Attrs: waBinary.Attrs{
-					"type": "native_flow",
-					"v":    "1",
-				},
-				Content: []waBinary.Node{
-					{
-						Tag: "native_flow",
-						Attrs: waBinary.Attrs{
-							"v":    "9",
-							"name": "mixed",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	extra := whatsmeow.SendRequestExtra{
-		AdditionalNodes: &[]waBinary.Node{bizNode},
-	}
-
-	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
-	return err
+	return sendInteractiveButtons(ctx, bodyText, "WhatsRook Unscramble Game", buttons)
 }
 
 // isPureEmoji returns true if the input text consists solely of emoji characters.

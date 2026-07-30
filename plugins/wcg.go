@@ -15,9 +15,6 @@ import (
 	"whatsrook/store/sqlstore"
 	"whatsrook/utils"
 
-	"go.mau.fi/whatsmeow"
-	waBinary "go.mau.fi/whatsmeow/binary"
-	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 )
 
@@ -247,8 +244,8 @@ func HandleWCGInput(ctx *Context, text string) bool {
 
 	if correct {
 		nextChar := rune(guess[len(guess)-1])
-		msg := fmt.Sprintf("🎉 Correct! %s submitted '%s' (%d letters) in %.1fs! (+%d pts)\n\nNext Required Letter: '%c' | Min Length: %d",
-			currentPlayer.Tag, guess, len(guess), elapsed.Seconds(), len(guess)*10, nextChar, game.MinLength)
+		msg := fmt.Sprintf("Correct! %s submitted '%s' (%d letters) in %.1fs! (+%d pts)\n\nNext Required Letter: '%c' | Round %d Min Length: %d",
+			currentPlayer.Tag, guess, len(guess), elapsed.Seconds(), len(guess)*10, nextChar, game.RoundCount, game.MinLength)
 		_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
 
 		if gameOver {
@@ -311,7 +308,7 @@ func handleWCGChain(ctx *Context) error {
 			return ctx.Reply("Failed to join. Game may have started.")
 		}
 
-		msg := fmt.Sprintf("✅ %s joined the WCG match! (%d players in lobby)\nType .wcg start to begin immediately or wait for timer.", tag, len(existingGame.Players))
+		msg := fmt.Sprintf("%s joined the WCG match! (%d players in lobby)\nType .wcg start to begin immediately or wait for timer.", tag, len(existingGame.Players))
 		return ctx.ReplyWithMentions(msg, []types.JID{mentionJID})
 	}
 
@@ -374,7 +371,7 @@ func handleWCGChain(ctx *Context) error {
 
 	err := sendWCGChainInteractiveMenu(ctx, hostTag)
 	if err != nil {
-		textMsg := fmt.Sprintf("🔤 WORD CHAIN GAME (WCG) 🔤\n\nHosted by: %s\n\n⏱️ Lobby is open for 30 SECONDS!\nType '.wcg join' to join\nType '.wcg start' to begin now\nType '.wcg lb' for Leaderboard", hostTag)
+		textMsg := fmt.Sprintf("WORD CHAIN GAME (WCG)\n\nHosted by: %s\n\nLobby is open for 30 SECONDS!\nType '.wcg join' to join\nType '.wcg start' to begin now\nType '.wcg lb' for Leaderboard", hostTag)
 		return ctx.ReplyWithMentions(textMsg, []types.JID{hostMention})
 	}
 
@@ -402,9 +399,11 @@ func startWCGChainGame(ctx *Context, game *utils.WCGGame) {
 	game.Mu.Lock()
 	game.RequiredChar = startRune
 	game.MinLength = 3
+	game.RoundCount = 1
+	game.AnswersInRound = 0
 	game.Mu.Unlock()
 
-	msg := fmt.Sprintf("🎮 Word Chain Game (WCG) Started!\n\nPlayers (%d): %s\n\nStarting Letter: '%c' (Min Length: 3)\nWords are validated in real-time across 5 dictionary APIs!",
+	msg := fmt.Sprintf("Word Chain Game (WCG) Started!\n\nPlayers (%d): %s\n\nStarting Letter: '%c' (Round 1 Min Length: 3)\nWords are validated in real-time across 5 dictionary APIs!",
 		len(active), strings.Join(playerTags, ", "), startRune)
 	_ = ctx.ReplyWithMentions(msg, mentions)
 
@@ -419,8 +418,8 @@ func startWCGChainTurn(ctx *Context, game *utils.WCGGame) {
 		return
 	}
 
-	msg := fmt.Sprintf("🔤 TURN: %s\n\nRequired Starting Letter: *%c*\nMinimum Word Length: *%d* characters\n⏱️ Time Limit: %d seconds!\n\nType a valid English word matching the required letter!",
-		currentPlayer.Tag, reqChar, minLen, timeSec)
+	msg := fmt.Sprintf("TURN: %s\n\nRound %d\nRequired Starting Letter: *%c*\nMinimum Word Length: *%d* characters\nTime Limit: %d seconds!\n\nType a valid English word matching the required letter!",
+		currentPlayer.Tag, game.RoundCount, reqChar, minLen, timeSec)
 	_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
 
 	timeDuration := time.Duration(timeSec) * time.Second
@@ -440,7 +439,7 @@ func startWCGChainTurn(ctx *Context, game *utils.WCGGame) {
 			Sender: ctx.Sender,
 		}
 
-		timeoutMsg := fmt.Sprintf("⏱️ Time's up for %s!\nFailed to submit a valid word starting with '%c'.\n%s has been eliminated!",
+		timeoutMsg := fmt.Sprintf("Time's up for %s!\nFailed to submit a valid word starting with '%c'.\n%s has been eliminated!",
 			currentPlayer.Tag, reqChar, currentPlayer.Tag)
 		_ = cctx.ReplyWithMentions(timeoutMsg, []types.JID{currentPlayer.MentionJID})
 
@@ -466,12 +465,19 @@ func finishWCGChainGame(ctx *Context, game *utils.WCGGame, winner *utils.WCGPlay
 	saveWCGChainStats(ctx, game, winner)
 
 	var sb strings.Builder
-	sb.WriteString("🏆 WCG WORD CHAIN MATCH OVER! 🏆\n\n")
+	sb.WriteString("WCG WORD CHAIN MATCH OVER!\n\n")
 
 	var mentions []types.JID
 
+	highestScore := 0
+	var highestPlayer *utils.WCGPlayer
+	if len(standings) > 0 {
+		highestPlayer = standings[0]
+		highestScore = standings[0].Score
+	}
+
 	if winner != nil {
-		fmt.Fprintf(&sb, "🥇 Winner: %s (+100 Bonus XP!)\nTotal Score: %d pts\nCorrect Words: %d\n\n",
+		fmt.Fprintf(&sb, "1. Last Standing: %s (+100 Bonus XP!)\nTotal Score: %d pts\nCorrect Words: %d\n\n",
 			winner.Tag, winner.Score, winner.CorrectGuesses)
 		mentions = append(mentions, winner.MentionJID)
 	} else {
@@ -489,6 +495,20 @@ func finishWCGChainGame(ctx *Context, game *utils.WCGGame, winner *utils.WCGPlay
 	}
 
 	_ = ctx.ReplyWithMentions(sb.String(), mentions)
+
+	// Check if last player standing is not highest scorer
+	if winner != nil && highestPlayer != nil && winner.LID.User != highestPlayer.LID.User {
+		promptMsg := fmt.Sprintf("Notice for %s:\nYou are the last player standing, but you do not have the highest score (Highest: %s with %d pts vs your %d pts).\nWould you like to continue playing solo to obtain higher points or end this game?",
+			winner.Tag, highestPlayer.Tag, highestScore, winner.Score)
+
+		p := ctx.GetPrefix()
+		buttons := []struct{ ID, Text string }{
+			{ID: p + "wcg start", Text: "Continue Solo"},
+			{ID: p + "wcg cancel", Text: "End Game"},
+		}
+
+		_ = sendInteractiveButtons(ctx, promptMsg, "WhatsRook Word Chain", buttons)
+	}
 }
 
 func saveWCGChainStats(ctx *Context, game *utils.WCGGame, winner *utils.WCGPlayer) {
@@ -571,18 +591,18 @@ func handleWCGChainLeaderboard(ctx *Context) error {
 
 	var sb strings.Builder
 	if state == utils.WCGStateLobby {
-		sb.WriteString("📋 WCG LOBBY STANDINGS\n\n")
+		sb.WriteString("WCG LOBBY STANDINGS\n\n")
 	} else {
-		sb.WriteString("📊 WCG MATCH STANDINGS\n\n")
+		sb.WriteString("WCG MATCH STANDINGS\n\n")
 	}
 
 	var mentions []types.JID
 	for i, p := range sorted {
 		status := ""
 		if p.Eliminated {
-			status = " ❌ Eliminated"
+			status = " (Eliminated)"
 		} else if state == utils.WCGStateInProgress {
-			status = " ✅ Active"
+			status = " (Active)"
 		}
 		fmt.Fprintf(&sb, "%d. %s — %d pts (%d correct)%s\n", i+1, p.Tag, p.Score, p.CorrectGuesses, status)
 		mentions = append(mentions, p.MentionJID)
@@ -592,71 +612,14 @@ func handleWCGChainLeaderboard(ctx *Context) error {
 }
 
 func sendWCGChainInteractiveMenu(ctx *Context, hostTag string) error {
-	msgVersion := int32(1)
+	p := ctx.GetPrefix()
+	bodyText := fmt.Sprintf("WORD CHAIN GAME (WCG)\n\nHosted by %s\n\n30s Join Window Open!\nClick 'Join Match' or type '%swcg join' to play.\n\nRules:\n- Starting letter is picked at random\n- Words must start with required letter and meet length limit\n- Validated in real-time across 5 parallel dictionary APIs\n- Non-players are ignored\n- Win XP and climb performance ratings!", hostTag, p)
 
-	bodyText := fmt.Sprintf("🔤 WORD CHAIN GAME (WCG)\n\nHosted by %s\n\n⏱️ 30s Join Window Open!\nClick 'Join Match' or type '.wcg join' to play.\n\nRules:\n• Starting letter is picked at random\n• Words must start with required letter and meet length limit\n• Validated in real-time across 5 parallel dictionary APIs\n• Emojis & non-players are ignored\n• Win XP & climb performance ratings!", hostTag)
-
-	msg := &waE2E.Message{
-		DocumentWithCaptionMessage: &waE2E.FutureProofMessage{
-			Message: &waE2E.Message{
-				InteractiveMessage: &waE2E.InteractiveMessage{
-					Body: &waE2E.InteractiveMessage_Body{
-						Text: &bodyText,
-					},
-					Footer: &waE2E.InteractiveMessage_Footer{
-						Text: new("WhatsRook Word Chain Game"),
-					},
-					InteractiveMessage: &waE2E.InteractiveMessage_NativeFlowMessage_{
-						NativeFlowMessage: &waE2E.InteractiveMessage_NativeFlowMessage{
-							Buttons: []*waE2E.InteractiveMessage_NativeFlowMessage_NativeFlowButton{
-								{
-									Name:             new("quick_reply"),
-									ButtonParamsJSON: new(`{"display_text":"🎮 Join Match","id":".wcg join"}`),
-								},
-								{
-									Name:             new("quick_reply"),
-									ButtonParamsJSON: new(`{"display_text":"▶️ Start Match","id":".wcg start"}`),
-								},
-								{
-									Name:             new("quick_reply"),
-									ButtonParamsJSON: new(`{"display_text":"🏆 Leaderboard","id":".wcg lb"}`),
-								},
-							},
-							MessageVersion: &msgVersion,
-						},
-					},
-				},
-			},
-		},
+	buttons := []struct{ ID, Text string }{
+		{ID: p + "wcg join", Text: "Join Match"},
+		{ID: p + "wcg start", Text: "Start Match"},
+		{ID: p + "wcg lb", Text: "Leaderboard"},
 	}
 
-	bizNode := waBinary.Node{
-		Tag:   "biz",
-		Attrs: waBinary.Attrs{},
-		Content: []waBinary.Node{
-			{
-				Tag: "interactive",
-				Attrs: waBinary.Attrs{
-					"type": "native_flow",
-					"v":    "1",
-				},
-				Content: []waBinary.Node{
-					{
-						Tag: "native_flow",
-						Attrs: waBinary.Attrs{
-							"v":    "9",
-							"name": "mixed",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	extra := whatsmeow.SendRequestExtra{
-		AdditionalNodes: &[]waBinary.Node{bizNode},
-	}
-
-	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
-	return err
+	return sendInteractiveButtons(ctx, bodyText, "WhatsRook Word Chain Game", buttons)
 }

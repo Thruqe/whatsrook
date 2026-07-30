@@ -9,8 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added `SendVideoGif` method to `sender/abstract.go` which sets `GifPlayback: proto.Bool(true)` on `VideoMessage`. Updated `.menu` command (`plugins/menu.go`) to use `SendVideoGif` so that `resources/songs/whatsrook.gif` displays and loops properly as an inline GIF media video on WhatsApp.
-- Renamed previous scrambled word game to `.unscramble` (`plugins/unscramble.go` & `utils/unscramble.go`).
+- Standardized interactive button format across `.wcg` and `.unscramble` commands to use `sendInteractiveButtons` (matching `.csai` and other interactive commands).
+- Removed emojis from all text strings and button captions across `.wcg` and `.unscramble`.
+- Updated `.wcg` (**Word Chain Game**):
+  - Word character minimum length now increases gradually after each round once all active players have answered.
+  - Wrong guesses or timeouts immediately eliminate players and record their final scores onto the leaderboard.
+  - Shows full leaderboard standings when all players are eliminated.
+  - If the last player standing does not have the highest overall score, prompts them with interactive buttons ("Continue Solo" / "End Game") asking if they wish to continue playing solo to achieve a higher score.
 - Created new `.wcg` (**Word Chain Game**) command (`plugins/wcg.go` & `utils/wcg.go`). Players submit valid English words starting with a random required letter that meet or exceed the required character length. Word validity is verified in parallel across 5 English dictionary APIs (`api.dictionaryapi.dev`, `api.datamuse.com`, Wiktionary API, US/UK dictionary proxies) plus built-in fallback dictionaries.
 - Fixed `meowcaller` client binding across packages via `RegisterMeowCaller(client)` in `client.go` and `plugins/callplace.go`. This guarantees that the exact `meowcaller.Client` registered during pre-connection startup is stored globally and reused across all call execution handlers (`.groupcall`, `.call`, `.videocall`).
 - Adjusted private mode access check in `plugins/dispatch.go`. When the bot is set to `private` mode (`.mode private`), non-sudoer/non-owner command attempts are now silently ignored without sending any text reply.
