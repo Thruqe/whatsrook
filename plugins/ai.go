@@ -628,11 +628,7 @@ func handleAI(ctx *Context) error {
 			return nil
 		}
 
-		p := ctx.GetPrefix()
-		editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
-			Conversation: new(fmt.Sprintf("Running %s%s...", p, cmdName)),
-		})
-		_, _ = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
+
 
 		cctx := &Context{
 			Ctx:     ctx.Ctx,
