@@ -15,6 +15,7 @@ import (
 	"github.com/purpshell/meowcaller"
 	"github.com/rs/zerolog"
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/types"
 )
 
 var (
@@ -50,9 +51,18 @@ func getMeowCallerClient(wa *whatsmeow.Client) *meowcaller.Client {
 func placeCallWithAudio(ctx *Context, target, audioPath string) error {
 	client := getMeowCallerClient(ctx.Client)
 
+	var targetJID types.JID
+	if strings.Contains(target, "@") {
+		targetJID, _ = types.ParseJID(target)
+	} else {
+		targetJID = types.NewJID(target, types.DefaultUserServer)
+	}
+
+	userTag, mentionJID := ctx.FormatMention(targetJID)
+
 	call, err := client.Call(ctx.Ctx, target)
 	if err != nil {
-		return sendText(ctx, fmt.Sprintf("call failed: %v", err))
+		return ctx.ReplyWithMentions(fmt.Sprintf("Call to %s failed: %v", userTag, err), []types.JID{mentionJID})
 	}
 
 	duration, durErr := utils.AudioDuration(audioPath)
@@ -93,12 +103,12 @@ func placeCallWithAudio(ctx *Context, target, audioPath string) error {
 	})
 
 	call.OnEnd(func(reason string) {
-		if err := sendText(ctx, "call ended: "+reason); err != nil {
+		if err := ctx.ReplyWithMentions(fmt.Sprintf("Call with %s ended: %s", userTag, reason), []types.JID{mentionJID}); err != nil {
 			logHandlerErr("call", err)
 		}
 	})
 
-	return sendText(ctx, " calling "+target+"...")
+	return ctx.ReplyWithMentions(fmt.Sprintf("Calling %s...", userTag), []types.JID{mentionJID})
 }
 
 // placeVideoCall places an outbound video call to target.
@@ -110,9 +120,18 @@ func placeVideoCall(ctx *Context, target string) error {
 func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 	client := getMeowCallerClient(ctx.Client)
 
+	var targetJID types.JID
+	if strings.Contains(target, "@") {
+		targetJID, _ = types.ParseJID(target)
+	} else {
+		targetJID = types.NewJID(target, types.DefaultUserServer)
+	}
+
+	userTag, mentionJID := ctx.FormatMention(targetJID)
+
 	call, err := client.CallWithOptions(ctx.Ctx, target, meowcaller.CallOptions{Video: true})
 	if err != nil {
-		return sendText(ctx, fmt.Sprintf("video call failed: %v", err))
+		return ctx.ReplyWithMentions(fmt.Sprintf("Video call to %s failed: %v", userTag, err), []types.JID{mentionJID})
 	}
 
 	var requestKeyframe atomic.Bool
@@ -259,20 +278,44 @@ func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 	})
 
 	call.OnEnd(func(reason string) {
-		if err := sendText(ctx, "video call ended: "+reason); err != nil {
+		if err := ctx.ReplyWithMentions(fmt.Sprintf("Video call with %s ended: %s", userTag, reason), []types.JID{mentionJID}); err != nil {
 			logHandlerErr("videocall", err)
 		}
 	})
 
-	return sendText(ctx, " video calling "+target+"...")
+	return ctx.ReplyWithMentions(fmt.Sprintf("Video calling %s...", userTag), []types.JID{mentionJID})
 }
 
 func placeGroupCall(ctx *Context, groupJID string, participants []string, audioPath string) error {
 	client := getMeowCallerClient(ctx.Client)
 
+	groupName := "the group"
+	if info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat); err == nil && info != nil {
+		if info.GroupName.Name != "" {
+			groupName = info.GroupName.Name
+		} else if info.Name != "" {
+			groupName = info.Name
+		}
+	}
+
+	var mentions []types.JID
+	for _, pStr := range participants {
+		var pJID types.JID
+		if strings.Contains(pStr, "@") {
+			pJID, _ = types.ParseJID(pStr)
+		} else {
+			pJID = types.NewJID(pStr, types.DefaultUserServer)
+		}
+		_, mentionJID := ctx.FormatMention(pJID)
+		mentions = append(mentions, mentionJID)
+	}
+
 	call, err := client.GroupCall(ctx.Ctx, participants...)
 	if err != nil {
-		return sendText(ctx, fmt.Sprintf("group call failed: %v", err))
+		if len(mentions) > 0 {
+			return ctx.ReplyWithMentions(fmt.Sprintf("Group call failed: %v", err), mentions)
+		}
+		return sendText(ctx, fmt.Sprintf("Group call failed: %v", err))
 	}
 
 	if audioPath != "" {
@@ -307,12 +350,19 @@ func placeGroupCall(ctx *Context, groupJID string, participants []string, audioP
 	}
 
 	call.OnEnd(func(reason string) {
-		if err := sendText(ctx, "group call ended: "+reason); err != nil {
-			logHandlerErr("groupcall", err)
+		endMsg := fmt.Sprintf("Group call in %s ended: %s", groupName, reason)
+		if len(mentions) > 0 {
+			_ = ctx.ReplyWithMentions(endMsg, mentions)
+		} else {
+			_ = sendText(ctx, endMsg)
 		}
 	})
 
-	return sendText(ctx, fmt.Sprintf("initiating group call to %d participants in %s...", len(participants), groupJID))
+	text := fmt.Sprintf("Initiating group call to %d participants in %s...", len(participants), groupName)
+	if len(mentions) > 0 {
+		return ctx.ReplyWithMentions(text, mentions)
+	}
+	return sendText(ctx, text)
 }
 
 func openAudioSource(path string) (meowcaller.AudioSource, error) {
