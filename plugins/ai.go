@@ -628,8 +628,6 @@ func handleAI(ctx *Context) error {
 			return nil
 		}
 
-
-
 		cctx := &Context{
 			Ctx:     ctx.Ctx,
 			Client:  ctx.Client,

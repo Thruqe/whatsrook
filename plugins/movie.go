@@ -67,8 +67,8 @@ type movieDetailResponse struct {
 			DetailPath      string `json:"detailPath"`
 		} `json:"subject"`
 		// Source 2 fields
-		Title        string `json:"title"`
-		Synopsis     string `json:"synopsis"`
+		Title         string `json:"title"`
+		Synopsis      string `json:"synopsis"`
 		DownloadItems []struct {
 			Text            string `json:"text"`
 			IntermediateURL string `json:"intermediateUrl"`
