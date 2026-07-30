@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added **Join WhatsApp Support Channel** badge button (`https://whatsapp.com/channel/0029Vb8Vo0k0bIdsTOTF1G2o`) to `README.md`.
 - Updated `plugins/callplace.go` with `getMeowCallerClient(ctx.Client)` singleton instance reuse so `.groupcall`, `.call`, and `.videocall` share the exact pre-connected `meowcaller.Client` registered during startup, preventing duplicate client instantiations and raw call adapter errors.
 - Enhanced `.menu` command (`plugins/menu.go`) to automatically alternate between plain text output and video media output (sending `resources/songs/whatsrook.gif` as video with menu text caption).
 - Fixed `meowcaller` raw call adapter initialization in `client.go`. Instantiating `meowcaller.NewClient` immediately after `whatsmeow.NewClient` (before `client.Connect()`) ensures that low-level `<ack>` and `<call>` hooks are installed prior to the WebSocket connection start, resolving the `"raw call adapter is unavailable: construct the client before connecting whatsmeow"` error.

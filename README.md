@@ -13,6 +13,7 @@ Connect your app to WhatsApp and receive live events — messages, groups, stori
 [![Go Version](https://badgen.net/badge/Go/1.26.4/blue)](https://github.com/Thruqe/whatsrook/blob/master/go.mod)
 [![Release](https://badgen.net/badge/Release/v4.0.0/orange)](https://github.com/Thruqe/whatsrook/releases)
 [![License](https://badgen.net/badge/License/MIT/yellow)](LICENSE)
+[![Join WhatsApp Channel](https://img.shields.io/badge/WhatsApp-Support%20Channel-25D366?style=flat&logo=whatsapp&logoColor=white)](https://whatsapp.com/channel/0029Vb8Vo0k0bIdsTOTF1G2o)
 
 ## Features
 
