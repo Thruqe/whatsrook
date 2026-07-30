@@ -28,12 +28,28 @@ type movieSearchItem struct {
 	Genre           string `json:"genre"`
 	IMDBRatingValue string `json:"imdbRatingValue"`
 	DetailPath      string `json:"detailPath"`
+	Path            string `json:"path"`
+	Source          int    `json:"source"`
 }
 
-type movieSearchResponse struct {
+type movieSearchResponse1 struct {
 	Status string `json:"status"`
 	Data   struct {
 		Items []movieSearchItem `json:"items"`
+	} `json:"data"`
+}
+
+type movieSource2SearchItem struct {
+	Title      string `json:"title"`
+	Path       string `json:"path"`
+	DetailPath string `json:"detailPath"`
+	Source     int    `json:"source"`
+}
+
+type movieSearchResponse2 struct {
+	Status string `json:"status"`
+	Data   struct {
+		Items []movieSource2SearchItem `json:"items"`
 	} `json:"data"`
 }
 
@@ -49,6 +65,13 @@ type movieDetailResponse struct {
 			IMDBRatingValue string `json:"imdbRatingValue"`
 			DetailPath      string `json:"detailPath"`
 		} `json:"subject"`
+		// Source 2 fields
+		Title        string `json:"title"`
+		Synopsis     string `json:"synopsis"`
+		DownloadItems []struct {
+			Text            string `json:"text"`
+			IntermediateURL string `json:"intermediateUrl"`
+		} `json:"downloadItems"`
 	} `json:"data"`
 }
 
@@ -74,7 +97,7 @@ func init() {
 	Register(&Command{
 		Name:        "movie",
 		Aliases:     []string{"film", "cinema"},
-		Description: "Search for movies or TV series and get details & download links via interactive buttons",
+		Description: "Search for movies or TV series across MovieBox and Nkiri with interactive buttons",
 		Category:    "media",
 		IsPublic:    true,
 		Handler:     handleMovie,
@@ -138,21 +161,31 @@ func sendInteractiveButtons(ctx *Context, bodyText, footerText string, buttons [
 func handleMovie(ctx *Context) error {
 	if len(ctx.Args) == 0 {
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage:\n- %smovie <search query>\n- %smovie info <subjectId> <detailPath>\n- %smovie dl <subjectId> <detailPath>\n\nExamples:\n- %smovie Avatar\n- %smovie Inception", p, p, p, p, p))
+		return ctx.Reply(fmt.Sprintf("Usage:\n- %smovie <search query>\n\nExamples:\n- %smovie Avatar\n- %smovie Super", p, p, p))
 	}
 
 	subCmd := strings.ToLower(ctx.Args[0])
-	if subCmd == "select" && len(ctx.Args) >= 3 {
-		return handleMovieSelect(ctx, ctx.Args[1], ctx.Args[2])
+	if subCmd == "select" && len(ctx.Args) >= 4 {
+		// Args: select <source> <subjectIdOrPath> <detailPath>
+		return handleMovieSelect(ctx, ctx.Args[1], ctx.Args[2], ctx.Args[3])
 	}
-	if subCmd == "info" && len(ctx.Args) >= 3 {
-		return handleMovieInfo(ctx, ctx.Args[1], ctx.Args[2])
+	if subCmd == "info" && len(ctx.Args) >= 4 {
+		return handleMovieInfo(ctx, ctx.Args[1], ctx.Args[2], ctx.Args[3])
 	}
-	if subCmd == "dl" && len(ctx.Args) >= 3 {
-		return handleMovieDL(ctx, ctx.Args[1], ctx.Args[2])
+	if subCmd == "dl" && len(ctx.Args) >= 4 {
+		return handleMovieDL(ctx, ctx.Args[1], ctx.Args[2], ctx.Args[3])
 	}
-	if subCmd == "get" && len(ctx.Args) >= 3 {
-		return handleMovieGetFile(ctx, ctx.Args[1], ctx.Args[2])
+	if subCmd == "get" && len(ctx.Args) >= 4 {
+		return handleMovieGetFile(ctx, ctx.Args[1], ctx.Args[2], ctx.Args[3])
+	}
+	if subCmd == "page" && len(ctx.Args) >= 3 {
+		// Args: page <pageNumber> <query>
+		pageNum, _ := strconv.Atoi(ctx.Args[1])
+		if pageNum < 1 {
+			pageNum = 1
+		}
+		query := strings.Join(ctx.Args[2:], " ")
+		return renderMovieSearchResults(ctx, query, pageNum)
 	}
 
 	query := ctx.RawArgs
@@ -160,75 +193,141 @@ func handleMovie(ctx *Context) error {
 		query = strings.Join(ctx.Args, " ")
 	}
 
-	searchURL := fmt.Sprintf("%s/api/search/%s?source=1", movieAPIHost, url.QueryEscape(query))
-	req, err := http.NewRequestWithContext(ctx.Ctx, "GET", searchURL, nil)
-	if err != nil {
-		return ctx.Reply("Failed to create movie search request.")
-	}
+	return renderMovieSearchResults(ctx, query, 1)
+}
 
+type unifiedMovieResult struct {
+	Title      string
+	Year       string
+	Source     int
+	SubjectID  string
+	DetailPath string
+}
+
+func renderMovieSearchResults(ctx *Context, query string, page int) error {
 	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		slog.Error("movie search HTTP request failed", "query", query, "err", err)
-		return ctx.Reply("Failed to connect to movie database.")
-	}
-	defer resp.Body.Close()
 
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		slog.Error("movie search read failed", "status", resp.StatusCode, "err", err)
-		return ctx.Reply("Error fetching movie search results.")
+	// Fetch Source 1 results
+	var results []unifiedMovieResult
+	s1URL := fmt.Sprintf("%s/api/search/%s?source=1", movieAPIHost, url.QueryEscape(query))
+	req1, err := http.NewRequestWithContext(ctx.Ctx, "GET", s1URL, nil)
+	if err == nil {
+		if resp1, err := client.Do(req1); err == nil {
+			body1, _ := io.ReadAll(resp1.Body)
+			_ = resp1.Body.Close()
+			var res1 movieSearchResponse1
+			if json.Unmarshal(body1, &res1) == nil {
+				for _, item := range res1.Data.Items {
+					year := ""
+					if len(item.ReleaseDate) >= 4 {
+						year = item.ReleaseDate[:4]
+					}
+					dPath := item.DetailPath
+					if dPath == "" {
+						dPath = item.Path
+					}
+					sID := item.SubjectID
+					if sID == "" {
+						sID = dPath
+					}
+					results = append(results, unifiedMovieResult{
+						Title:      item.Title,
+						Year:       year,
+						Source:     1,
+						SubjectID:  sID,
+						DetailPath: dPath,
+					})
+				}
+			}
+		}
 	}
 
-	var searchData movieSearchResponse
-	if err := json.Unmarshal(bodyBytes, &searchData); err != nil || len(searchData.Data.Items) == 0 {
-		return ctx.Reply(fmt.Sprintf("No movies or TV shows found matching %q.", query))
+	// Fetch Source 2 results (Nkiri)
+	s2URL := fmt.Sprintf("%s/api/search/%s?source=2", movieAPIHost, url.QueryEscape(query))
+	req2, err := http.NewRequestWithContext(ctx.Ctx, "GET", s2URL, nil)
+	if err == nil {
+		if resp2, err := client.Do(req2); err == nil {
+			body2, _ := io.ReadAll(resp2.Body)
+			_ = resp2.Body.Close()
+			var res2 movieSearchResponse2
+			if json.Unmarshal(body2, &res2) == nil {
+				for _, item := range res2.Data.Items {
+					dPath := item.DetailPath
+					if dPath == "" {
+						dPath = item.Path
+					}
+					results = append(results, unifiedMovieResult{
+						Title:      item.Title,
+						Year:       "",
+						Source:     2,
+						SubjectID:  dPath,
+						DetailPath: dPath,
+					})
+				}
+			}
+		}
 	}
 
-	items := searchData.Data.Items
-	if len(items) > 3 {
-		items = items[:3]
+	if len(results) == 0 {
+		return ctx.Reply(fmt.Sprintf("No movies or TV shows found matching %q across Source 1 and Source 2.", query))
 	}
+
+	pageSize := 3
+	totalPages := (len(results) + pageSize - 1) / pageSize
+	if page > totalPages {
+		page = totalPages
+	}
+
+	startIdx := (page - 1) * pageSize
+	endIdx := startIdx + pageSize
+	if endIdx > len(results) {
+		endIdx = len(results)
+	}
+
+	pageItems := results[startIdx:endIdx]
 
 	p := ctx.GetPrefix()
 	var sb strings.Builder
-	sb.WriteString("*Movie Search Results*\nSelect a movie or TV show from the list below:\n\n")
+	fmt.Fprintf(&sb, "*Movie Search Results* (Page %d of %d, Total: %d)\nSelect a movie or TV show below:\n\n", page, totalPages, len(results))
 
 	var buttons []struct{ ID, Text string }
-	for idx, item := range items {
-		year := ""
-		if len(item.ReleaseDate) >= 4 {
-			year = item.ReleaseDate[:4]
+	for idx, item := range pageItems {
+		globalIdx := startIdx + idx + 1
+		fmt.Fprintf(&sb, "%d. *%s*", globalIdx, item.Title)
+		if item.Year != "" {
+			fmt.Fprintf(&sb, " (%s)", item.Year)
 		}
-		
-		fmt.Fprintf(&sb, "%d. *%s*", idx+1, item.Title)
-		if year != "" {
-			fmt.Fprintf(&sb, " (%s)", year)
-		}
-		if item.Genre != "" {
-			fmt.Fprintf(&sb, " - %s", item.Genre)
-		}
-		sb.WriteString("\n")
+		fmt.Fprintf(&sb, " [Source %d]\n", item.Source)
 
 		btnText := item.Title
-		if year != "" {
-			btnText = fmt.Sprintf("%s (%s)", item.Title, year)
+		if item.Year != "" {
+			btnText = fmt.Sprintf("%s (%s)", item.Title, item.Year)
 		}
 		if len(btnText) > 20 {
 			btnText = btnText[:20]
 		}
 
 		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   fmt.Sprintf("%smovie select %s %s", p, item.SubjectID, item.DetailPath),
+			ID:   fmt.Sprintf("%smovie select %d %s %s", p, item.Source, url.QueryEscape(item.SubjectID), url.QueryEscape(item.DetailPath)),
 			Text: btnText,
+		})
+	}
+
+	if page < totalPages && len(buttons) < 3 {
+		buttons = append(buttons, struct{ ID, Text string }{
+			ID:   fmt.Sprintf("%smovie page %d %s", p, page+1, query),
+			Text: fmt.Sprintf("Next (Page %d)", page+1),
 		})
 	}
 
 	return sendInteractiveButtons(ctx, sb.String(), "Powered by WhatsRook", buttons)
 }
 
-func handleMovieSelect(ctx *Context, subjectID, detailPath string) error {
-	infoURL := fmt.Sprintf("%s/api/detail?detailPath=%s&source=1", movieAPIHost, url.QueryEscape(detailPath))
+func handleMovieSelect(ctx *Context, sourceStr, subjectID, detailPath string) error {
+	unescapedDetailPath, _ := url.QueryUnescape(detailPath)
+	unescapedSubjectID, _ := url.QueryUnescape(subjectID)
+
+	infoURL := fmt.Sprintf("%s/api/detail?detailPath=%s&source=%s", movieAPIHost, url.QueryEscape(unescapedDetailPath), sourceStr)
 	req, err := http.NewRequestWithContext(ctx.Ctx, "GET", infoURL, nil)
 	if err != nil {
 		return ctx.Reply("Failed to build movie detail request.")
@@ -237,7 +336,7 @@ func handleMovieSelect(ctx *Context, subjectID, detailPath string) error {
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		slog.Error("movie detail request failed", "detailPath", detailPath, "err", err)
+		slog.Error("movie detail request failed", "detailPath", unescapedDetailPath, "source", sourceStr, "err", err)
 		return ctx.Reply("Failed to fetch movie details.")
 	}
 	defer resp.Body.Close()
@@ -248,36 +347,47 @@ func handleMovieSelect(ctx *Context, subjectID, detailPath string) error {
 	}
 
 	var detailData movieDetailResponse
-	if err := json.Unmarshal(bodyBytes, &detailData); err != nil || detailData.Data.Subject.Title == "" {
+	if err := json.Unmarshal(bodyBytes, &detailData); err != nil {
 		return ctx.Reply("Could not parse movie details.")
 	}
 
-	sub := detailData.Data.Subject
-	p := ctx.GetPrefix()
+	subTitle := detailData.Data.Subject.Title
+	relDate := detailData.Data.Subject.ReleaseDate
+	genre := detailData.Data.Subject.Genre
+	rating := detailData.Data.Subject.IMDBRatingValue
+	desc := detailData.Data.Subject.Description
 
+	if subTitle == "" {
+		subTitle = detailData.Data.Title
+	}
+	if desc == "" {
+		desc = detailData.Data.Synopsis
+	}
+
+	p := ctx.GetPrefix()
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "*%s*\n\n", sub.Title)
-	if sub.ReleaseDate != "" {
-		fmt.Fprintf(&sb, "*Release Date:* %s\n", sub.ReleaseDate)
+	fmt.Fprintf(&sb, "*%s*\n\n", subTitle)
+	if relDate != "" {
+		fmt.Fprintf(&sb, "*Release Date:* %s\n", relDate)
 	}
-	if sub.Genre != "" {
-		fmt.Fprintf(&sb, "*Genre:* %s\n", sub.Genre)
+	if genre != "" {
+		fmt.Fprintf(&sb, "*Genre:* %s\n", genre)
 	}
-	if sub.IMDBRatingValue != "" {
-		fmt.Fprintf(&sb, "*Rating:* %s\n", sub.IMDBRatingValue)
+	if rating != "" {
+		fmt.Fprintf(&sb, "*Rating:* %s\n", rating)
 	}
-	if sub.Description != "" {
-		fmt.Fprintf(&sb, "\n*Plot:* %s\n", sub.Description)
+	if desc != "" {
+		fmt.Fprintf(&sb, "\n*Plot:* %s\n", desc)
 	}
 	sb.WriteString("\nSelect an action below:")
 
 	buttons := []struct{ ID, Text string }{
 		{
-			ID:   fmt.Sprintf("%smovie info %s %s", p, subjectID, detailPath),
+			ID:   fmt.Sprintf("%smovie info %s %s %s", p, sourceStr, url.QueryEscape(unescapedSubjectID), url.QueryEscape(unescapedDetailPath)),
 			Text: "Details",
 		},
 		{
-			ID:   fmt.Sprintf("%smovie dl %s %s", p, subjectID, detailPath),
+			ID:   fmt.Sprintf("%smovie dl %s %s %s", p, sourceStr, url.QueryEscape(unescapedSubjectID), url.QueryEscape(unescapedDetailPath)),
 			Text: "Download Links",
 		},
 	}
@@ -285,61 +395,15 @@ func handleMovieSelect(ctx *Context, subjectID, detailPath string) error {
 	return sendInteractiveButtons(ctx, sb.String(), "Powered by WhatsRook", buttons)
 }
 
-func handleMovieInfo(ctx *Context, subjectID, detailPath string) error {
-	infoURL := fmt.Sprintf("%s/api/detail?detailPath=%s&source=1", movieAPIHost, url.QueryEscape(detailPath))
-	req, err := http.NewRequestWithContext(ctx.Ctx, "GET", infoURL, nil)
-	if err != nil {
-		return ctx.Reply("Failed to build movie detail request.")
-	}
-
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		slog.Error("movie detail request failed", "detailPath", detailPath, "err", err)
-		return ctx.Reply("Failed to fetch movie details.")
-	}
-	defer resp.Body.Close()
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		return ctx.Reply("Error reading movie details.")
-	}
-
-	var detailData movieDetailResponse
-	if err := json.Unmarshal(bodyBytes, &detailData); err != nil || detailData.Data.Subject.Title == "" {
-		return ctx.Reply("Could not parse movie details.")
-	}
-
-	sub := detailData.Data.Subject
-	p := ctx.GetPrefix()
-
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "*%s*\n\n", sub.Title)
-	if sub.ReleaseDate != "" {
-		fmt.Fprintf(&sb, "*Release Date:* %s\n", sub.ReleaseDate)
-	}
-	if sub.Genre != "" {
-		fmt.Fprintf(&sb, "*Genre:* %s\n", sub.Genre)
-	}
-	if sub.IMDBRatingValue != "" {
-		fmt.Fprintf(&sb, "*Rating:* %s\n", sub.IMDBRatingValue)
-	}
-	if sub.Description != "" {
-		fmt.Fprintf(&sb, "\n*Plot:* %s\n", sub.Description)
-	}
-
-	buttons := []struct{ ID, Text string }{
-		{
-			ID:   fmt.Sprintf("%smovie dl %s %s", p, subjectID, detailPath),
-			Text: "Download Links",
-		},
-	}
-
-	return sendInteractiveButtons(ctx, sb.String(), "Powered by WhatsRook", buttons)
+func handleMovieInfo(ctx *Context, sourceStr, subjectID, detailPath string) error {
+	return handleMovieSelect(ctx, sourceStr, subjectID, detailPath)
 }
 
-func handleMovieDL(ctx *Context, subjectID, detailPath string) error {
-	sourcesURL := fmt.Sprintf("%s/api/sources/%s?source=1", movieAPIHost, url.QueryEscape(subjectID))
+func handleMovieDL(ctx *Context, sourceStr, subjectID, detailPath string) error {
+	unescapedDetailPath, _ := url.QueryUnescape(detailPath)
+	unescapedSubjectID, _ := url.QueryUnescape(subjectID)
+
+	sourcesURL := fmt.Sprintf("%s/api/sources/%s?detailPath=%s&source=%s", movieAPIHost, url.QueryEscape(unescapedSubjectID), url.QueryEscape(unescapedDetailPath), sourceStr)
 	req, err := http.NewRequestWithContext(ctx.Ctx, "GET", sourcesURL, nil)
 	if err != nil {
 		return ctx.Reply("Failed to build movie sources request.")
@@ -348,7 +412,7 @@ func handleMovieDL(ctx *Context, subjectID, detailPath string) error {
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		slog.Error("movie sources request failed", "subjectID", subjectID, "err", err)
+		slog.Error("movie sources request failed", "subjectID", unescapedSubjectID, "source", sourceStr, "err", err)
 		return ctx.Reply("Failed to fetch movie download sources.")
 	}
 	defer resp.Body.Close()
@@ -367,57 +431,58 @@ func handleMovieDL(ctx *Context, subjectID, detailPath string) error {
 	if len(sources) == 0 {
 		sources = sourcesData.Data.ProcessedSources
 	}
-	if len(sources) == 0 {
-		return ctx.Reply("No download links available for this title.")
-	}
 
 	p := ctx.GetPrefix()
 	var buttons []struct{ ID, Text string }
 
-	// Determine recommended item: exactly one item with size > 0 and size <= 200MB.
-	// Pick the highest quality item matching <= 200MB.
-	recIdx := -1
-	for i, src := range sources {
-		if src.Size > 0 && src.Size <= maxDirectVideoSize {
-			recIdx = i // since sources are usually listed in ascending/descending, pick latest match or first match
+	if len(sources) > 0 {
+		recIdx := -1
+		for i, src := range sources {
+			if src.Size > 0 && src.Size <= maxDirectVideoSize {
+				recIdx = i
+			}
 		}
+
+		for i, src := range sources {
+			qStr := strconv.Itoa(src.Quality) + "p"
+			if src.Quality == 0 {
+				qStr = "HD"
+			}
+			var szStr string
+			if src.Size > 0 {
+				szStr = formatBytes(uint64(src.Size))
+			} else {
+				szStr = "Link"
+			}
+
+			btnText := fmt.Sprintf("%s (%s)", qStr, szStr)
+			if i == recIdx {
+				btnText += " Recommended"
+			}
+
+			btnID := fmt.Sprintf("%smovie get %s %s %s", p, sourceStr, url.QueryEscape(unescapedSubjectID), url.QueryEscape(src.ID))
+			buttons = append(buttons, struct{ ID, Text string }{
+				ID:   btnID,
+				Text: btnText,
+			})
+		}
+
+		if len(buttons) > 3 {
+			buttons = buttons[:3]
+		}
+
+		bodyText := "*Download Options*\nChoose a resolution below to download the file directly:"
+		return sendInteractiveButtons(ctx, bodyText, "Powered by WhatsRook", buttons)
 	}
 
-	for i, src := range sources {
-		qStr := strconv.Itoa(src.Quality) + "p"
-		if src.Quality == 0 {
-			qStr = "HD"
-		}
-		var szStr string
-		if src.Size > 0 {
-			szStr = formatBytes(uint64(src.Size))
-		} else {
-			szStr = "Unknown size"
-		}
-
-		btnText := fmt.Sprintf("%s (%s)", qStr, szStr)
-		if i == recIdx {
-			btnText += " Recommended"
-		}
-
-		btnID := fmt.Sprintf("%smovie get %s %s", p, subjectID, src.ID)
-		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   btnID,
-			Text: btnText,
-		})
-	}
-
-	// Limit to max 3 buttons supported by WhatsApp ButtonsMessage
-	if len(buttons) > 3 {
-		buttons = buttons[:3]
-	}
-
-	bodyText := "*Download Options*\nChoose a resolution below to download the file directly:"
-	return sendInteractiveButtons(ctx, bodyText, "Powered by WhatsRook", buttons)
+	return ctx.Reply("No direct download links available for this title.")
 }
 
-func handleMovieGetFile(ctx *Context, subjectID, sourceID string) error {
-	sourcesURL := fmt.Sprintf("%s/api/sources/%s?source=1", movieAPIHost, url.QueryEscape(subjectID))
+func handleMovieGetFile(ctx *Context, sourceStr, subjectID, sourceID string) error {
+	unescapedSubjectID, _ := url.QueryUnescape(subjectID)
+	unescapedSourceID, _ := url.QueryUnescape(sourceID)
+
+	sourcesURL := fmt.Sprintf("%s/api/sources/%s?source=%s", movieAPIHost, url.QueryEscape(unescapedSubjectID), sourceStr)
 	req, err := http.NewRequestWithContext(ctx.Ctx, "GET", sourcesURL, nil)
 	if err != nil {
 		return ctx.Reply("Failed to build movie sources request.")
@@ -426,7 +491,7 @@ func handleMovieGetFile(ctx *Context, subjectID, sourceID string) error {
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		slog.Error("movie get sources request failed", "subjectID", subjectID, "err", err)
+		slog.Error("movie get sources request failed", "subjectID", unescapedSubjectID, "source", sourceStr, "err", err)
 		return ctx.Reply("Failed to fetch download source.")
 	}
 	defer resp.Body.Close()
@@ -448,7 +513,7 @@ func handleMovieGetFile(ctx *Context, subjectID, sourceID string) error {
 
 	var selectedSource *movieSourceItem
 	for _, s := range sources {
-		if s.ID == sourceID {
+		if s.ID == unescapedSourceID {
 			selectedSource = &s
 			break
 		}

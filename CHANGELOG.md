@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Updated `movie` command (`plugins/movie.go`) to list search results as interactive selection buttons (showing titles & release years) so users can choose their exact intended movie before viewing details or download resolutions.
+- Updated `movie` command (`plugins/movie.go`) to query both **Source 1** (MovieBox) and **Source 2** (Nkiri) concurrently without truncating API responses, offering paginated interactive buttons so users can browse all search results across both providers.
 - Removed unused `meowcaller` directory.
 - Removed intermediate `"Running .<command>..."` placeholder status edits so execution status messages are hidden from end users.
 - Prevented raw `RUN_COMMAND:` protocol text from being exposed to end users in edited response messages when AI triggers internal commands.
