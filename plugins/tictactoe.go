@@ -200,13 +200,13 @@ func handleTicTacToe(ctx *Context) error {
 
 		if game.IsBotGame {
 			if winner == "X" {
-				addXP(ctx, game.PlayerXMention, 50, "win")
+				awardTTTXP(ctx, game.PlayerXMention, 50, "win")
 			} else {
-				addXP(ctx, game.PlayerXMention, 10, "loss")
+				awardTTTXP(ctx, game.PlayerXMention, 10, "loss")
 			}
 		} else {
-			addXP(ctx, game.PlayerXMention, 50, "win")
-			addXP(ctx, game.PlayerOMention, 10, "loss")
+			awardTTTXP(ctx, game.PlayerXMention, 50, "win")
+			awardTTTXP(ctx, game.PlayerOMention, 10, "loss")
 		}
 
 		var winnerMentionJID types.JID
@@ -221,9 +221,9 @@ func handleTicTacToe(ctx *Context) error {
 
 	if isTTTFull(&game.Board) {
 		delete(tttGames, chatKey)
-		addXP(ctx, game.PlayerXMention, 20, "draw")
+		awardTTTXP(ctx, game.PlayerXMention, 20, "draw")
 		if !game.IsBotGame {
-			addXP(ctx, game.PlayerOMention, 20, "draw")
+			awardTTTXP(ctx, game.PlayerOMention, 20, "draw")
 		}
 		msg := fmt.Sprintf("Game Over! It's a draw!\n+20 XP awarded to both players!\n\n%s", renderTTTGrid(&game.Board))
 		return ctx.Reply(msg)
@@ -238,14 +238,14 @@ func handleTicTacToe(ctx *Context) error {
 
 		if winner := checkTTTWinner(&game.Board); winner != "" {
 			delete(tttGames, chatKey)
-			addXP(ctx, game.PlayerXMention, 10, "loss")
+			awardTTTXP(ctx, game.PlayerXMention, 10, "loss")
 			msg := fmt.Sprintf("Game Over!\n\nWinner: %s (O)\nBetter luck next time (+10 XP)!\n\n%s", game.PlayerOTag, renderTTTGrid(&game.Board))
 			return ctx.ReplyWithMentions(msg, []types.JID{game.PlayerXMention, game.PlayerOMention})
 		}
 
 		if isTTTFull(&game.Board) {
 			delete(tttGames, chatKey)
-			addXP(ctx, game.PlayerX, 20, "draw")
+			awardTTTXP(ctx, game.PlayerX, 20, "draw")
 			msg := fmt.Sprintf("Game Over! It's a draw!\n+20 XP awarded!\n\n%s", renderTTTGrid(&game.Board))
 			return ctx.Reply(msg)
 		}
@@ -272,10 +272,12 @@ func handleTicTacToe(ctx *Context) error {
 	return ctx.ReplyWithMentions(msg, []types.JID{nextMention})
 }
 
-func addXP(ctx *Context, userJID types.JID, amount int, resultType string) {
-	if userJID.User == "" || userJID.User == "whatsrook_bot" {
+func awardTTTXP(ctx *Context, userJID types.JID, amount int, resultType string) {
+	// Scores in DM games are not added to group leaderboards
+	if ctx.Chat.Server != "g.us" {
 		return
 	}
+
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
 		return
@@ -295,19 +297,24 @@ func addXP(ctx *Context, userJID types.JID, amount int, resultType string) {
 		drawInc = 1
 	}
 
+	groupJID := ctx.Chat.ToNonAD().String()
 	cleanJID := userJID.ToNonAD().String()
 
-	_, _ = db.Exec(ctx.Ctx, `INSERT INTO bot_user_xp (user_jid, xp, ttt_wins, ttt_losses, ttt_draws)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT(user_jid) DO UPDATE SET
-			xp = xp + EXCLUDED.xp,
-			ttt_wins = ttt_wins + EXCLUDED.ttt_wins,
-			ttt_losses = ttt_losses + EXCLUDED.ttt_losses,
-			ttt_draws = ttt_draws + EXCLUDED.ttt_draws`,
-		cleanJID, amount, winInc, lossInc, drawInc)
+	_, _ = db.Exec(ctx.Ctx, `INSERT INTO bot_group_user_xp (group_jid, user_jid, xp, ttt_wins, ttt_losses, ttt_draws)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		ON CONFLICT(group_jid, user_jid) DO UPDATE SET
+			xp = MAX(0, bot_group_user_xp.xp + EXCLUDED.xp),
+			ttt_wins = bot_group_user_xp.ttt_wins + EXCLUDED.ttt_wins,
+			ttt_losses = bot_group_user_xp.ttt_losses + EXCLUDED.ttt_losses,
+			ttt_draws = bot_group_user_xp.ttt_draws + EXCLUDED.ttt_draws`,
+		groupJID, cleanJID, amount, winInc, lossInc, drawInc)
 }
 
 func handleLeaderboard(ctx *Context) error {
+	if ctx.Chat.Server != "g.us" {
+		return ctx.Reply("Leaderboards are group-specific! Please use .leaderboard inside a group chat to view that group's leaderboard.")
+	}
+
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
 		return ctx.Reply("Leaderboard store unavailable.")
@@ -317,9 +324,24 @@ func handleLeaderboard(ctx *Context) error {
 		return ctx.Reply("Database connection unavailable.")
 	}
 
-	rows, err := db.Query(ctx.Ctx, `SELECT user_jid, xp, ttt_wins, ttt_losses, ttt_draws, COALESCE(wcg_wins, 0), COALESCE(wcg_games, 0), COALESCE(wcg_rating, 1000) FROM bot_user_xp ORDER BY xp DESC LIMIT 10`)
+	groupJID := ctx.Chat.ToNonAD().String()
+
+	// Fetch group name
+	groupName := "Group"
+	if info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat); err == nil && info != nil {
+		if info.GroupName.Name != "" {
+			groupName = info.GroupName.Name
+		} else if info.Name != "" {
+			groupName = info.Name
+		}
+	}
+
+	rows, err := db.Query(ctx.Ctx, `SELECT user_jid, xp, ttt_wins, ttt_losses, ttt_draws, COALESCE(wcg_wins, 0), COALESCE(wcg_games, 0), COALESCE(wcg_rating, 1000) 
+		FROM bot_group_user_xp 
+		WHERE group_jid = $1 
+		ORDER BY xp DESC LIMIT 10`, groupJID)
 	if err != nil {
-		return ctx.Reply("Failed to fetch leaderboard.")
+		return ctx.Reply("Failed to fetch group leaderboard.")
 	}
 	defer rows.Close()
 
@@ -367,11 +389,11 @@ func handleLeaderboard(ctx *Context) error {
 	}
 
 	if len(entries) == 0 {
-		return ctx.Reply("No players on the leaderboard yet! Play games like .ttt or .wcg to earn CXP.")
+		return ctx.Reply(fmt.Sprintf("%s Leaderboard is currently empty! Play games in this group to earn points and rank up.", groupName))
 	}
 
 	var sb strings.Builder
-	sb.WriteString("🏆 WHATSROOK GLOBAL LEADERBOARD & CXP 🏆\n\n")
+	fmt.Fprintf(&sb, "%s Leaderboard\n\n", groupName)
 
 	for i, e := range entries {
 		fmt.Fprintf(&sb, "%d. %s — %s (%d CXP)\n   Rating: %d | TTT: %dW/%dL/%dD | WCG: %dW/%dG\n\n",

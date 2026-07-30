@@ -85,6 +85,20 @@ func initTables(ctx context.Context, s *sqlstore.SQLStore) {
 		_, _ = db.Exec(ctx, `ALTER TABLE bot_user_xp ADD COLUMN wcg_wins INTEGER DEFAULT 0`)
 		_, _ = db.Exec(ctx, `ALTER TABLE bot_user_xp ADD COLUMN wcg_games INTEGER DEFAULT 0`)
 		_, _ = db.Exec(ctx, `ALTER TABLE bot_user_xp ADD COLUMN wcg_rating INTEGER DEFAULT 1000`)
+
+		// Create bot_group_user_xp table for per-group leaderboards
+		_, _ = db.Exec(ctx, `CREATE TABLE IF NOT EXISTS bot_group_user_xp (
+			group_jid TEXT NOT NULL,
+			user_jid TEXT NOT NULL,
+			xp INTEGER DEFAULT 0,
+			ttt_wins INTEGER DEFAULT 0,
+			ttt_losses INTEGER DEFAULT 0,
+			ttt_draws INTEGER DEFAULT 0,
+			wcg_wins INTEGER DEFAULT 0,
+			wcg_games INTEGER DEFAULT 0,
+			wcg_rating INTEGER DEFAULT 1000,
+			PRIMARY KEY (group_jid, user_jid)
+		)`)
 	})
 }
 

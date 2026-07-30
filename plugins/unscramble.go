@@ -336,6 +336,11 @@ func finishUnscrambleGame(ctx *Context, game *utils.UnscrambleGame, winner *util
 }
 
 func saveUnscrambleStats(ctx *Context, game *utils.UnscrambleGame, winner *utils.UnscramblePlayer) {
+	// Scores in DM games are not added to group leaderboards
+	if game.ChatJID.Server != "g.us" {
+		return
+	}
+
 	s, ok := game.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
 		return
@@ -344,6 +349,8 @@ func saveUnscrambleStats(ctx *Context, game *utils.UnscrambleGame, winner *utils
 	if db == nil {
 		return
 	}
+
+	groupJID := game.ChatJID.ToNonAD().String()
 
 	for _, p := range game.Players {
 		if p.LID.User == "" || p.LID.User == "whatsrook_bot" {
@@ -385,14 +392,14 @@ func saveUnscrambleStats(ctx *Context, game *utils.UnscrambleGame, winner *utils
 
 		cleanJID := p.MentionJID.ToNonAD().String()
 
-		_, _ = db.Exec(ctx.Ctx, `INSERT INTO bot_user_xp (user_jid, xp, wcg_wins, wcg_games, wcg_rating)
-			VALUES ($1, $2, $3, 1, $4)
-			ON CONFLICT(user_jid) DO UPDATE SET
-				xp = MAX(0, xp + EXCLUDED.xp),
-				wcg_wins = wcg_wins + EXCLUDED.wcg_wins,
-				wcg_games = wcg_games + 1,
-				wcg_rating = MAX(100, wcg_rating + $5)`,
-			cleanJID, xpEarned, winInc, 1000+ratingDelta, ratingDelta)
+		_, _ = db.Exec(ctx.Ctx, `INSERT INTO bot_group_user_xp (group_jid, user_jid, xp, wcg_wins, wcg_games, wcg_rating)
+			VALUES ($1, $2, $3, $4, 1, $5)
+			ON CONFLICT(group_jid, user_jid) DO UPDATE SET
+				xp = MAX(0, bot_group_user_xp.xp + EXCLUDED.xp),
+				wcg_wins = bot_group_user_xp.wcg_wins + EXCLUDED.wcg_wins,
+				wcg_games = bot_group_user_xp.wcg_games + 1,
+				wcg_rating = MAX(100, bot_group_user_xp.wcg_rating + $6)`,
+			groupJID, cleanJID, xpEarned, winInc, 1000+ratingDelta, ratingDelta)
 	}
 }
 

@@ -9,7 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Format code
+- Per-Group Leaderboard System (`bot_group_user_xp` table):
+  - `.leaderboard` (`.lb`, `.top`, `.xp`) is now group-specific. When run in a group chat, it dynamically resolves the group's name and displays `<Group Name> Leaderboard`.
+  - Added DM score exclusion: Games played in Direct Messages (P2P chats) will no longer record XP or game statistics to any group leaderboard.
+  - Updated all game stat save handlers (`.wcg`, `.unscramble`, `.ttt`) to store stats isolated per group JID.
 - Fixed reentrant mutex deadlock in `.wcg` and `.unscramble` game turn handlers (`plugins/wcg.go` & `plugins/unscramble.go`): `eliminateAndAdvanceWCG` and turn timer callbacks no longer hold `game.Mu` before invoking `game.EliminateCurrentPlayer()`, `game.StopTimers()`, or `finishWCGChainGame()`. This resolves the deadlock that prevented the match-over leaderboard from being sent and caused the dispatch loop to freeze.
 - Fixed command dispatch locking issue during active `.wcg` and `.unscramble` games (`plugins/wcg.go` & `plugins/unscramble.go`): `HandleWCGInput` and `HandleUnscrambleInput` now return `false` if the message sender is not in the game or is not the current turn player. This ensures messages from non-turn players or new command invocations (like `.wcg`, `.menu`, `.ping`) pass through to `Dispatch` uninterrupted.
 - Fixed match-over leaderboard display in `plugins/wcg.go`: `finishWCGChainGame` now always outputs the full `Final Standings:` leaderboard table upon match conclusion (for single-player eliminations, all-player eliminations, and multiplayer last-standing finishes alike).
