@@ -90,10 +90,10 @@ var supportedTimezones = []string{
 }
 
 type MuteSchedule struct {
-	GroupJID  string `json:"group_jid"`
-	MuteTime  string `json:"mute_time"`   // e.g. "22:00"
+	GroupJID   string `json:"group_jid"`
+	MuteTime   string `json:"mute_time"`   // e.g. "22:00"
 	UnmuteTime string `json:"unmute_time"` // e.g. "06:00"
-	Enabled   bool   `json:"enabled"`
+	Enabled    bool   `json:"enabled"`
 }
 
 var (
