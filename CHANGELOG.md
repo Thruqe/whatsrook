@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Updated `movie` command (`plugins/movie.go`) to remove emojis, display download resolutions as interactive buttons (tagging one <= 200MB source as "Recommended"), and send downloaded files as video (<=200MB) or document (>200MB).
+- Updated `movie` command (`plugins/movie.go`) to list search results as interactive selection buttons (showing titles & release years) so users can choose their exact intended movie before viewing details or download resolutions.
 - Removed unused `meowcaller` directory.
 - Removed intermediate `"Running .<command>..."` placeholder status edits so execution status messages are hidden from end users.
 - Prevented raw `RUN_COMMAND:` protocol text from being exposed to end users in edited response messages when AI triggers internal commands.

@@ -142,6 +142,9 @@ func handleMovie(ctx *Context) error {
 	}
 
 	subCmd := strings.ToLower(ctx.Args[0])
+	if subCmd == "select" && len(ctx.Args) >= 3 {
+		return handleMovieSelect(ctx, ctx.Args[1], ctx.Args[2])
+	}
 	if subCmd == "info" && len(ctx.Args) >= 3 {
 		return handleMovieInfo(ctx, ctx.Args[1], ctx.Args[2])
 	}
@@ -182,30 +185,99 @@ func handleMovie(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("No movies or TV shows found matching %q.", query))
 	}
 
-	item := searchData.Data.Items[0]
+	items := searchData.Data.Items
+	if len(items) > 3 {
+		items = items[:3]
+	}
+
+	p := ctx.GetPrefix()
+	var sb strings.Builder
+	sb.WriteString("*Movie Search Results*\nSelect a movie or TV show from the list below:\n\n")
+
+	var buttons []struct{ ID, Text string }
+	for idx, item := range items {
+		year := ""
+		if len(item.ReleaseDate) >= 4 {
+			year = item.ReleaseDate[:4]
+		}
+		
+		fmt.Fprintf(&sb, "%d. *%s*", idx+1, item.Title)
+		if year != "" {
+			fmt.Fprintf(&sb, " (%s)", year)
+		}
+		if item.Genre != "" {
+			fmt.Fprintf(&sb, " - %s", item.Genre)
+		}
+		sb.WriteString("\n")
+
+		btnText := item.Title
+		if year != "" {
+			btnText = fmt.Sprintf("%s (%s)", item.Title, year)
+		}
+		if len(btnText) > 20 {
+			btnText = btnText[:20]
+		}
+
+		buttons = append(buttons, struct{ ID, Text string }{
+			ID:   fmt.Sprintf("%smovie select %s %s", p, item.SubjectID, item.DetailPath),
+			Text: btnText,
+		})
+	}
+
+	return sendInteractiveButtons(ctx, sb.String(), "Powered by WhatsRook", buttons)
+}
+
+func handleMovieSelect(ctx *Context, subjectID, detailPath string) error {
+	infoURL := fmt.Sprintf("%s/api/detail?detailPath=%s&source=1", movieAPIHost, url.QueryEscape(detailPath))
+	req, err := http.NewRequestWithContext(ctx.Ctx, "GET", infoURL, nil)
+	if err != nil {
+		return ctx.Reply("Failed to build movie detail request.")
+	}
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		slog.Error("movie detail request failed", "detailPath", detailPath, "err", err)
+		return ctx.Reply("Failed to fetch movie details.")
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		return ctx.Reply("Error reading movie details.")
+	}
+
+	var detailData movieDetailResponse
+	if err := json.Unmarshal(bodyBytes, &detailData); err != nil || detailData.Data.Subject.Title == "" {
+		return ctx.Reply("Could not parse movie details.")
+	}
+
+	sub := detailData.Data.Subject
 	p := ctx.GetPrefix()
 
 	var sb strings.Builder
-	sb.WriteString("*Movie Search Result*\n\n")
-	fmt.Fprintf(&sb, "*Title:* %s\n", item.Title)
-	if item.ReleaseDate != "" {
-		fmt.Fprintf(&sb, "*Release:* %s\n", item.ReleaseDate)
+	fmt.Fprintf(&sb, "*%s*\n\n", sub.Title)
+	if sub.ReleaseDate != "" {
+		fmt.Fprintf(&sb, "*Release Date:* %s\n", sub.ReleaseDate)
 	}
-	if item.Genre != "" {
-		fmt.Fprintf(&sb, "*Genre:* %s\n", item.Genre)
+	if sub.Genre != "" {
+		fmt.Fprintf(&sb, "*Genre:* %s\n", sub.Genre)
 	}
-	if item.IMDBRatingValue != "" {
-		fmt.Fprintf(&sb, "*IMDb Rating:* %s\n", item.IMDBRatingValue)
+	if sub.IMDBRatingValue != "" {
+		fmt.Fprintf(&sb, "*Rating:* %s\n", sub.IMDBRatingValue)
+	}
+	if sub.Description != "" {
+		fmt.Fprintf(&sb, "\n*Plot:* %s\n", sub.Description)
 	}
 	sb.WriteString("\nSelect an action below:")
 
 	buttons := []struct{ ID, Text string }{
 		{
-			ID:   fmt.Sprintf("%smovie info %s %s", p, item.SubjectID, item.DetailPath),
+			ID:   fmt.Sprintf("%smovie info %s %s", p, subjectID, detailPath),
 			Text: "Details",
 		},
 		{
-			ID:   fmt.Sprintf("%smovie dl %s %s", p, item.SubjectID, item.DetailPath),
+			ID:   fmt.Sprintf("%smovie dl %s %s", p, subjectID, detailPath),
 			Text: "Download Links",
 		},
 	}
