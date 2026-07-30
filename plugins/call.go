@@ -111,26 +111,6 @@ func handleGroupCall(ctx *Context) error {
 		for _, t := range targets {
 			participants = append(participants, t.String())
 		}
-	} else {
-		// If no participants specified, fetch group info
-		groupInfo, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
-		if err != nil || groupInfo == nil || len(groupInfo.Participants) == 0 {
-			return ctx.Reply("Failed to fetch group participants for group call.")
-		}
-		for _, p := range groupInfo.Participants {
-			if !p.JID.IsEmpty() && p.JID.User != ctx.Client.Store.ID.User {
-				participants = append(participants, p.JID.String())
-			}
-		}
-	}
-
-	if len(participants) == 0 {
-		return ctx.Reply("No valid target participants found for group call.")
-	}
-
-	// Limit to max 5 participants for stability
-	if len(participants) > 5 {
-		participants = participants[:5]
 	}
 
 	path, ok := getSavedAudio(ctx, ctx.Sender)

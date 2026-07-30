@@ -298,24 +298,38 @@ func placeGroupCall(ctx *Context, groupJID string, participants []string, audioP
 		}
 	}
 
-	var mentions []types.JID
-	for _, pStr := range participants {
-		var pJID types.JID
-		if strings.Contains(pStr, "@") {
-			pJID, _ = types.ParseJID(pStr)
-		} else {
-			pJID = types.NewJID(pStr, types.DefaultUserServer)
-		}
-		_, mentionJID := ctx.FormatMention(pJID)
-		mentions = append(mentions, mentionJID)
+	opts := meowcaller.GroupCallOptions{
+		GroupJID: groupJID,
 	}
 
-	call, err := client.GroupCall(ctx.Ctx, participants...)
+	var call *meowcaller.Call
+	var err error
+	var mentions []types.JID
+
+	if len(participants) > 0 {
+		if len(participants) > 31 {
+			participants = participants[:31]
+		}
+		for _, pStr := range participants {
+			var pJID types.JID
+			if strings.Contains(pStr, "@") {
+				pJID, _ = types.ParseJID(pStr)
+			} else {
+				pJID = types.NewJID(pStr, types.DefaultUserServer)
+			}
+			_, mentionJID := ctx.FormatMention(pJID)
+			mentions = append(mentions, mentionJID)
+		}
+		call, err = client.GroupCallWithOptions(ctx.Ctx, participants, opts)
+	} else {
+		call, err = client.GroupCallByIDWithOptions(ctx.Ctx, groupJID, opts)
+	}
+
 	if err != nil {
 		if len(mentions) > 0 {
-			return ctx.ReplyWithMentions(fmt.Sprintf("Group call failed: %v", err), mentions)
+			return ctx.ReplyWithMentions(fmt.Sprintf("Group call in %s failed: %v", groupName, err), mentions)
 		}
-		return sendText(ctx, fmt.Sprintf("Group call failed: %v", err))
+		return ctx.Reply(fmt.Sprintf("Group call in %s failed: %v", groupName, err))
 	}
 
 	if audioPath != "" {
@@ -354,15 +368,19 @@ func placeGroupCall(ctx *Context, groupJID string, participants []string, audioP
 		if len(mentions) > 0 {
 			_ = ctx.ReplyWithMentions(endMsg, mentions)
 		} else {
-			_ = sendText(ctx, endMsg)
+			_ = ctx.Reply(endMsg)
 		}
 	})
 
-	text := fmt.Sprintf("Initiating group call to %d participants in %s...", len(participants), groupName)
+	text := fmt.Sprintf("Initiating group call in %s...", groupName)
+	if len(participants) > 0 {
+		text = fmt.Sprintf("Initiating group call to %d participants in %s...", len(participants), groupName)
+	}
+
 	if len(mentions) > 0 {
 		return ctx.ReplyWithMentions(text, mentions)
 	}
-	return sendText(ctx, text)
+	return ctx.Reply(text)
 }
 
 func openAudioSource(path string) (meowcaller.AudioSource, error) {

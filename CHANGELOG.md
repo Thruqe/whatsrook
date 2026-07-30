@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Fixed `meowcaller` group calling integration (`plugins/call.go` & `plugins/callplace.go`):
+  - Updated `placeGroupCall` to pass `meowcaller.GroupCallOptions{GroupJID: groupJID}`, properly binding group calls to WhatsApp groups using `GroupCallByIDWithOptions` (when calling all remote group members) and `GroupCallWithOptions` (when calling target participants).
+  - All group call initiation and termination status messages now output clean `<Group Name>` text instead of raw group JID strings.
 - Formatted User Mentions & Group Names in Call Commands (`plugins/callplace.go`):
   - `.call`, `.videocall`, and `.groupcall` response messages no longer output raw JID strings (`258256953950323@lid` or group JIDs) to end users.
   - Target call participants are now properly formatted as `@user` tags with WhatsApp metadata mentions via `ReplyWithMentions`.
