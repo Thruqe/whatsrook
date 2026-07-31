@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	// "encoding/json"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -52,6 +53,9 @@ func (b *Bot) handleWAEvent(evt any) {
 		go b.notifyOwnerConnected()
 
 	case *events.Message:
+
+		// a, _ := json.MarshalIndent(v, "", "  ")
+		// fmt.Println(string(a))
 
 		// Skip messages sent before the bot started running
 		if b.cli.SkipOldMessages && v.Info.Timestamp.Before(b.startupTime) {

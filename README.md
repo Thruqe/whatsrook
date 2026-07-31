@@ -24,7 +24,26 @@ Connect your app to WhatsApp and receive live events — messages, groups, stori
 
 ## Deployment
 
-### 1. Heroku Deployment
+### 1. Pterodactyl Deployment
+
+1. [Download the installer]() script.
+2. In the **Files** tab, upload the downloaded script.
+3. Open the installer file and fill in the required variables before running it.
+4. Go to the **Console** tab and click **Start**.
+
+**Setting up sessions**
+
+In **Files**, create a file named `phone.txt`. Add one phone number per line for each WhatsApp session you want whatsrook to run:
+
+```txt
+23480612345678
+23490298765432
+```
+
+- **Adding a number**: whatsrook will start a new session for it automatically. Check the **Console** tab for the pair code to link that number.
+- **Removing a number**: whatsrook will automatically log out and delete that session — no manual cleanup needed.
+
+### 2. Heroku Deployment
 
 Deploy WhatsRook directly to Heroku as a Docker container using the **Deploy to Heroku** button or Heroku CLI:
 
@@ -42,7 +61,7 @@ heroku container:push web -a whatsrook-app
 heroku container:release web -a whatsrook-app
 ```
 
-### 2. Render Deployment
+### 3. Render Deployment
 
 Deploy WhatsRook to Render with persistent session volume storage using the **Deploy to Render** button:
 

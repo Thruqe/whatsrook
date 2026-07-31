@@ -114,7 +114,7 @@ func IsValidNetscapeCookie(data string) bool {
 		parts := strings.Split(line, "\t")
 		if len(parts) >= 7 {
 			domain := strings.ToLower(strings.TrimSpace(parts[0]))
-			if after, ok :=strings.CutPrefix(domain, "#httponly_"); ok  {
+			if after, ok := strings.CutPrefix(domain, "#httponly_"); ok {
 				domain = after
 			}
 
