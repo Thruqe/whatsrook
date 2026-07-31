@@ -4,6 +4,7 @@ package sender
 import (
 	"context"
 	"strings"
+	"unicode"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
@@ -44,7 +45,20 @@ func (c *Context) GetPrefix() string {
 		if strings.EqualFold(parts[0], "none") || strings.EqualFold(parts[0], "empty") {
 			return ""
 		}
-		return parts[0]
+		p := parts[0]
+		if isWordPrefix(p) {
+			return p + " "
+		}
+		return p
 	}
 	return "."
+}
+
+func isWordPrefix(s string) bool {
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsNumber(r) {
+			return true
+		}
+	}
+	return false
 }

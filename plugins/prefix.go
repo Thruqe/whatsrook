@@ -1,4 +1,3 @@
-// Prefix command – get or set the command prefix for the current chat.
 package commands
 
 import (
@@ -37,14 +36,17 @@ func handlePrefix(ctx *Context) error {
 
 	parts := strings.Fields(ctx.RawArgs)
 	if len(parts) == 0 {
-		return sendText(ctx, "Usage: prefix <symbol...>  (use 'empty' or 'none' for no prefix required)")
+		return sendText(ctx, "Usage: prefix <symbol or word...> (use 'empty' or 'none' for no prefix required)")
 	}
 
 	var parsedParts []string
 	for _, p := range parts {
 		if strings.EqualFold(p, "none") || strings.EqualFold(p, "empty") {
 			parsedParts = append(parsedParts, "empty")
+		} else if isWordPrefix(p) {
+			parsedParts = append(parsedParts, p)
 		} else {
+			// Pure symbol string: if single symbol keep it, if multi-symbol like ".!" split them.
 			for _, r := range p {
 				parsedParts = append(parsedParts, string(r))
 			}

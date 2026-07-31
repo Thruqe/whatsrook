@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Word Prefix Support (`plugins/prefix.go`, `plugins/dispatch.go`, `sender/context.go`):
+  - Fixed `.prefix` command so word prefixes (e.g. `jarvis`, `bot`, `rook`) are preserved as full words rather than being split into single-character symbols.
+  - Added case-insensitive word-boundary prefix matching in `Dispatch` (`plugins/dispatch.go`). Commands can now be triggered with word prefixes like `jarvis ping`, `Jarvis ping`, `JARVIS menu`, or `jarvis`.
+  - Updated `Context.GetPrefix()` to automatically format usage strings cleanly for word prefixes (`jarvis ping` vs `.ping`).
 - Fixed `meowcaller` group calling integration (`plugins/call.go` & `plugins/callplace.go`):
   - Updated `placeGroupCall` to pass `meowcaller.GroupCallOptions{GroupJID: groupJID}`, properly binding group calls to WhatsApp groups using `GroupCallByIDWithOptions` (when calling all remote group members) and `GroupCallWithOptions` (when calling target participants).
   - All group call initiation and termination status messages now output clean `<Group Name>` text instead of raw group JID strings.

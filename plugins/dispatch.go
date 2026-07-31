@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	waSender "whatsrook/sender"
 	"whatsrook/store/sqlstore"
@@ -221,7 +223,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 			hasEmpty = true
 			continue
 		}
-		if strings.HasPrefix(text, p) {
+		if matchesPrefix(text, p) {
 			body := strings.TrimSpace(text[len(p):])
 			slog.Debug("Prefix matched, executing command", "prefix", p, "body", body)
 			return runCommand(ctx, client, evt, body)
@@ -343,6 +345,32 @@ func activePrefixes(ctx context.Context, client *whatsmeow.Client) []string {
 		return []string{DefaultPrefix}
 	}
 	return out
+}
+
+func matchesPrefix(text, p string) bool {
+	if p == "" {
+		return false
+	}
+
+	lowerText := strings.ToLower(text)
+	lowerP := strings.ToLower(p)
+
+	if !strings.HasPrefix(lowerText, lowerP) {
+		return false
+	}
+
+	if isWordPrefix(p) {
+		rem := text[len(p):]
+		if len(rem) == 0 {
+			return true
+		}
+		firstRune, _ := utf8.DecodeRuneInString(rem)
+		if unicode.IsLetter(firstRune) || unicode.IsNumber(firstRune) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // runCommand parses body (prefix already stripped) and executes the matching
