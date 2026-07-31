@@ -14,6 +14,7 @@ import (
 	"whatsrook/utils"
 
 	"github.com/purpshell/meowcaller"
+	"github.com/purpshell/meowcaller/signaling"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -101,6 +102,12 @@ func handleAutoAcceptCallCmd(ctx *Context) error {
 }
 
 // HandleIncomingCallAutoAccept handles incoming call offers via meowcaller.Client.OnIncomingCall.
+//
+// Protocol note: meowcaller defers <accept> until the caller's <mute_v2> stanza arrives.
+// However, many WhatsApp callers (especially Android) use stop_probing_before_accept_send=1,
+// which means they do NOT send <mute_v2> until AFTER receiving <accept>. This creates a
+// deadlock. We break it by sending <accept> directly via DangerousInternals right after
+// call.Answer() sets acceptPending, without waiting for <mute_v2>.
 func HandleIncomingCallAutoAccept(call *meowcaller.Call) {
 	if call == nil || meowCallerWA == nil {
 		return
@@ -208,10 +215,47 @@ func HandleIncomingCallAutoAccept(call *meowcaller.Call) {
 		startMedia()
 	})
 
+	// call.Answer() sets acceptPending=true in meowcaller and calls maybeStartMedia.
+	// meowcaller normally waits for <mute_v2> to actually send <accept>, but many
+	// Android callers use stop_probing_before_accept_send=1 — they won't send <mute_v2>
+	// until they receive <accept> first. Break this deadlock by sending <accept>
+	// directly via DangerousInternals after a short relay election delay.
 	if err := call.Answer(); err != nil {
 		slog.Error("autoacceptcall: failed to answer call", "call_id", call.ID(), "err", err)
 		return
 	}
+
+	peer := call.Peer()
+	callID := call.ID()
+	go func() {
+		// Wait for relay election to complete (relay latency round-trips take ~500ms–1s).
+		// We send <accept> at 1.2s to give relay election time to settle but beat the
+		// ~10s caller timeout.
+		time.Sleep(1200 * time.Millisecond)
+
+		if call.State() == meowcaller.CallPhaseEnded {
+			slog.Debug("autoacceptcall: call already ended before forced accept", "call_id", callID)
+			return
+		}
+
+		slog.Info("autoacceptcall: sending forced <accept> to break mute_v2 deadlock", "call_id", callID, "peer", peer.String())
+
+		acceptNode := signaling.BuildAccept(&signaling.AcceptParams{
+			CallID:      callID,
+			To:          peer,
+			CallCreator: peer,
+			AudioRates:  []string{"16000"},
+			Metadata:    map[string]interface{}{"peer_abtest_bucket_id_list": "125208,94276"},
+			Video:       call.IsVideo(),
+		})
+		acceptNode.Attrs["id"] = client.GenerateMessageID()
+
+		if sendErr := client.DangerousInternals().SendNode(context.Background(), acceptNode); sendErr != nil {
+			slog.Error("autoacceptcall: failed to send forced accept", "call_id", callID, "err", sendErr)
+		} else {
+			slog.Info("autoacceptcall: forced <accept> sent successfully", "call_id", callID)
+		}
+	}()
 }
 
 // HandleAutoAcceptIncomingCall is a compatibility helper for CallOffer events.
