@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Call Media JID & LID Lookup Resolution (`store/sqlstore/callmedia.go`):
+  - Updated `GetCallMediaConfig` to attempt exact JID matching, user ID matching (handling `@lid` vs `@s.whatsapp.net` JID variations), and fallback to the latest saved media for `our_jid`.
+  - Fixes `autoacceptcall: enabled but missing required call media audio= video=` issue when media is configured under an `@lid` JID.
 - `setvideocall` Command & Status Overview (`plugins/videocall.go`):
   - Registered `.setvideocall` (`setvc`, `setvcall`, `setvideocallaudio`, `setvideocallmedia`) command to save default video media for video calling and auto-accept calls.
   - Downloads, converts, and saves attached/quoted video files; displays current saved video file status when invoked without attachments.

@@ -36,7 +36,24 @@ func (s *SQLStore) PutCallMediaConfig(ctx context.Context, sender types.JID, kin
 // GetCallMediaConfig returns the saved default media file path for a sender+kind, if any.
 func (s *SQLStore) GetCallMediaConfig(ctx context.Context, sender types.JID, kind CallMediaKind) (string, error) {
 	var path string
+	// 1. Try exact sender JID match
 	err := s.db.QueryRow(ctx, getCallMediaConfigQuery, s.JID, sender.ToNonAD().String(), string(kind)).Scan(&path)
+	if err == nil && path != "" {
+		return path, nil
+	}
+
+	// 2. Try sender User ID match (handles LID vs Phone Number JID variations)
+	if sender.User != "" {
+		userQuery := `SELECT file_path FROM call_media_config WHERE our_jid=$1 AND (sender=$2 OR sender LIKE $3) AND kind=$4 ORDER BY updated_at DESC LIMIT 1`
+		err = s.db.QueryRow(ctx, userQuery, s.JID, sender.ToNonAD().String(), sender.User+"%", string(kind)).Scan(&path)
+		if err == nil && path != "" {
+			return path, nil
+		}
+	}
+
+	// 3. Fallback: return latest saved media for this kind under our_jid
+	fallbackQuery := `SELECT file_path FROM call_media_config WHERE our_jid=$1 AND kind=$2 ORDER BY updated_at DESC LIMIT 1`
+	err = s.db.QueryRow(ctx, fallbackQuery, s.JID, string(kind)).Scan(&path)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	} else if err != nil {
