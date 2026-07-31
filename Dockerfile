@@ -32,6 +32,8 @@ WORKDIR /app
 
 COPY --from=builder /app/whatsrook /app/whatsrook
 COPY version.toml /app/version.toml
+COPY resources /app/resources
+COPY prompts /app/prompts
 COPY scripts /app/scripts
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

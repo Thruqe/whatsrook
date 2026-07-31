@@ -290,6 +290,22 @@ func downloadAndApplyRelease(tag string) error {
 			return errHdr
 		}
 
+		relPath := filepath.Clean(hdr.Name)
+		if strings.HasPrefix(relPath, "resources") || strings.HasPrefix(relPath, "prompts") {
+			destPath := filepath.Join(exeDir, relPath)
+			if hdr.Typeflag == tar.TypeDir {
+				_ = os.MkdirAll(destPath, 0755)
+			} else {
+				_ = os.MkdirAll(filepath.Dir(destPath), 0755)
+				resFile, errRes := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+				if errRes == nil {
+					_, _ = io.Copy(resFile, tr)
+					resFile.Close()
+				}
+			}
+			continue
+		}
+
 		baseName := filepath.Base(hdr.Name)
 		switch baseName {
 		case "whatsrook", "whatsrook.exe":

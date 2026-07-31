@@ -81,6 +81,8 @@ jobs:
         run: |
           mkdir staging
           cp whatsrook${{ matrix.target.ext }} staging/
+          cp -r resources staging/ 2>/dev/null || true
+          cp -r prompts staging/ 2>/dev/null || true
           cp LICENSE staging/ 2>/dev/null || true
           cp README.md staging/ 2>/dev/null || true
           cp version.toml staging/ 2>/dev/null || true
