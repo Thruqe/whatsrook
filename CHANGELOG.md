@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `setvideocall` Command & Status Overview (`plugins/videocall.go`):
+  - Registered `.setvideocall` (`setvc`, `setvcall`, `setvideocallaudio`, `setvideocallmedia`) command to save default video media for video calling and auto-accept calls.
+  - Downloads, converts, and saves attached/quoted video files; displays current saved video file status when invoked without attachments.
 - AutoAcceptCall Command & Automatic Media Answer Handling (`plugins/autoacceptcall.go`, `events.go`):
   - Created `.autoacceptcall` (`.autoaccept`, `.acceptcall`) command (`on`, `off`, `status`).
   - Enforces prerequisite validation: requires the user to have configured both call audio (`.callaudio`) and call video (`.videocall`) media before enabling auto-accept.

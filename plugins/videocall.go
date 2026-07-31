@@ -24,7 +24,7 @@ func init() {
 	})
 	Register(&Command{
 		Name:         "setvideocall",
-		Aliases:      []string{"setvc", "setvideocallaudio"},
+		Aliases:      []string{"setvc", "setvcall", "setvideocallaudio", "setvideocallmedia"},
 		Description:  "Set your default video file to be used when video calling",
 		Category:     "calls",
 		HideFromMenu: false,
@@ -88,7 +88,11 @@ func handleSetVideoCall(ctx *Context) error {
 	}
 
 	if videoMsg == nil {
-		return ctx.Reply("Reply to the video file you want to set as your default video call video.")
+		if path, ok := getSavedVideo(ctx, ctx.Sender); ok {
+			baseName := filepath.Base(path)
+			return ctx.Reply(fmt.Sprintf("✅ You currently have a default video call video set.\n\nFile: %s\n\nTo update it, reply to a new video message with `%ssetvideocall`.", baseName, ctx.GetPrefix()))
+		}
+		return ctx.Reply(fmt.Sprintf("Reply to or attach a video file with `%ssetvideocall` to set your default video for video calls.", ctx.GetPrefix()))
 	}
 
 	data, err := ctx.Client.Download(ctx.Ctx, videoMsg)
@@ -116,5 +120,5 @@ func handleSetVideoCall(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("Failed to save video call config: %v", err))
 	}
 
-	return ctx.Reply("Default video call video set successfully.")
+	return ctx.Reply("✅ Default video call video set successfully!")
 }
