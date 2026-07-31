@@ -217,76 +217,30 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	prefixes := activePrefixes(ctx, client)
 	slog.Debug("Checking active prefixes", "prefixes", prefixes, "text", text)
 
-	// Check default bot name setup prompt
+	// Check if user is currently replying with their chosen new bot name
 	if okStore {
-		botName := GetBotName(ctx, client)
-		if strings.EqualFold(botName, "whatsrook") || strings.EqualFold(botName, "rook") {
-			dismissed, _ := s.GetSetting(ctx, BotNamePromptDismissedKey)
-			if dismissed != "true" {
-				senderUser := evt.Info.Sender.ToNonAD().User
+		senderUser := evt.Info.Sender.ToNonAD().User
+		awaitingInput, _ := s.GetSetting(ctx, BotNameAwaitingInputPrefix+senderUser)
+		if awaitingInput == "true" {
+			newName := strings.TrimSpace(text)
+			if newName != "" {
+				_ = s.PutSetting(ctx, BotNameSettingKey, newName)
+				_ = s.PutSetting(ctx, BotNamePromptDismissedKey, "true")
+				_ = s.PutSetting(ctx, BotNameAwaitingInputPrefix+senderUser, "")
 
-				// 1. Check if user is currently replying with their chosen new bot name
-				awaitingInput, _ := s.GetSetting(ctx, BotNameAwaitingInputPrefix+senderUser)
-				if awaitingInput == "true" {
-					newName := strings.TrimSpace(text)
-					if newName != "" {
-						_ = s.PutSetting(ctx, BotNameSettingKey, newName)
-						_ = s.PutSetting(ctx, BotNamePromptDismissedKey, "true")
-						_ = s.PutSetting(ctx, BotNameAwaitingInputPrefix+senderUser, "")
-
-						p := prefixes[0]
-						if p == "" {
-							p = DefaultPrefix
-						}
-						cctx := &Context{
-							Ctx:    ctx,
-							Client: client,
-							Evt:    evt,
-							Chat:   evt.Info.Chat,
-							Sender: evt.Info.Sender,
-						}
-						_ = cctx.Reply(fmt.Sprintf("Bot name updated successfully to \"*%s*\"! 🎉\n\nYou can change it anytime later using the %sbotname command (e.g. `%sbotname <name>`).", newName, p, p))
-						return true
-					}
+				p := prefixes[0]
+				if p == "" {
+					p = DefaultPrefix
 				}
-
-				// 2. Allow .botname command execution through
-				trimmedText := strings.TrimSpace(text)
-				isBotNameCmd := false
-				for _, p := range prefixes {
-					if p != "" && matchesPrefix(trimmedText, p) {
-						body := strings.TrimLeft(strings.TrimSpace(trimmedText[len(p):]), ",:;! \t")
-						fields := strings.Fields(body)
-						if len(fields) > 0 {
-							cmdWord := strings.ToLower(fields[0])
-							if cmdWord == "botname" || cmdWord == "setbotname" || cmdWord == "setname" || cmdWord == "name" {
-								isBotNameCmd = true
-								break
-							}
-						}
-					}
+				cctx := &Context{
+					Ctx:    ctx,
+					Client: client,
+					Evt:    evt,
+					Chat:   evt.Info.Chat,
+					Sender: evt.Info.Sender,
 				}
-
-				if !isBotNameCmd {
-					cctx := &Context{
-						Ctx:    ctx,
-						Client: client,
-						Evt:    evt,
-						Chat:   evt.Info.Chat,
-						Sender: evt.Info.Sender,
-					}
-					p := prefixes[0]
-					if p == "" {
-						p = DefaultPrefix
-					}
-					bodyText := "⚠️ *BOT NAME CUSTOMIZATION RECOMMENDED*\n\nIt's highly recommended to give your own copy of WhatsRook its own name!\nFor example, you can name it something like *Fuzzy* or *Meow*."
-					buttons := []struct{ ID, Text string }{
-						{ID: p + "botname setup_customize", Text: "Customize Bot"},
-						{ID: p + "botname setup_continue", Text: "Continue"},
-					}
-					_ = sendInteractiveButtons(cctx, bodyText, fmt.Sprintf("Powered by %s", botName), buttons)
-					return true
-				}
+				_ = cctx.Reply(fmt.Sprintf("Bot name updated successfully to \"*%s*\"! 🎉\n\nYou can change it anytime later using the %sbotname command (e.g. `%sbotname <name>`).", newName, p, p))
+				return true
 			}
 		}
 	}
@@ -508,6 +462,38 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		return false
 	}
 
+	// Bot command triggered! Check if default bot name setup prompt needs to be shown.
+	s, okSetting := client.Store.Identities.(*sqlstore.SQLStore)
+	if okSetting {
+		botName := GetBotName(ctx, client)
+		if strings.EqualFold(botName, "whatsrook") || strings.EqualFold(botName, "rook") {
+			dismissed, _ := s.GetSetting(ctx, BotNamePromptDismissedKey)
+			if dismissed != "true" {
+				cmdWord := strings.ToLower(name)
+				if cmdWord != "botname" && cmdWord != "setbotname" && cmdWord != "setname" && cmdWord != "name" {
+					cctx := &Context{
+						Ctx:    ctx,
+						Client: client,
+						Evt:    evt,
+						Chat:   evt.Info.Chat,
+						Sender: evt.Info.Sender,
+					}
+					p := activePrefixes(ctx, client)[0]
+					if p == "" {
+						p = DefaultPrefix
+					}
+					bodyText := "⚠️ *BOT NAME CUSTOMIZATION RECOMMENDED*\n\nIt's highly recommended to give your own copy of WhatsRook its own name!\nFor example, you can name it something like *Fuzzy* or *Meow*."
+					buttons := []struct{ ID, Text string }{
+						{ID: p + "botname setup_customize", Text: "Customize Bot"},
+						{ID: p + "botname setup_continue", Text: "Continue"},
+					}
+					_ = sendInteractiveButtons(cctx, bodyText, fmt.Sprintf("Powered by %s", botName), buttons)
+					return true
+				}
+			}
+		}
+	}
+
 	rawArgs := ""
 	if idx := strings.Index(body, fields[0]); idx == 0 {
 		rawArgs = strings.TrimSpace(body[len(fields[0]):])
@@ -534,8 +520,6 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		Chat:    evt.Info.Chat,
 		Sender:  evt.Info.Sender,
 	}
-
-	s, okSetting := client.Store.Identities.(*sqlstore.SQLStore)
 
 	go func() {
 		// 1. Group-only check

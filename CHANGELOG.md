@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Bot Name Setup Scoped Strictly to Triggered Commands (`plugins/dispatch.go`):
+  - Refactored default bot name setup interception so it triggers ONLY when an actual bot command is invoked (e.g. `.ping`, `.menu`, `rook play`).
+  - Ensures regular group/DM casual chatting is never interrupted by setup prompts.
 - Connection Notification Owner DM Mention (`events.go`):
   - Updated `notifyOwnerConnected` to parse owner JID, mention `@owner` in the notification text, and populate `ContextInfo.MentionedJID` array so WhatsApp client highlights the mention.
 - Pre-Execution Default Bot Name Interception Fix (`plugins/dispatch.go`):
