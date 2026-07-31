@@ -25,14 +25,14 @@ func init() {
 
 func handleSaveContact(ctx *Context) error {
 	p := ctx.GetPrefix()
-	if ctx.RawArgs == "" {
-		return ctx.Reply(fmt.Sprintf("Usage:\n- %ssavecontact <Name> @user\n- %ssavecontact <Name> 1234567890\n- Reply to a user's message with %ssavecontact <Name>\n\nExample:\n- %ssavecontact John Doe @1234567890", p, p, p, p))
-	}
+	isGroup := ctx.Chat.Server == types.GroupServer
 
 	targets := ctx.GetTargets()
 	var targetJID types.JID
 	if len(targets) > 0 {
 		targetJID = targets[0]
+	} else if !isGroup {
+		targetJID = ctx.Chat
 	}
 
 	args := strings.Fields(ctx.RawArgs)
@@ -48,20 +48,42 @@ func handleSaveContact(ctx *Context) error {
 	}
 
 	fullName := strings.Join(nameParts, " ")
-	if fullName == "" {
-		if !targetJID.IsEmpty() {
-			fullName = "Contact " + targetJID.User
-		} else {
-			fullName = "Contact"
-		}
-	}
-	firstName := fullName
-	if len(nameParts) > 0 {
-		firstName = nameParts[0]
-	}
 
 	if targetJID.IsEmpty() {
 		return ctx.Reply(fmt.Sprintf("Please specify a user to save. Usage:\n- %ssavecontact <Name> @user\n- Reply to a message with %ssavecontact <Name>", p, p))
+	}
+
+	// Auto-detect pushname if explicit name was not provided
+	if fullName == "" {
+		if ctx.Evt != nil && ctx.Evt.Info.Sender.User == targetJID.User && ctx.Evt.Info.PushName != "" {
+			fullName = ctx.Evt.Info.PushName
+		}
+
+		if fullName == "" && ctx.Client.Store != nil && ctx.Client.Store.Contacts != nil {
+			if contact, err := ctx.Client.Store.Contacts.GetContact(ctx.Ctx, targetJID.ToNonAD()); err == nil && contact.Found {
+				if contact.PushName != "" {
+					fullName = contact.PushName
+				} else if contact.BusinessName != "" {
+					fullName = contact.BusinessName
+				} else if contact.FullName != "" {
+					fullName = contact.FullName
+				}
+			}
+		}
+
+		if fullName == "" {
+			if isGroup {
+				return ctx.Reply(fmt.Sprintf("Could not auto-detect contact pushname. Please specify a name:\n- %ssavecontact <Name> @user", p))
+			}
+			return ctx.Reply(fmt.Sprintf("Could not auto-detect contact pushname. Please specify a name:\n- %ssavecontact <Name>", p))
+		}
+	}
+
+	firstName := fullName
+	if len(nameParts) > 0 {
+		firstName = nameParts[0]
+	} else if fields := strings.Fields(fullName); len(fields) > 0 {
+		firstName = fields[0]
 	}
 
 	slog.Debug("handleSaveContact: processing contact save", "target", targetJID.String(), "fullName", fullName, "firstName", firstName)

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Updated `.savecontact` DM Auto-Targeting & PushName Detection (`plugins/savecontact.go`):
+  - In direct messages (DM), `.savecontact` automatically targets the DM peer (`ctx.Chat`).
+  - If an explicit name is not provided as an argument, `.savecontact` attempts to auto-detect the user's PushName from event info or local contact store cache.
+  - If no PushName can be auto-detected and no name argument is provided, prompts the user to specify a name.
 - Updated `.savecontact` JID/LID AppState mutation handling (`plugins/savecontact.go`):
   - Uses `PnJID` for Phone JID targets (`s.whatsapp.net`) under `appstate.IndexContact` (`"contact"`).
   - Uses `LidJID` for LID targets (`@lid`) under `appstate.IndexLIDContact` (`"lid_contact"`).
