@@ -625,7 +625,7 @@ func handleAI(ctx *Context) error {
 	botName := ctx.GetBotName()
 	// Build (or reuse cached) instruction block describing available
 	// bot commands.
-	instruction := meta.GetOrBuildInstruction(func() string {
+	instruction := meta.GetOrBuildInstructionWithName(botName, func() string {
 		cmdInfos := ListCommands()
 		metaCmds := make([]meta.CommandInfo, 0, len(cmdInfos))
 		for _, c := range cmdInfos {

@@ -44,6 +44,7 @@ func BuildRunCommandInstructionWithName(cmds []CommandInfo, botName string) stri
 		promptTmpl = string(data)
 	}
 
+	promptTmpl = strings.ReplaceAll(promptTmpl, "{NAME}", botName)
 	promptTmpl = strings.ReplaceAll(promptTmpl, "WhatsRook", botName)
 
 	var cmdsBuf strings.Builder

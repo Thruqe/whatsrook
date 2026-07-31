@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"whatsrook/meta"
 	"whatsrook/store/sqlstore"
 )
 
@@ -67,6 +68,7 @@ func handleBotName(ctx *Context) error {
 			return ctx.Reply("Failed to reset bot name.")
 		}
 		_ = s.PutSetting(ctx.Ctx, BotNamePromptDismissedKey, "")
+		meta.ClearInstructionCache()
 		return ctx.Reply("Bot name reset to default: \"WhatsRook\".")
 	}
 
@@ -76,6 +78,7 @@ func handleBotName(ctx *Context) error {
 	}
 	_ = s.PutSetting(ctx.Ctx, BotNamePromptDismissedKey, "true")
 	_ = s.PutSetting(ctx.Ctx, BotNameAwaitingInputPrefix+senderUser, "")
+	meta.ClearInstructionCache()
 
 	return ctx.Reply(fmt.Sprintf("Bot name successfully updated to: %q!\n\nYou can change it anytime later using the %sbotname command.", newName, p))
 }

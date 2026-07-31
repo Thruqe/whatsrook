@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Dynamic Bot Name `{NAME}` Template Placeholder in Meta AI System Prompt (`prompts/meta_ai.txt`, `meta/parser.go`, `meta/cache.go`):
+  - Updated `prompts/meta_ai.txt` to use `{NAME}` placeholder for the bot identity prompt (`Your name is {NAME}...`).
+  - Added `{NAME}` string replacement in `meta.BuildRunCommandInstructionWithName` to dynamically inject the user-configured bot display name into the Meta AI system prompt.
+  - Added instruction cache invalidation (`meta.ClearInstructionCache()` / `GetOrBuildInstructionWithName`) so AI system prompt instantly updates whenever the bot name is modified via `.botname`.
 - Bot Name Setup Scoped Strictly to Triggered Commands (`plugins/dispatch.go`):
   - Refactored default bot name setup interception so it triggers ONLY when an actual bot command is invoked (e.g. `.ping`, `.menu`, `rook play`).
   - Ensures regular group/DM casual chatting is never interrupted by setup prompts.
