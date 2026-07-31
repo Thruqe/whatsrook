@@ -3,6 +3,7 @@ package commands
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"go.mau.fi/whatsmeow/appstate"
@@ -63,38 +64,78 @@ func handleSaveContact(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("Please specify a user to save. Usage:\n- %ssavecontact <Name> @user\n- Reply to a message with %ssavecontact <Name>", p, p))
 	}
 
-	contactAction := &waSyncAction.ContactAction{
-		FullName:                 new(fullName),
-		FirstName:                new(firstName),
-		SaveOnPrimaryAddressbook: new(true),
-	}
-	if targetJID.Server == types.HiddenUserServer {
-		contactAction.LidJID = new(targetJID.String())
-	} else {
-		contactAction.PnJID = new(targetJID.ToNonAD().String())
-	}
+	slog.Debug("handleSaveContact: processing contact save", "target", targetJID.String(), "fullName", fullName, "firstName", firstName)
 
-	patch := appstate.PatchInfo{
-		Type: appstate.WAPatchCriticalUnblockLow,
-		Mutations: []appstate.MutationInfo{
-			{
-				Index:   []string{appstate.IndexContact, targetJID.ToNonAD().String()},
-				Version: 2,
-				Value: &waSyncAction.SyncActionValue{
-					ContactAction: contactAction,
+	var contactAction *waSyncAction.ContactAction
+	var patch appstate.PatchInfo
+
+	if targetJID.Server == types.HiddenUserServer {
+		lidStr := targetJID.String()
+		contactAction = &waSyncAction.ContactAction{
+			FullName:                 new(fullName),
+			FirstName:                new(firstName),
+			LidJID:                   new(lidStr),
+			SaveOnPrimaryAddressbook: new(true),
+		}
+		if ctx.Client.Store != nil && ctx.Client.Store.LIDs != nil {
+			if pnJID, err := ctx.Client.Store.LIDs.GetPNForLID(ctx.Ctx, targetJID); err == nil && !pnJID.IsEmpty() {
+				contactAction.PnJID = new(pnJID.ToNonAD().String())
+			}
+		}
+		patch = appstate.PatchInfo{
+			Type: appstate.WAPatchCriticalUnblockLow,
+			Mutations: []appstate.MutationInfo{
+				{
+					Index:   []string{appstate.IndexLIDContact, lidStr},
+					Version: 2,
+					Value: &waSyncAction.SyncActionValue{
+						ContactAction: contactAction,
+					},
 				},
 			},
-		},
+		}
+	} else {
+		pnStr := targetJID.ToNonAD().String()
+		contactAction = &waSyncAction.ContactAction{
+			FullName:                 new(fullName),
+			FirstName:                new(firstName),
+			PnJID:                    new(pnStr),
+			SaveOnPrimaryAddressbook: new(true),
+		}
+		if ctx.Client.Store != nil && ctx.Client.Store.LIDs != nil {
+			if lidJID, err := ctx.Client.Store.LIDs.GetLIDForPN(ctx.Ctx, targetJID); err == nil && !lidJID.IsEmpty() {
+				contactAction.LidJID = new(lidJID.String())
+			}
+		}
+		patch = appstate.PatchInfo{
+			Type: appstate.WAPatchCriticalUnblockLow,
+			Mutations: []appstate.MutationInfo{
+				{
+					Index:   []string{appstate.IndexContact, pnStr},
+					Version: 2,
+					Value: &waSyncAction.SyncActionValue{
+						ContactAction: contactAction,
+					},
+				},
+			},
+		}
 	}
 
+	slog.Debug("handleSaveContact: sending AppState patch", "type", patch.Type, "target", targetJID.String())
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
-		_ = ctx.Reply(fmt.Sprintf("⚠️ AppState sync warning: %v", err))
+		slog.Error("handleSaveContact: failed to send AppState patch", "err", err, "target", targetJID.String())
+	} else {
+		slog.Debug("handleSaveContact: AppState patch sent successfully", "target", targetJID.String())
 	}
 
 	// Update local device contact store cache
 	if ctx.Client.Store != nil && ctx.Client.Store.Contacts != nil {
-		_ = ctx.Client.Store.Contacts.PutContactName(ctx.Ctx, targetJID.ToNonAD(), fullName, firstName)
+		if err := ctx.Client.Store.Contacts.PutContactName(ctx.Ctx, targetJID.ToNonAD(), fullName, firstName); err != nil {
+			slog.Error("handleSaveContact: failed to update local contact store", "err", err, "target", targetJID.String())
+		} else {
+			slog.Debug("handleSaveContact: updated local contact store cache", "target", targetJID.String())
+		}
 	}
 
 	// Build and send native vCard ContactMessage
@@ -106,7 +147,12 @@ func handleSaveContact(ctx *Context) error {
 		},
 	}
 
-	_, _ = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, vcardMsg)
+	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, vcardMsg)
+	if err != nil {
+		slog.Error("handleSaveContact: failed to send vCard message", "err", err, "chat", ctx.Chat.String())
+	} else {
+		slog.Debug("handleSaveContact: sent native vCard contact message", "chat", ctx.Chat.String())
+	}
 
 	resolvedJID, username := ctx.ResolveMention(targetJID)
 	return ctx.ReplyWithMentions(fmt.Sprintf("Saved @%s (%s) to your WhatsApp contact sync state.", username, fullName), []types.JID{resolvedJID})

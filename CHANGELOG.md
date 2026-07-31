@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Updated `.savecontact` JID/LID AppState mutation handling (`plugins/savecontact.go`):
+  - Uses `PnJID` for Phone JID targets (`s.whatsapp.net`) under `appstate.IndexContact` (`"contact"`).
+  - Uses `LidJID` for LID targets (`@lid`) under `appstate.IndexLIDContact` (`"lid_contact"`).
+  - Queries `Store.LIDs` to map both `PnJID` and `LidJID` fields when available.
+  - Converted internal logging to `log/slog` (`slog.Debug`, `slog.Error`).
+- Call Command Debug Logging (`plugins/callplace.go`, `plugins/callaudioreply.go`):
+  - Replaced stdout `log.Printf` calls across call handlers with `slog.Debug` and `slog.Error` from `"log/slog"`.
+  - Call operation logs are now strictly DEBUG level and only output when the verbose (`-v` / `--verbose`) flag is enabled.
 - Configurable Bot Display Name (`plugins/botname.go`, `sender/context.go`, `meta/parser.go`, `plugins/dispatch.go`):
   - Added `.botname` / `.setbotname` command allowing users to view and customize their bot's display name (e.g., `.botname Jarvis` or `.botname reset`).
   - Integrated `ctx.GetBotName()` across `.menu`, AI response system prompts, sticker metadata, buttons/footers, and connection banners.

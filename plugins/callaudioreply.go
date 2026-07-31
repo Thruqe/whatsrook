@@ -4,7 +4,7 @@ package commands
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -38,7 +38,7 @@ func HandlePendingAudioReply(ctx context.Context, client *whatsmeow.Client, evt 
 		saveRequested := false
 
 		if msg := evt.Message.GetVideoMessage(); msg != nil {
-			log.Printf("[DEBUG] Detected direct video message from %s", sender.String())
+			slog.Debug("Detected direct video message", "sender", sender.String())
 			videoMsg = msg
 			saveRequested = utils.IsSaveText(utils.GetDirectMessageText(evt.Message))
 		} else if extText := evt.Message.GetExtendedTextMessage(); extText != nil && utils.IsSaveText(extText.GetText()) {
@@ -74,14 +74,14 @@ func HandlePendingAudioReply(ctx context.Context, client *whatsmeow.Client, evt 
 	saveRequested := false
 
 	if msg := evt.Message.GetAudioMessage(); msg != nil {
-		log.Printf("[DEBUG] Detected direct audio message from %s", sender.String())
+		slog.Debug("Detected direct audio message", "sender", sender.String())
 		audioMsg = msg
 		saveRequested = utils.IsSaveText(utils.GetDirectMessageText(evt.Message))
 	} else if extText := evt.Message.GetExtendedTextMessage(); extText != nil && utils.IsSaveText(extText.GetText()) {
-		log.Printf("[DEBUG] Detected text message containing 'save' from %s. Checking if it quotes audio...", sender.String())
+		slog.Debug("Detected text message containing 'save', checking quoted audio...", "sender", sender.String())
 		if ctxInfo := extText.GetContextInfo(); ctxInfo != nil && ctxInfo.QuotedMessage != nil {
 			if quotedAudio := ctxInfo.QuotedMessage.GetAudioMessage(); quotedAudio != nil {
-				log.Printf("[DEBUG] Success! Found quoted audio message in the reply from %s", sender.String())
+				slog.Debug("Found quoted audio message in reply", "sender", sender.String())
 				audioMsg = quotedAudio
 				saveRequested = true
 			}
@@ -89,7 +89,7 @@ func HandlePendingAudioReply(ctx context.Context, client *whatsmeow.Client, evt 
 	}
 
 	if audioMsg == nil {
-		log.Printf("[DEBUG] Message from %s did not provide or quote an audio message. Skipping pending intercept.", sender.String())
+		slog.Debug("Message did not provide or quote an audio message, skipping pending intercept", "sender", sender.String())
 		return false
 	}
 
@@ -110,20 +110,20 @@ func HandlePendingAudioReply(ctx context.Context, client *whatsmeow.Client, evt 
 }
 
 func handleAudioDownload(ctx context.Context, client *whatsmeow.Client, cctx *Context, sender types.JID, evt *events.Message, audioMsg *waE2E.AudioMessage, p *pendingCall, saveRequested bool) {
-	log.Printf("[DEBUG] Downloading audio payload for %s...", sender.String())
+	slog.Debug("Downloading audio payload", "sender", sender.String())
 	data, err := client.Download(ctx, audioMsg)
 	if err != nil {
-		log.Printf("[ERROR] Download failed: %v", err)
+		slog.Error("Download audio failed", "err", err)
 		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to download audio: %v", err)); sendErr != nil {
-			log.Printf("[ERROR] failed to notify user: %v", sendErr)
+			slog.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
 	}
 
 	if err := os.MkdirAll(audioDir, 0755); err != nil {
-		log.Printf("[ERROR] Failed creating directory: %v", err)
+		slog.Error("Failed creating audio directory", "err", err)
 		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to prepare storage: %v", err)); sendErr != nil {
-			log.Printf("[ERROR] failed to notify user: %v", sendErr)
+			slog.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
 	}
@@ -131,54 +131,52 @@ func handleAudioDownload(ctx context.Context, client *whatsmeow.Client, cctx *Co
 	ext := utils.ExtensionFor(audioMsg.GetMimetype())
 	path := filepath.Join(audioDir, utils.SanitizeJID(sender.String())+ext)
 	if err := os.WriteFile(path, data, 0644); err != nil {
-		log.Printf("[ERROR] File save failed: %v", err)
+		slog.Error("File save failed", "err", err)
 		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to save audio: %v", err)); sendErr != nil {
-			log.Printf("[ERROR] failed to notify user: %v", sendErr)
+			slog.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
 	}
 
-	// meowcaller's OpusFile can't reliably play back WhatsApp's Ogg/Opus voice
-	// notes (silent output despite RTP flowing) — transcode to MP3 via ffmpeg
-	// so every call source is a format meowcaller actually plays correctly.
+	// Transcode to MP3 via ffmpeg for playback
 	path, err = utils.TranscodeToMP3(path)
 	if err != nil {
-		log.Printf("[ERROR] Transcode failed: %v", err)
+		slog.Error("Transcode failed", "err", err)
 		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to process audio: %v", err)); sendErr != nil {
-			log.Printf("[ERROR] failed to notify user: %v", sendErr)
+			slog.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
 	}
 
 	if saveRequested {
 		if err := saveAudio(cctx, sender, path); err != nil {
-			log.Printf("[ERROR] saveAudio failed: %v", err)
+			slog.Error("saveAudio failed", "err", err)
 			logHandlerErr("call-audio-save", err)
 		}
 	}
 
-	log.Printf("[DEBUG] Triggering outgoing call to target: %s with media: %s", p.Target, path)
+	slog.Debug("Triggering outgoing call to target", "target", p.Target, "media", path)
 	if err := placeCallWithAudio(cctx, p.Target, path); err != nil {
-		log.Printf("[ERROR] placeCallWithAudio failed: %v", err)
+		slog.Error("placeCallWithAudio failed", "err", err)
 		logHandlerErr("call", err)
 	}
 }
 
 func handleVideoDownload(ctx context.Context, client *whatsmeow.Client, cctx *Context, sender types.JID, evt *events.Message, videoMsg *waE2E.VideoMessage, p *pendingCall, saveRequested bool) {
-	log.Printf("[DEBUG] Downloading video payload for %s...", sender.String())
+	slog.Debug("Downloading video payload", "sender", sender.String())
 	data, err := client.Download(ctx, videoMsg)
 	if err != nil {
-		log.Printf("[ERROR] Download failed: %v", err)
+		slog.Error("Download video failed", "err", err)
 		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to download video: %v", err)); sendErr != nil {
-			log.Printf("[ERROR] failed to notify user: %v", sendErr)
+			slog.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
 	}
 
 	if err := os.MkdirAll(videoDir, 0755); err != nil {
-		log.Printf("[ERROR] Failed creating directory: %v", err)
+		slog.Error("Failed creating video directory", "err", err)
 		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to prepare storage: %v", err)); sendErr != nil {
-			log.Printf("[ERROR] failed to notify user: %v", sendErr)
+			slog.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
 	}
@@ -189,9 +187,9 @@ func handleVideoDownload(ctx context.Context, client *whatsmeow.Client, cctx *Co
 	}
 	path := filepath.Join(videoDir, utils.SanitizeJID(sender.String())+ext)
 	if err := os.WriteFile(path, data, 0644); err != nil {
-		log.Printf("[ERROR] File save failed: %v", err)
+		slog.Error("File save failed", "err", err)
 		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to save video: %v", err)); sendErr != nil {
-			log.Printf("[ERROR] failed to notify user: %v", sendErr)
+			slog.Error("failed to notify user", "sendErr", sendErr)
 		}
 		return
 	}
@@ -201,14 +199,14 @@ func handleVideoDownload(ctx context.Context, client *whatsmeow.Client, cctx *Co
 
 	if saveRequested {
 		if err := saveVideo(cctx, sender, path); err != nil {
-			log.Printf("[ERROR] saveVideo failed: %v", err)
+			slog.Error("saveVideo failed", "err", err)
 			logHandlerErr("call-video-save", err)
 		}
 	}
 
-	log.Printf("[DEBUG] Triggering outgoing video call to target: %s with media: %s", p.Target, path)
+	slog.Debug("Triggering outgoing video call to target", "target", p.Target, "media", path)
 	if err := placeVideoCallWithMedia(cctx, p.Target, path); err != nil {
-		log.Printf("[ERROR] placeVideoCallWithMedia failed: %v", err)
+		slog.Error("placeVideoCallWithMedia failed", "err", err)
 		logHandlerErr("videocall", err)
 	}
 }

@@ -3,7 +3,7 @@ package commands
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -140,7 +140,7 @@ func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 	var startOnce sync.Once
 	startMedia := func() {
 		startOnce.Do(func() {
-			log.Printf("[INFO] videocall: starting media playback (state=%v, video_path=%q)", call.State(), videoPath)
+			slog.Debug("videocall: starting media playback", "state", call.State(), "video_path", videoPath)
 
 			// Send video state enabled stanza
 			_ = call.SetVideoEnabled(true)
@@ -150,13 +150,13 @@ func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 				if prepErr != nil {
 					logHandlerErr("videocall", fmt.Errorf("failed to prepare call video: %w", prepErr))
 				}
-				log.Printf("[INFO] videocall: prep done mp3=%q h264=%q err=%v", mp3Path, h264Path, prepErr)
+				slog.Debug("videocall: prep done", "mp3", mp3Path, "h264", h264Path, "err", prepErr)
 
 				duration, durErr := utils.AudioDuration(videoPath)
 				if durErr != nil {
 					duration = 30 * time.Second
 				}
-				log.Printf("[INFO] videocall: media duration=%v", duration)
+				slog.Debug("videocall: media duration", "duration", duration)
 
 				// 1. Play audio track if available
 				audioFile := mp3Path
@@ -164,24 +164,24 @@ func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 					audioFile = videoPath
 				}
 				if src, err := openAudioSource(audioFile); err == nil {
-					log.Printf("[INFO] videocall: audio source opened, starting playback from %q", audioFile)
+					slog.Debug("videocall: audio source opened, starting playback", "audio_file", audioFile)
 					call.Play(src)
 				} else {
-					log.Printf("[WARN] videocall: could not open audio source %q: %v", audioFile, err)
+					slog.Debug("videocall: could not open audio source", "audio_file", audioFile, "err", err)
 				}
 
 				// 2. Stream H.264 video frames
 				if h264Path == "" {
-					log.Printf("[WARN] videocall: no h264 path after prep, skipping video send")
+					slog.Debug("videocall: no h264 path after prep, skipping video send")
 				} else {
 					h264Data, readErr := os.ReadFile(h264Path)
 					if readErr != nil {
-						log.Printf("[WARN] videocall: failed to read h264 file %q: %v", h264Path, readErr)
+						slog.Debug("videocall: failed to read h264 file", "h264_path", h264Path, "err", readErr)
 					} else if len(h264Data) == 0 {
-						log.Printf("[WARN] videocall: h264 file is empty: %q", h264Path)
+						slog.Debug("videocall: h264 file is empty", "h264_path", h264Path)
 					} else {
 						frames := utils.SplitAnnexBAccessUnits(h264Data)
-						log.Printf("[INFO] videocall: split h264 into %d access units (%d bytes total)", len(frames), len(h264Data))
+						slog.Debug("videocall: split h264 into access units", "access_units", len(frames), "bytes", len(h264Data))
 						if len(frames) > 0 {
 							// Index all IDR keyframe positions in the video stream
 							var idrIndices []int
@@ -190,7 +190,7 @@ func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 									idrIndices = append(idrIndices, i)
 								}
 							}
-							log.Printf("[INFO] videocall: found %d IDR keyframe positions out of %d total frames", len(idrIndices), len(frames))
+							slog.Debug("videocall: found IDR keyframe positions", "idr_frames", len(idrIndices), "total_frames", len(frames))
 
 							go func() {
 								frameDur := 66 * time.Millisecond // ~15 FPS
@@ -203,11 +203,11 @@ func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 								for {
 									select {
 									case <-ctx.Ctx.Done():
-										log.Printf("[INFO] videocall: context cancelled after %d frames sent", sent)
+										slog.Debug("videocall: context cancelled after sending frames", "sent", sent)
 										return
 									case <-ticker.C:
 										if call.State() == meowcaller.CallPhaseEnded {
-											log.Printf("[INFO] videocall: call ended after %d frames sent", sent)
+											slog.Debug("videocall: call ended after sending frames", "sent", sent)
 											return
 										}
 
@@ -221,7 +221,7 @@ func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 												}
 											}
 											frameIdx = bestIdx
-											log.Printf("[INFO] videocall: keyframe triggered, jumping frameIdx to %d", frameIdx)
+											slog.Debug("videocall: keyframe triggered", "frame_idx", frameIdx)
 										}
 
 										frame := frames[frameIdx]
@@ -229,7 +229,7 @@ func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 											if strings.Contains(err.Error(), "has no active video media") {
 												suppressed++
 												if suppressed == 1 || suppressed%30 == 0 {
-													log.Printf("[WARN] videocall: no active video media (suppressed=%d, frame=%d)", suppressed, frameIdx)
+													slog.Debug("videocall: no active video media", "suppressed", suppressed, "frame_idx", frameIdx)
 												}
 											} else {
 												logHandlerErr("videocall", err)
@@ -238,7 +238,7 @@ func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 											frameIdx = (frameIdx + 1) % len(frames)
 											sent++
 											if sent == 1 || sent%30 == 0 {
-												log.Printf("[INFO] videocall: sent frame #%d (access_unit=%d, bytes=%d)", sent, frameIdx, len(frame))
+												slog.Debug("videocall: sent frame", "sent", sent, "access_unit", frameIdx, "bytes", len(frame))
 											}
 										}
 									}
@@ -251,7 +251,7 @@ func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 				// 3. Auto-hangup timer
 				go func() {
 					time.Sleep(duration + 2*time.Second)
-					log.Printf("[INFO] videocall: auto-hangup firing after %v", duration)
+					slog.Debug("videocall: auto-hangup firing", "duration", duration)
 					if hErr := call.Hangup(); hErr != nil {
 						logHandlerErr("videocall", hErr)
 					}
@@ -262,18 +262,18 @@ func placeVideoCallWithMedia(ctx *Context, target, videoPath string) error {
 
 	// Force an immediate IDR keyframe when peer accepts or requests keyframe (PLI/FIR)
 	call.OnPeerAccept(func() {
-		log.Printf("[INFO] videocall: peer accepted, queuing immediate IDR keyframe")
+		slog.Debug("videocall: peer accepted, queuing immediate IDR keyframe")
 		requestKeyframe.Store(true)
 		startMedia()
 	})
 
 	call.OnVideoKeyframeRequest(func() {
-		log.Printf("[INFO] videocall: keyframe requested by peer PLI/FIR, queuing IDR keyframe")
+		slog.Debug("videocall: keyframe requested by peer PLI/FIR, queuing IDR keyframe")
 		requestKeyframe.Store(true)
 	})
 
 	call.OnReady(func() {
-		log.Printf("[INFO] videocall: media ready (inbound RTP flowing)")
+		slog.Debug("videocall: media ready (inbound RTP flowing)")
 		startMedia()
 	})
 
