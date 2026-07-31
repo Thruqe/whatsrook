@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- fix
 - AutoBio Command & Scheduler (`plugins/autobio.go`, `plugins/dispatch.go`):
   - Created `.autobio` command (`.autobio on`, `.autobio off`, `.autobio toggle`, `.autobio tz <TZ>`, `.autobio status`, `.autobio now`).
   - Added background 1-minute ticker scheduler (`StartAutoBioScheduler`) that automatically updates the WhatsApp status bio (`client.SetStatusMessage`) with local time and inspirational quotes.

@@ -114,8 +114,8 @@ func IsValidNetscapeCookie(data string) bool {
 		parts := strings.Split(line, "\t")
 		if len(parts) >= 7 {
 			domain := strings.ToLower(strings.TrimSpace(parts[0]))
-			if strings.HasPrefix(domain, "#httponly_") {
-				domain = strings.TrimPrefix(domain, "#httponly_")
+			if after, ok :=strings.CutPrefix(domain, "#httponly_"); ok  {
+				domain = after
 			}
 
 			// Reject other social media platform cookies (facebook, instagram, twitter, tiktok, reddit, etc.)
