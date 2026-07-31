@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- improve panel script
 - format && update docs
 - Panel deployment support
 - Leaderboard User JID Normalization & Deduplication (`plugins/helper.go`, `plugins/tictactoe.go`, `plugins/wcg.go`, `plugins/unscramble.go`):
