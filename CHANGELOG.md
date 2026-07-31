@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Group & Community Commands (`plugins/group.go`):
+  - `.kickall`: Group-only command that removes all group participants except the bot itself, the invoker, and sudoers (requires bot admin status).
+  - `.community` (Aliases: `listgroups`, `groupslist`, `allgroups`): Lists all joined/community groups along with their active invite URLs.
+  - `.leave` (Alias: `left`): Group-only command displaying interactive "Confirm Leave" and "Cancel" buttons. Button confirmation/cancellation is strictly locked to the command invoker's User ID (other users tapping the button are politely rejected).
 - Word Prefix & Natural Language Command Routing (`plugins/dispatch.go`, `plugins/sh.go`):
   - Removed `run` from `sh` (shell execution) command aliases to prevent natural language phrases like `rook, run menu command` from attempting to execute system binaries.
   - Enhanced command parsing to trim leading punctuation (commas, colons) following word prefixes (`rook, ...`).

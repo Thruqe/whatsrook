@@ -119,6 +119,31 @@ func init() {
 		IsPublic:    true,
 		Handler:     handleListOnline,
 	})
+	Register(&Command{
+		Name:        "kickall",
+		Description: "Remove all participants from the group except the bot and sudoers",
+		Category:    "group",
+		GroupOnly:   true,
+		IsPublic:    false,
+		Handler:     handleKickAll,
+	})
+	Register(&Command{
+		Name:        "community",
+		Aliases:     []string{"listgroups", "groupslist", "allgroups"},
+		Description: "List community groups or joined groups with their invite links",
+		Category:    "group",
+		IsPublic:    true,
+		Handler:     handleCommunity,
+	})
+	Register(&Command{
+		Name:        "leave",
+		Aliases:     []string{"left"},
+		Description: "Leave the current group with interactive confirmation",
+		Category:    "group",
+		GroupOnly:   true,
+		IsPublic:    true,
+		Handler:     handleLeave,
+	})
 }
 
 func handleTagAll(ctx *Context) error {
@@ -878,4 +903,149 @@ func handleListOnline(ctx *Context) error {
 	}
 
 	return ctx.ReplyWithMentions(sb.String(), onlineJIDs)
+}
+
+func handleKickAll(ctx *Context) error {
+	if ctx.Chat.Server != "g.us" {
+		return ctx.Reply("This command can only be used in a group.")
+	}
+
+	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
+	if err != nil {
+		return ctx.Reply(fmt.Sprintf("Failed to get group info: %v", err))
+	}
+
+	if !ctx.IsSenderAdmin(info) && !ctx.IsSudo() {
+		return ctx.Reply("Only group admins or bot owners can use kickall.")
+	}
+
+	botJID := ctx.Client.Store.ID.ToNonAD()
+	botLID := ctx.Client.Store.LID.ToNonAD()
+
+	botIsAdmin := false
+	for _, p := range info.Participants {
+		if (p.JID.User == botJID.User || (!botLID.IsEmpty() && p.JID.User == botLID.User)) && p.IsAdmin {
+			botIsAdmin = true
+			break
+		}
+	}
+
+	if !botIsAdmin {
+		return ctx.Reply("I need admin privileges to kick participants.")
+	}
+
+	var toKick []types.JID
+	for _, p := range info.Participants {
+		if p.JID.User == botJID.User || (!botLID.IsEmpty() && p.JID.User == botLID.User) {
+			continue
+		}
+		if p.JID.User == ctx.Sender.ToNonAD().User {
+			continue
+		}
+		if isJIDSudo(ctx, p.JID) {
+			continue
+		}
+		toKick = append(toKick, p.JID)
+	}
+
+	if len(toKick) == 0 {
+		return ctx.Reply("No participants to kick.")
+	}
+
+	_ = ctx.Reply(fmt.Sprintf("Kicking %d participants...", len(toKick)))
+	_, err = ctx.Client.UpdateGroupParticipants(ctx.Ctx, ctx.Chat, toKick, whatsmeow.ParticipantChangeRemove)
+	if err != nil {
+		slog.Error("Kickall failed", "err", err)
+		return ctx.Reply(fmt.Sprintf("Failed to kick participants: %v", err))
+	}
+
+	return ctx.Reply(fmt.Sprintf("Kickall complete! Removed %d participants.", len(toKick)))
+}
+
+func handleCommunity(ctx *Context) error {
+	groups, err := ctx.Client.GetJoinedGroups(ctx.Ctx)
+	if err != nil || len(groups) == 0 {
+		return ctx.Reply("Failed to fetch joined groups or no groups joined.")
+	}
+
+	var sb strings.Builder
+	sb.WriteString("╭━━━〔 COMMUNITY GROUPS 〕━━━\n│\n")
+
+	count := 0
+	for i, g := range groups {
+		groupName := g.Name
+		if groupName == "" && g.GroupName.Name != "" {
+			groupName = g.GroupName.Name
+		}
+		if groupName == "" {
+			groupName = fmt.Sprintf("Group %d", i+1)
+		}
+
+		link := "Invite link unavailable"
+		if code, errL := ctx.Client.GetGroupInviteLink(ctx.Ctx, g.JID, false); errL == nil && code != "" {
+			link = "https://chat.whatsapp.com/" + code
+		}
+
+		count++
+		fmt.Fprintf(&sb, "│ %d. %s\n│    Link: %s\n│\n", count, groupName, link)
+	}
+
+	sb.WriteString("╰━━━━━━━━━━━━━━━━━━━━━━━")
+	return ctx.Reply(strings.TrimSpace(sb.String()))
+}
+
+func handleLeave(ctx *Context) error {
+	if ctx.Chat.Server != "g.us" {
+		return ctx.Reply("This command can only be used in a group.")
+	}
+
+	p := ctx.GetPrefix()
+	senderUser := ctx.Sender.ToNonAD().User
+
+	arg0 := ""
+	if len(ctx.Args) > 0 {
+		arg0 = strings.ToLower(ctx.Args[0])
+	}
+
+	if strings.HasPrefix(arg0, "confirm") {
+		parts := strings.Split(arg0, "_")
+		if len(parts) >= 2 {
+			callerUser := parts[1]
+			if senderUser != callerUser && !ctx.IsSudo() {
+				callerMention, _ := ctx.ResolveMention(types.NewJID(callerUser, "s.whatsapp.net"))
+				return ctx.ReplyWithMentions(fmt.Sprintf("Only the command caller (%s) can confirm leaving this group.", "@"+callerMention.User), []types.JID{callerMention})
+			}
+		}
+
+		_ = ctx.Reply("Leaving group... Goodbye!")
+		err := ctx.Client.LeaveGroup(ctx.Ctx, ctx.Chat)
+		if err != nil {
+			slog.Error("Failed to leave group", "err", err)
+			return ctx.Reply(fmt.Sprintf("Failed to leave group: %v", err))
+		}
+		return nil
+	}
+
+	if strings.HasPrefix(arg0, "cancel") {
+		parts := strings.Split(arg0, "_")
+		if len(parts) >= 2 {
+			callerUser := parts[1]
+			if senderUser != callerUser && !ctx.IsSudo() {
+				callerMention, _ := ctx.ResolveMention(types.NewJID(callerUser, "s.whatsapp.net"))
+				return ctx.ReplyWithMentions(fmt.Sprintf("Only the command caller (%s) can cancel leaving.", "@"+callerMention.User), []types.JID{callerMention})
+			}
+		}
+		return ctx.Reply("Leave group cancelled.")
+	}
+
+	confirmBtnID := fmt.Sprintf("%sleave confirm_%s", p, senderUser)
+	cancelBtnID := fmt.Sprintf("%sleave cancel_%s", p, senderUser)
+
+	bodyText := "⚠️ ARE YOU SURE YOU WANT ME TO LEAVE THIS GROUP?\n\nClick 'Confirm Leave' below to confirm or 'Cancel' to keep me in the group."
+	buttons := []struct{ ID, Text string }{
+		{ID: confirmBtnID, Text: "Confirm Leave"},
+		{ID: cancelBtnID, Text: "Cancel"},
+	}
+
+	return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
 }
