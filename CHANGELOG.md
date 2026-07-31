@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Created `NormalizeUserJID` to consistently map LID (`@lid`) and Phone JID (`@s.whatsapp.net`) entries to a single primary user identity.
   - Added in-memory entry merging in group leaderboards (`.leaderboard`, `.lb`) to combine XP, stats, and rankings so no player appears duplicated across LID and Phone JID rows.
 - Word Prefix & AutoAI Command Fallthrough Routing (`plugins/dispatch.go`):
-  - Fixed command parsing when the prefix is a word (e.g. `whatsrook`). Valid commands (e.g. `whatsrook ping`) execute their respective handlers, while non-command messages (e.g. `whatsrook what is quantum computing?`) automatically route to AutoAI when enabled.
+  - Fixed command dispatch when a word prefix (e.g. `rook` / `whatsrook`) matches: if the text after the prefix is a valid command (e.g. `rook ping`), it executes the command handler. If it is not a command (e.g. `rook hey bro how are you`), it now correctly falls through to AutoAI when enabled.
 - Interactive Button Mentions & Raw JID Preservation (`sender/abstract.go`, `plugins/movie.go`):
   - Updated `sendInteractiveButtonsWithMentions` to populate `ButtonsMessage.ContextInfo.MentionedJID` when sending interactive button cards containing user mentions.
   - Preserved raw JID/LID format in `ResolveMentionRaw` and `MentionedJID` arrays so LID/JID references are correctly parsed and rendered by WhatsApp clients.

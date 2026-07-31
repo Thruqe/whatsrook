@@ -227,7 +227,9 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		if matchesPrefix(text, p) {
 			body := strings.TrimSpace(text[len(p):])
 			slog.Debug("Prefix matched, executing command", "prefix", p, "body", body)
-			return runCommand(ctx, client, evt, body)
+			if runCommand(ctx, client, evt, body) {
+				return true
+			}
 		}
 	}
 
