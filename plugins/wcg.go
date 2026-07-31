@@ -435,7 +435,7 @@ func startWCGChainTurn(ctx *Context, game *utils.WCGGame) {
 		{ID: p + "wcg lb", Text: "Leaderboard"},
 	}
 
-	err := sendInteractiveButtons(ctx, msg, fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
+	err := sendInteractiveButtonsWithMentions(ctx, msg, fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons, []types.JID{currentPlayer.MentionJID})
 	if err != nil {
 		_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
 	}

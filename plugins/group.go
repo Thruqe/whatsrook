@@ -134,21 +134,26 @@ func handleTagAll(ctx *Context) error {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(" *Everyone*\n")
+	sb.WriteString("@all")
 	if ctx.RawArgs != "" {
-		sb.WriteString(fmt.Sprintf("Message: *%s*\n\n", ctx.RawArgs))
-	} else {
-		sb.WriteString("\n")
+		sb.WriteString("\nMessage: *")
+		sb.WriteString(ctx.RawArgs)
+		sb.WriteString("*")
 	}
 
-	var mentions []types.JID
+	var participantJIDs []types.JID
 	for _, p := range info.Participants {
-		resolvedJID, username := ctx.ResolveMention(p.JID)
-		sb.WriteString(fmt.Sprintf("@%s ", username))
-		mentions = append(mentions, resolvedJID)
+		if !p.JID.IsEmpty() {
+			participantJIDs = append(participantJIDs, p.JID)
+		}
 	}
 
-	return ctx.ReplyWithMentions(sb.String(), mentions)
+	groupSubject := info.GroupName.Name
+	if groupSubject == "" {
+		groupSubject = "Group"
+	}
+
+	return ctx.ReplyWithGroupMention(sb.String(), ctx.Chat, groupSubject, participantJIDs)
 }
 
 func handleKick(ctx *Context) error {

@@ -887,19 +887,87 @@ func (ctx *Context) ReplyWithMentions(text string, jids []types.JID) error {
 	return err
 }
 
-// ResolveMentionRaw returns the resolved JID and username matching display representation for mentions.
+// ResolveMentionRaw returns the raw JID and username matching display representation for mentions.
 func ResolveMentionRaw(ctx context.Context, client *whatsmeow.Client, jid types.JID) (types.JID, string) {
-	if jid.Server == types.HiddenUserServer && client.Store.LIDs != nil {
-		if pn, err := client.Store.LIDs.GetPNForLID(ctx, jid); err == nil && !pn.IsEmpty() {
-			return pn, pn.User
-		}
-	}
 	return jid, jid.User
 }
 
 // ResolveMention returns the resolved JID and username matching display representation for mentions.
 func (ctx *Context) ResolveMention(jid types.JID) (types.JID, string) {
 	return ResolveMentionRaw(ctx.Ctx, ctx.Client, jid)
+}
+
+// SendTextWithGroupMention sends a text message featuring WhatsApp's native @all group mention.
+func (ctx *Context) SendTextWithGroupMention(text string, groupJID types.JID, groupSubject string, participantJIDs []types.JID) error {
+	ctx.simulateTyping()
+	formatted := ctx.formatMentionTextResponse(text)
+
+	var mentioned []string
+	for _, j := range participantJIDs {
+		if !j.IsEmpty() {
+			mentioned = append(mentioned, j.ToNonAD().String())
+		}
+	}
+
+	cInfo := &waE2E.ContextInfo{
+		MentionedJID: mentioned,
+		GroupMentions: []*waE2E.GroupMention{
+			{
+				GroupJID:     new(groupJID.String()),
+				GroupSubject: new(groupSubject),
+			},
+		},
+	}
+
+	slog.Debug("Sending SendTextWithGroupMention", "chat", ctx.Chat.String(), "group_subject", groupSubject, "participants_count", len(mentioned))
+	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
+		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+			Text:        &formatted,
+			ContextInfo: cInfo,
+		},
+	})
+	if err != nil {
+		slog.Error("SendTextWithGroupMention failed", "err", err)
+	}
+	return err
+}
+
+// ReplyWithGroupMention sends a text message featuring WhatsApp's native @all group mention replying to the current message.
+func (ctx *Context) ReplyWithGroupMention(text string, groupJID types.JID, groupSubject string, participantJIDs []types.JID) error {
+	ctx.simulateTyping()
+	formatted := ctx.formatMentionTextResponse(text)
+
+	var mentioned []string
+	for _, j := range participantJIDs {
+		if !j.IsEmpty() {
+			mentioned = append(mentioned, j.ToNonAD().String())
+		}
+	}
+
+	cInfo := ctx.replyContextInfo()
+	if cInfo == nil {
+		cInfo = &waE2E.ContextInfo{}
+	}
+
+	cInfo.MentionedJID = mentioned
+	cInfo.GroupMentions = []*waE2E.GroupMention{
+		{
+			GroupJID:     new(groupJID.String()),
+			GroupSubject: new(groupSubject),
+		},
+	}
+
+	slog.Debug("Sending ReplyWithGroupMention", "chat", ctx.Chat.String(), "group_subject", groupSubject, "participants_count", len(mentioned))
+	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
+		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+			Text:        &formatted,
+			ContextInfo: cInfo,
+		},
+	})
+	if err != nil {
+		slog.Error("ReplyWithGroupMention failed", "err", err)
+	}
+	return err
 }
 
 // FormatMention resolves a target JID and returns its "@username" string representation along with the resolved JID for mentions.

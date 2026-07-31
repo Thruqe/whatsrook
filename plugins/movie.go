@@ -16,6 +16,7 @@ import (
 	"go.mau.fi/whatsmeow"
 	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/types"
 )
 
 const movieAPIHost = "https://xer-movie-api-ten.vercel.app"
@@ -105,7 +106,7 @@ func init() {
 	})
 }
 
-func sendInteractiveButtons(ctx *Context, bodyText, footerText string, buttons []struct{ ID, Text string }) error {
+func sendInteractiveButtonsWithMentions(ctx *Context, bodyText, footerText string, buttons []struct{ ID, Text string }, jids []types.JID) error {
 	var btnList []*waE2E.ButtonsMessage_Button
 	for _, b := range buttons {
 		btnList = append(btnList, &waE2E.ButtonsMessage_Button{
@@ -113,6 +114,20 @@ func sendInteractiveButtons(ctx *Context, bodyText, footerText string, buttons [
 			ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: new(b.Text)},
 			Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
 		})
+	}
+
+	var mentioned []string
+	for _, j := range jids {
+		if !j.IsEmpty() {
+			mentioned = append(mentioned, j.ToNonAD().String())
+		}
+	}
+
+	var cInfo *waE2E.ContextInfo
+	if len(mentioned) > 0 {
+		cInfo = &waE2E.ContextInfo{
+			MentionedJID: mentioned,
+		}
 	}
 
 	msg := &waE2E.Message{
@@ -123,6 +138,7 @@ func sendInteractiveButtons(ctx *Context, bodyText, footerText string, buttons [
 					FooterText:  new(footerText),
 					HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
 					Buttons:     btnList,
+					ContextInfo: cInfo,
 				},
 			},
 		},
@@ -157,6 +173,10 @@ func sendInteractiveButtons(ctx *Context, bodyText, footerText string, buttons [
 
 	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
 	return err
+}
+
+func sendInteractiveButtons(ctx *Context, bodyText, footerText string, buttons []struct{ ID, Text string }) error {
+	return sendInteractiveButtonsWithMentions(ctx, bodyText, footerText, buttons, nil)
 }
 
 func handleMovie(ctx *Context) error {
