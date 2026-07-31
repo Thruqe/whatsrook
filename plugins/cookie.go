@@ -42,12 +42,12 @@ func handleCookieInstruction(ctx *Context) error {
 
 	imgBytes, err := os.ReadFile(imgPath)
 	if err == nil && len(imgBytes) > 0 {
-		caption := "Download and install Get cookies.txt LOCALLY extension for your browser. Export your YouTube cookies as Netscape format by clicking Copy as Netscape as shown in the image above."
+		caption := "Download & install the Cookie Editor browser extension to get your cookies:\nhttps://cookie-editor.com/#download\n\nExport your YouTube cookies in Netscape format by clicking 'Export' -> 'Export as Netscape' (or 'Copy as Netscape') as shown in the tutorial image."
 		_ = ctx.ReplyWithImage(imgBytes, "image/png", caption)
 	}
 
 	prefix := ctx.GetPrefix()
-	bodyText := fmt.Sprintf("Bot is awaiting you. Paste your Netscape cookies after the %ssetcookie command (e.g., `%ssetcookie <cookies>`).", prefix, prefix)
+	bodyText := fmt.Sprintf("1. Download & install Cookie Editor:\nhttps://cookie-editor.com/#download\n\n2. Open YouTube, open Cookie Editor, and copy/export your cookies in Netscape format.\n\n3. Paste your Netscape cookies after the %ssetcookie command (e.g. `%ssetcookie <cookies>`).", prefix, prefix)
 	return ctx.Reply(bodyText)
 }
 
@@ -64,11 +64,11 @@ func handleSetCookie(ctx *Context) error {
 
 	if cookieData == "" {
 		prefix := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Bot is awaiting you. Please paste your cookies after the %ssetcookie command (e.g. `%ssetcookie <cookies>`), or reply to a message containing your cookies with `%ssetcookie`.", prefix, prefix, prefix))
+		return ctx.Reply(fmt.Sprintf("Download Cookie Editor to get your Netscape cookies:\nhttps://cookie-editor.com/#download\n\nPlease paste your cookies after the %ssetcookie command (e.g. `%ssetcookie <cookies>`), or reply to a message containing your cookies with `%ssetcookie`.", prefix, prefix, prefix))
 	}
 
 	if !IsValidNetscapeCookie(cookieData) {
-		return ctx.Reply("Invalid cookie format. Cookies must be specifically exported from YouTube (youtube.com / googlevideo.com) in Netscape format. Non-YouTube or other social media cookies are not accepted.")
+		return ctx.Reply("Invalid cookie format. Cookies must be specifically exported from YouTube (youtube.com / googlevideo.com) in Netscape format.\n\nDownload Cookie Editor to get your Netscape cookies:\nhttps://cookie-editor.com/#download")
 	}
 
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)

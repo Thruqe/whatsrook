@@ -9,10 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- fix render deployment
-- improve panel script
-- format && update docs
-- Panel deployment support
+- Cookie Editor Extension Download Link (`plugins/cookie.go`, `plugins/play.go`):
+  - Integrated `https://cookie-editor.com/#download` extension URL into `.cookie` tutorial instructions, `.setcookie` usage hints, validation errors, and `.play` download cookie failure prompts.
 - Release Package Asset Packaging & Updater Support (`.github/workflows/release.yml`, `Dockerfile`, `updater/updater.go`):
   - Updated GitHub Actions release packaging ([.github/workflows/release.yml](file:///home/thruqe/whatsrook/.github/workflows/release.yml)) to include both `resources/` and `prompts/` directories in the output `.tar.gz` release archives.
   - Updated `Dockerfile` to copy `resources/` and `prompts/` into release Docker container images.

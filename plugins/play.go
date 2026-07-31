@@ -178,7 +178,7 @@ func isCookieError(err error) bool {
 // sendCookieHelp sends a helpful message guiding the user to set cookies.
 func sendCookieHelp(ctx *Context) error {
 	prefix := ctx.GetPrefix()
-	bodyText := fmt.Sprintf("You haven't configured your YouTube cookies yet or they have expired. YouTube is blocking this request.\n\nPlease check the %scookie command for instructions, then use `%ssetcookie <cookies>` to save your Netscape cookies.", prefix, prefix)
+	bodyText := fmt.Sprintf("You haven't configured your YouTube cookies yet or they have expired. YouTube is blocking this request.\n\nDownload & install the Cookie Editor browser extension to get your cookies:\nhttps://cookie-editor.com/#download\n\nUse `%scookie` for instructions, then use `%ssetcookie <cookies>` to save your Netscape cookies.", prefix, prefix)
 	return ctx.Reply(bodyText)
 }
 
