@@ -594,7 +594,8 @@ func saveWCGChainStats(ctx *Context, game *utils.WCGGame, winner *utils.WCGPlaye
 			}
 		}
 
-		cleanJID := p.MentionJID.ToNonAD().String()
+		normJID := NormalizeUserJID(ctx.Ctx, game.Client, p.MentionJID)
+		cleanJID := normJID.String()
 
 		_, _ = db.Exec(ctx.Ctx, `INSERT INTO bot_group_user_xp (group_jid, user_jid, xp, wcg_wins, wcg_games, wcg_rating)
 			VALUES ($1, $2, $3, $4, 1, $5)

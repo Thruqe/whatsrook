@@ -295,15 +295,36 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	if okStore {
 		autoAIVal, _ := s.GetSetting(ctx, "autoai:"+chatStr)
+		if autoAIVal == "" {
+			autoAIVal, _ = s.GetSetting(ctx, "autoai")
+		}
 		if autoAIVal == "on" && isBotTaggedOrReplied(client, evt, text) {
-			slog.Debug("AutoAI triggered by tag/reply", "chat", chatStr, "sender", senderStr)
+			slog.Debug("AutoAI triggered by tag/reply/prefix", "chat", chatStr, "sender", senderStr)
+
+			prompt := text
+			for _, p := range prefixes {
+				if p != "" && matchesPrefix(text, p) {
+					prompt = strings.TrimSpace(text[len(p):])
+					break
+				}
+			}
+
+			botName := GetBotName(ctx, client)
+			if botName != "" && strings.HasPrefix(strings.ToLower(prompt), strings.ToLower(botName)) {
+				prompt = strings.TrimSpace(prompt[len(botName):])
+			}
+
+			if prompt == "" {
+				prompt = text
+			}
+
 			cctx := &Context{
 				Ctx:     ctx,
 				Client:  client,
 				Evt:     evt,
 				Command: "ai",
-				Args:    strings.Fields(text),
-				RawArgs: text,
+				Args:    strings.Fields(prompt),
+				RawArgs: prompt,
 				Chat:    evt.Info.Chat,
 				Sender:  evt.Info.Sender,
 			}

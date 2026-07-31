@@ -59,3 +59,13 @@ func GetBotName(ctx context.Context, client *whatsmeow.Client) string {
 	}
 	return strings.TrimSpace(raw)
 }
+
+func NormalizeUserJID(ctx context.Context, client *whatsmeow.Client, jid types.JID) types.JID {
+	clean := jid.ToNonAD()
+	if clean.Server == types.HiddenUserServer && client != nil && client.Store != nil && client.Store.LIDs != nil {
+		if pn, err := client.Store.LIDs.GetPNForLID(ctx, clean); err == nil && !pn.IsEmpty() {
+			return pn.ToNonAD()
+		}
+	}
+	return clean
+}

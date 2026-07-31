@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"math"
 	"math/rand"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -298,7 +299,8 @@ func awardTTTXP(ctx *Context, userJID types.JID, amount int, resultType string) 
 	}
 
 	groupJID := ctx.Chat.ToNonAD().String()
-	cleanJID := userJID.ToNonAD().String()
+	normJID := NormalizeUserJID(ctx.Ctx, ctx.Client, userJID)
+	cleanJID := normJID.String()
 
 	_, _ = db.Exec(ctx.Ctx, `INSERT INTO bot_group_user_xp (group_jid, user_jid, xp, ttt_wins, ttt_losses, ttt_draws)
 		VALUES ($1, $2, $3, $4, $5, $6)
@@ -338,8 +340,7 @@ func handleLeaderboard(ctx *Context) error {
 
 	rows, err := db.Query(ctx.Ctx, `SELECT user_jid, xp, ttt_wins, ttt_losses, ttt_draws, COALESCE(wcg_wins, 0), COALESCE(wcg_games, 0), COALESCE(wcg_rating, 1000) 
 		FROM bot_group_user_xp 
-		WHERE group_jid = $1 
-		ORDER BY xp DESC LIMIT 10`, groupJID)
+		WHERE group_jid = $1`, groupJID)
 	if err != nil {
 		return ctx.Reply("Failed to fetch group leaderboard.")
 	}
@@ -358,8 +359,8 @@ func handleLeaderboard(ctx *Context) error {
 		rating    int
 	}
 
-	var entries []lbEntry
-	var mentions []types.JID
+	mergedMap := make(map[string]*lbEntry)
+	var mapKeys []string
 
 	for rows.Next() {
 		var jidStr string
@@ -369,35 +370,69 @@ func handleLeaderboard(ctx *Context) error {
 				rating = 1000
 			}
 			parsed, pErr := types.ParseJID(jidStr)
-			if pErr == nil {
-				tag, resolved := ctx.FormatMention(parsed)
-				entries = append(entries, lbEntry{
+			if pErr != nil {
+				continue
+			}
+			normJID := NormalizeUserJID(ctx.Ctx, ctx.Client, parsed)
+			key := normJID.String()
+
+			existing, found := mergedMap[key]
+			if !found {
+				tag, resolved := ctx.FormatMention(normJID)
+				entry := &lbEntry{
 					jid:       resolved,
 					tag:       tag,
 					xp:        xp,
-					title:     utils.GetCXPTitle(xp),
 					tttWins:   tWins,
 					tttLosses: tLosses,
 					tttDraws:  tDraws,
 					wcgWins:   wWins,
 					wcgGames:  wGames,
 					rating:    rating,
-				})
-				mentions = append(mentions, resolved)
+				}
+				mergedMap[key] = entry
+				mapKeys = append(mapKeys, key)
+			} else {
+				existing.xp += xp
+				existing.tttWins += tWins
+				existing.tttLosses += tLosses
+				existing.tttDraws += tDraws
+				existing.wcgWins += wWins
+				existing.wcgGames += wGames
+				if rating > existing.rating {
+					existing.rating = rating
+				}
 			}
 		}
+	}
+
+	var entries []lbEntry
+	for _, k := range mapKeys {
+		e := mergedMap[k]
+		e.title = utils.GetCXPTitle(e.xp)
+		entries = append(entries, *e)
+	}
+
+	slices.SortFunc(entries, func(a, b lbEntry) int {
+		return b.xp - a.xp
+	})
+
+	if len(entries) > 10 {
+		entries = entries[:10]
 	}
 
 	if len(entries) == 0 {
 		return ctx.Reply(fmt.Sprintf("%s Leaderboard is currently empty! Play games in this group to earn points and rank up.", groupName))
 	}
 
+	var mentions []types.JID
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "%s Leaderboard\n\n", groupName)
 
 	for i, e := range entries {
 		fmt.Fprintf(&sb, "%d. %s — %s (%d CXP)\n   Rating: %d | TTT: %dW/%dL/%dD | WCG: %dW/%dG\n\n",
 			i+1, e.tag, e.title, e.xp, e.rating, e.tttWins, e.tttLosses, e.tttDraws, e.wcgWins, e.wcgGames)
+		mentions = append(mentions, e.jid)
 	}
 
 	return ctx.ReplyWithMentions(strings.TrimSpace(sb.String()), mentions)
