@@ -282,13 +282,13 @@ func handleWCGChain(ctx *Context) error {
 		return handleWCGChainLeaderboard(ctx)
 	}
 
-	if arg0 == "cancel" || arg0 == "stop" {
+	if arg0 == "cancel" || arg0 == "stop" || arg0 == "end" {
 		if existingGame == nil {
-			return ctx.Reply("No active WCG game to cancel.")
+			return ctx.Reply("No active WCG game to end.")
 		}
 		existingGame.StopTimers()
 		utils.DeleteWCGGame(chatKey)
-		return ctx.Reply("Word Chain Game (WCG) cancelled.")
+		return ctx.Reply("Word Chain Game (WCG) ended.")
 	}
 
 	// Join sub-command
@@ -428,7 +428,17 @@ func startWCGChainTurn(ctx *Context, game *utils.WCGGame) {
 
 	msg := fmt.Sprintf("TURN: %s\n\nRound %d\nRequired Starting Letter: *%c*\nMinimum Word Length: *%d* characters\nTime Limit: %d seconds!\n\nType a valid English word matching the required letter!",
 		currentPlayer.Tag, game.RoundCount, reqChar, minLen, timeSec)
-	_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
+
+	p := ctx.GetPrefix()
+	buttons := []struct{ ID, Text string }{
+		{ID: p + "wcg end", Text: "End Game"},
+		{ID: p + "wcg lb", Text: "Leaderboard"},
+	}
+
+	err := sendInteractiveButtons(ctx, msg, fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
+	if err != nil {
+		_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
+	}
 
 	timeDuration := time.Duration(timeSec) * time.Second
 	timer := time.AfterFunc(timeDuration, func() {
@@ -643,8 +653,8 @@ func sendWCGChainInteractiveMenu(ctx *Context, hostTag string) error {
 	buttons := []struct{ ID, Text string }{
 		{ID: p + "wcg join", Text: "Join Match"},
 		{ID: p + "wcg start", Text: "Start Match"},
-		{ID: p + "wcg lb", Text: "Leaderboard"},
+		{ID: p + "wcg end", Text: "End Game"},
 	}
 
-	return sendInteractiveButtons(ctx, bodyText, "WhatsRook Word Chain Game", buttons)
+	return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
 }

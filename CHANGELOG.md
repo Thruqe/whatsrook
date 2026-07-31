@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Word Chain Game (`.wcg`) End Command & Button (`plugins/wcg.go`):
+  - Added `.wcg end` subcommand (alongside `.wcg cancel` / `.wcg stop`) allowing any player to terminate an active WCG match or lobby window.
+  - Added interactive `"End Game"` button (`.wcg end`) to WCG lobby menus and in-game turn notifications so players can end the game directly with a single tap.
 - Updated `.savecontact` DM Auto-Targeting & PushName Detection (`plugins/savecontact.go`):
   - In direct messages (DM), `.savecontact` automatically targets the DM peer (`ctx.Chat`).
   - If an explicit name is not provided as an argument, `.savecontact` attempts to auto-detect the user's PushName from event info or local contact store cache.
