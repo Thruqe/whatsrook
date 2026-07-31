@@ -10,4 +10,5 @@ services:
       - key: PAIR
         value: "true"
       - key: CLIENT
+        sync: false
         value: "ios"
