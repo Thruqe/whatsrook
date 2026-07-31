@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- fix render deployment
 - improve panel script
 - format && update docs
 - Panel deployment support

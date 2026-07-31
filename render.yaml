@@ -2,17 +2,15 @@ services:
   - type: web
     name: whatsrook
     runtime: docker
-    plan: starter
+    plan: free
     dockerfilePath: ./Dockerfile
     envVars:
       - key: SESSION
         sync: false
       - key: PAIR
-        value: "false"
-      - key: QRCODE
-        value: "false"
+        value: "true"
       - key: CLIENT
-        value: "chrome"
+        value: "ios"
     disk:
       name: whatsrook-auth
       mountPath: /app/auth
