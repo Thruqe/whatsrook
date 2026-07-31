@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- AutoAcceptCall Forced Accept Protocol Deadlock & Duplicate Accept Prevention (`plugins/autoacceptcall.go`, `plugins/callplace.go`):
+  - Solved incoming call deadlock with WhatsApp Android callers (`stop_probing_before_accept_send=1`) by sending forced `<accept>` node via `DangerousInternals` after relay election.
+  - Added `clearMeowcallerAcceptPending` using reflection and `unsafe.Pointer` to clear `acceptPending` on `meowcaller.engine`, preventing duplicate `<accept>` nodes when `<mute_v2>` arrives and eliminating call reconnecting/disruption.
+  - Enabled `meowLogger()` in `plugins/callplace.go` for real-time visibility into `meowcaller` relay and media pipeline events.
+
 - AutoAcceptCall OnReady Pipeline Sync & AntiCall Bypass Fix (`plugins/autoacceptcall.go`, `events.go`):
   - Updated `events.go` to skip `handleAntiCall` when `autoacceptcall` status is `on`, preventing conflict between call rejection and call answering.
   - Registered `call.OnReady` callback before calling `call.Answer()` in `HandleIncomingCallAutoAccept`, ensuring audio and video media playback begins strictly after `meowcaller` establishes the active VoIP transport.
