@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Word Prefix & Natural Language Command Routing (`plugins/dispatch.go`, `plugins/sh.go`):
+  - Removed `run` from `sh` (shell execution) command aliases to prevent natural language phrases like `rook, run menu command` from attempting to execute system binaries.
+  - Enhanced command parsing to trim leading punctuation (commas, colons) following word prefixes (`rook, ...`).
+  - Added smart command extraction in `runCommand`: if a natural language phrasing is used (e.g. `rook, run menu command`), it identifies registered bot commands (`menu`) within the text and executes them seamlessly.
 - Cookie Editor Extension Download Link (`plugins/cookie.go`, `plugins/play.go`):
   - Integrated `https://cookie-editor.com/#download` extension URL into `.cookie` tutorial instructions, `.setcookie` usage hints, validation errors, and `.play` download cookie failure prompts.
 - Release Package Asset Packaging & Updater Support (`.github/workflows/release.yml`, `Dockerfile`, `updater/updater.go`):

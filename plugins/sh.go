@@ -11,7 +11,7 @@ import (
 func init() {
 	Register(&Command{
 		Name:        "sh",
-		Aliases:     []string{"exec", "run", "shell"},
+		Aliases:     []string{"exec", "shell"},
 		Description: "Execute a shell command (sudoers only).",
 		Category:    "tools",
 		IsPublic:    false,

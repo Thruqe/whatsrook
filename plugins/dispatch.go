@@ -225,7 +225,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 			continue
 		}
 		if matchesPrefix(text, p) {
-			body := strings.TrimSpace(text[len(p):])
+			body := strings.TrimLeft(strings.TrimSpace(text[len(p):]), ",:;! \t")
 			slog.Debug("Prefix matched, executing command", "prefix", p, "body", body)
 			if runCommand(ctx, client, evt, body) {
 				return true
@@ -414,6 +414,20 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 	args := fields[1:]
 
 	cmd, ok := Get(name)
+	if !ok {
+		if len(fields) > 1 {
+			for i := 1; i < len(fields); i++ {
+				subName := strings.ToLower(fields[i])
+				if subCmd, subOk := Get(subName); subOk {
+					name = subName
+					cmd = subCmd
+					ok = true
+					args = fields[i+1:]
+					break
+				}
+			}
+		}
+	}
 	if !ok {
 		slog.Debug("Command not found", "name", name, "chat", evt.Info.Chat.String())
 		return false
