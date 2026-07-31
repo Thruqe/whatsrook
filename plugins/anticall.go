@@ -178,7 +178,7 @@ Select an option below to change settings.`, strings.ToUpper(status), strings.To
 			Message: &waE2E.Message{
 				ButtonsMessage: &waE2E.ButtonsMessage{
 					ContentText: new(bodyText),
-					FooterText:  new("WhatsRook AntiCall Settings"),
+					FooterText:  new(fmt.Sprintf("%s AntiCall Settings", ctx.GetBotName())),
 					HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
 					Buttons: []*waE2E.ButtonsMessage_Button{
 						{

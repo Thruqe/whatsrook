@@ -51,3 +51,10 @@ func TestMatchesPrefix(t *testing.T) {
 		}
 	}
 }
+
+func TestGetBotNameDefault(t *testing.T) {
+	name := GetBotName(nil, nil)
+	if name != "WhatsRook" {
+		t.Errorf("GetBotName(nil, nil) = %q; want %q", name, "WhatsRook")
+	}
+}

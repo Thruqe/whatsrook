@@ -90,7 +90,7 @@ func handleSticker(ctx *Context) error {
 		return ctx.Reply("No media found in this message or the replied message.")
 	}
 
-	packName, author := parseStickerMetadata(ctx.RawArgs)
+	packName, author := parseStickerMetadata(ctx, ctx.RawArgs)
 	isVideo := strings.HasPrefix(mimetype, "video") || strings.Contains(mimetype, "gif")
 
 	_ = ctx.Reply("Processing sticker...")
@@ -108,7 +108,7 @@ func handleCircle(ctx *Context) error {
 		return ctx.Reply("No media found in this message or the replied message.")
 	}
 
-	packName, author := parseStickerMetadata(ctx.RawArgs)
+	packName, author := parseStickerMetadata(ctx, ctx.RawArgs)
 	isVideo := strings.HasPrefix(mimetype, "video") || strings.Contains(mimetype, "gif")
 
 	_ = ctx.Reply("Processing circular sticker...")
@@ -128,7 +128,7 @@ func handleCrop(ctx *Context) error {
 		return ctx.Reply("No media found in this message or the replied message.")
 	}
 
-	packName, author := parseStickerMetadata(ctx.RawArgs)
+	packName, author := parseStickerMetadata(ctx, ctx.RawArgs)
 	isVideo := strings.HasPrefix(mimetype, "video") || strings.Contains(mimetype, "gif")
 
 	_ = ctx.Reply("Processing cropped sticker...")
@@ -207,8 +207,8 @@ func handleBlack(ctx *Context) error {
 	return ctx.ReplyWithVideo(blackData, "video/mp4", "")
 }
 
-func parseStickerMetadata(raw string) (string, string) {
-	packName := "WhatsRook"
+func parseStickerMetadata(ctx *Context, raw string) (string, string) {
+	packName := ctx.GetBotName()
 	author := "Thruqe"
 	if raw != "" {
 		parts := strings.Split(raw, "|")
@@ -219,7 +219,7 @@ func parseStickerMetadata(raw string) (string, string) {
 			packName = strings.TrimSpace(parts[1])
 		}
 	}
-	return packName, author
+	return author, packName
 }
 
 func handleSteal(ctx *Context) error {
@@ -237,7 +237,7 @@ func handleSteal(ctx *Context) error {
 		return ctx.Reply("The replied message is not a valid sticker (WebP).")
 	}
 
-	packName, author := parseStickerMetadata(ctx.RawArgs)
+	packName, author := parseStickerMetadata(ctx, ctx.RawArgs)
 
 	_ = ctx.Reply("Remapping sticker metadata...")
 

@@ -389,7 +389,7 @@ func renderTimezonePage(ctx *Context, s *sqlstore.SQLStore, page int) error {
 	sb.WriteString("\nTap a button above to select your timezone, or type:\n")
 	fmt.Fprintf(&sb, "`%stimezone <Name>` (e.g. `%stimezone Africa/Lagos`)", p, p)
 
-	return sendInteractiveButtons(ctx, sb.String(), "Powered by WhatsRook", buttons)
+	return sendInteractiveButtons(ctx, sb.String(), fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
 }
 
 func getUserTimezone(ctx context.Context, s *sqlstore.SQLStore) string {

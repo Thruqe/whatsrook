@@ -613,7 +613,7 @@ func renderCSAIPage(ctx *Context, s *sqlstore.SQLStore, page int) error {
 	fmt.Fprintf(&sb, "- `%scsai custom <prompt>` (e.g. `%scsai custom Refer to me as Sir`)\n", p, p)
 	fmt.Fprintf(&sb, "- `%scsai reset` (to restore default AI behavior)", p)
 
-	return sendInteractiveButtons(ctx, sb.String(), "Powered by WhatsRook", buttons)
+	return sendInteractiveButtons(ctx, sb.String(), fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
 }
 
 func handleAI(ctx *Context) error {
@@ -622,6 +622,7 @@ func handleAI(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("Usage:\n- %sai <question>\n- %sask <question>\n\nExamples:\n- %sai What is the speed of light?\n- %sask Explain quantum computing in simple terms\n- Reply to an image or message with %sai Analyze this", p, p, p, p, p))
 	}
 
+	botName := ctx.GetBotName()
 	// Build (or reuse cached) instruction block describing available
 	// bot commands.
 	instruction := meta.GetOrBuildInstruction(func() string {
@@ -635,7 +636,7 @@ func handleAI(ctx *Context) error {
 				IsPublic:    c.IsPublic,
 			})
 		}
-		return meta.BuildRunCommandInstruction(metaCmds)
+		return meta.BuildRunCommandInstructionWithName(metaCmds, botName)
 	})
 
 	pushName := ""

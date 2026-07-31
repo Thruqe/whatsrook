@@ -62,3 +62,21 @@ func isWordPrefix(s string) bool {
 	}
 	return false
 }
+
+// GetBotName returns the configured bot display name from database settings, or "WhatsRook" default.
+func (c *Context) GetBotName() string {
+	if c.Client == nil || c.Client.Store == nil || c.Client.Store.Identities == nil {
+		return "WhatsRook"
+	}
+	s, ok := c.Client.Store.Identities.(interface {
+		GetSetting(ctx context.Context, key string) (string, error)
+	})
+	if !ok {
+		return "WhatsRook"
+	}
+	raw, err := s.GetSetting(c.Ctx, "bot_name")
+	if err != nil || strings.TrimSpace(raw) == "" {
+		return "WhatsRook"
+	}
+	return strings.TrimSpace(raw)
+}

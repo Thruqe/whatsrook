@@ -69,7 +69,7 @@ func handleMenu(ctx *Context) error {
 	}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "╭━━━〔 %s 〕━━━\n", toFancy("WhatsRook"))
+	fmt.Fprintf(&sb, "╭━━━〔 %s 〕━━━\n", toFancy(ctx.GetBotName()))
 	fmt.Fprintf(&sb, "│╭──────────────\n")
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("User    : %s", user)))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Version : %s", "4.0.0")))

@@ -3,6 +3,7 @@ package commands
 
 import (
 	"context"
+	"strings"
 
 	"whatsrook/sender"
 	"whatsrook/store/sqlstore"
@@ -42,4 +43,19 @@ func isWordPrefix(s string) bool {
 		}
 	}
 	return false
+}
+
+func GetBotName(ctx context.Context, client *whatsmeow.Client) string {
+	if client == nil || client.Store == nil || client.Store.Identities == nil {
+		return "WhatsRook"
+	}
+	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return "WhatsRook"
+	}
+	raw, err := s.GetSetting(ctx, "bot_name")
+	if err != nil || strings.TrimSpace(raw) == "" {
+		return "WhatsRook"
+	}
+	return strings.TrimSpace(raw)
 }

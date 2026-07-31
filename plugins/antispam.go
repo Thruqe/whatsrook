@@ -143,7 +143,7 @@ Select an action below to toggle settings.`, groupName, strings.ToUpper(status),
 			Message: &waE2E.Message{
 				ButtonsMessage: &waE2E.ButtonsMessage{
 					ContentText: new(bodyText),
-					FooterText:  new("WhatsRook AntiSpam Moderation"),
+					FooterText:  new(fmt.Sprintf("%s AntiSpam Moderation", ctx.GetBotName())),
 					HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
 					Buttons: []*waE2E.ButtonsMessage_Button{
 						{

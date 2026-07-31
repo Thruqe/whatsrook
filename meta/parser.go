@@ -30,12 +30,21 @@ type CommandInfo struct {
 // answer questions about how to use a command, using real data instead
 // of guessing.
 func BuildRunCommandInstruction(cmds []CommandInfo) string {
+	return BuildRunCommandInstructionWithName(cmds, "WhatsRook")
+}
+
+func BuildRunCommandInstructionWithName(cmds []CommandInfo, botName string) string {
+	if botName == "" {
+		botName = "WhatsRook"
+	}
 	promptTmpl := embeddedMetaAiPrompt
 	if data, err := os.ReadFile("prompts/meta_ai.txt"); err == nil && len(data) > 0 {
 		promptTmpl = string(data)
 	} else if data, err := os.ReadFile("meta/prompts/meta_ai.txt"); err == nil && len(data) > 0 {
 		promptTmpl = string(data)
 	}
+
+	promptTmpl = strings.ReplaceAll(promptTmpl, "WhatsRook", botName)
 
 	var cmdsBuf strings.Builder
 	for _, c := range cmds {

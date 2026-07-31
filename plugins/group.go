@@ -592,7 +592,7 @@ func handlePoll(ctx *Context) error {
 			Message: &waE2E.Message{
 				ButtonsMessage: &waE2E.ButtonsMessage{
 					ContentText: new(sb.String()),
-					FooterText:  new("WhatsRook Interactive Poll"),
+					FooterText:  new(fmt.Sprintf("%s Interactive Poll", ctx.GetBotName())),
 					HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
 					Buttons: []*waE2E.ButtonsMessage_Button{
 						{

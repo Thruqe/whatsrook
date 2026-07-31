@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Configurable Bot Display Name (`plugins/botname.go`, `sender/context.go`, `meta/parser.go`, `plugins/dispatch.go`):
+  - Added `.botname` / `.setbotname` command allowing users to view and customize their bot's display name (e.g., `.botname Jarvis` or `.botname reset`).
+  - Integrated `ctx.GetBotName()` across `.menu`, AI response system prompts, sticker metadata, buttons/footers, and connection banners.
+  - Meta AI system instructions dynamically adopt the custom bot name (e.g., "Your name is Jarvis...").
+  - AutoAI trigger keywords automatically match the configured bot name in addition to "WhatsRook" / "Rook".
 - Updated Protobuf pointer constructors to `new(...)` (`plugins/savecontact.go`, `sender/abstract.go`): replaced legacy `proto.Bool` / `proto.String` helper constructors with Go's `new(...)` pointer initializer.
 - Rebuilt `.savecontact` with Protobuf AppState SyncAction (`plugins/savecontact.go`):
   - Removed outdated privacy check heuristics.

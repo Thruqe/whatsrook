@@ -378,7 +378,7 @@ func renderMovieSearchResults(ctx *Context, query string, page int) error {
 	sb.WriteString("\nTo select a result, tap a button above or type:\n")
 	fmt.Fprintf(&sb, "`%smovie <number>` (e.g. `%smovie 4`)", p, p)
 
-	return sendInteractiveButtons(ctx, sb.String(), "Powered by WhatsRook", buttons)
+	return sendInteractiveButtons(ctx, sb.String(), fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
 }
 
 func handleMovieSelect(ctx *Context, sourceStr, subjectID, detailPath string) error {
@@ -450,7 +450,7 @@ func handleMovieSelect(ctx *Context, sourceStr, subjectID, detailPath string) er
 		},
 	}
 
-	return sendInteractiveButtons(ctx, sb.String(), "Powered by WhatsRook", buttons)
+	return sendInteractiveButtons(ctx, sb.String(), fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
 }
 
 func handleMovieInfo(ctx *Context, sourceStr, subjectID, detailPath string) error {
@@ -530,7 +530,7 @@ func handleMovieDL(ctx *Context, sourceStr, subjectID, detailPath string) error 
 		}
 
 		bodyText := "*Download Options*\nChoose a resolution below to download the file directly:"
-		return sendInteractiveButtons(ctx, bodyText, "Powered by WhatsRook", buttons)
+		return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
 	}
 
 	return ctx.Reply("No direct download links available for this title.")
