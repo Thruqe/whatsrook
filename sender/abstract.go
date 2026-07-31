@@ -897,29 +897,17 @@ func (ctx *Context) ResolveMention(jid types.JID) (types.JID, string) {
 	return ResolveMentionRaw(ctx.Ctx, ctx.Client, jid)
 }
 
-// SendTextWithGroupMention sends a text message featuring WhatsApp's native @all group mention.
-func (ctx *Context) SendTextWithGroupMention(text string, groupJID types.JID, groupSubject string, participantJIDs []types.JID) error {
+// SendTextWithGroupMention sends a text message featuring WhatsApp's native @all group mention via NonJIDMentions.
+func (ctx *Context) SendTextWithGroupMention(text string) error {
 	ctx.simulateTyping()
 	formatted := ctx.formatMentionTextResponse(text)
 
-	var mentioned []string
-	for _, j := range participantJIDs {
-		if !j.IsEmpty() {
-			mentioned = append(mentioned, j.ToNonAD().String())
-		}
-	}
-
+	var nonJID uint32 = 1
 	cInfo := &waE2E.ContextInfo{
-		MentionedJID: mentioned,
-		GroupMentions: []*waE2E.GroupMention{
-			{
-				GroupJID:     new(groupJID.String()),
-				GroupSubject: new(groupSubject),
-			},
-		},
+		NonJIDMentions: &nonJID,
 	}
 
-	slog.Debug("Sending SendTextWithGroupMention", "chat", ctx.Chat.String(), "group_subject", groupSubject, "participants_count", len(mentioned))
+	slog.Debug("Sending SendTextWithGroupMention", "chat", ctx.Chat.String())
 	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text:        &formatted,
@@ -933,31 +921,18 @@ func (ctx *Context) SendTextWithGroupMention(text string, groupJID types.JID, gr
 }
 
 // ReplyWithGroupMention sends a text message featuring WhatsApp's native @all group mention replying to the current message.
-func (ctx *Context) ReplyWithGroupMention(text string, groupJID types.JID, groupSubject string, participantJIDs []types.JID) error {
+func (ctx *Context) ReplyWithGroupMention(text string) error {
 	ctx.simulateTyping()
 	formatted := ctx.formatMentionTextResponse(text)
 
-	var mentioned []string
-	for _, j := range participantJIDs {
-		if !j.IsEmpty() {
-			mentioned = append(mentioned, j.ToNonAD().String())
-		}
-	}
-
+	var nonJID uint32 = 1
 	cInfo := ctx.replyContextInfo()
 	if cInfo == nil {
 		cInfo = &waE2E.ContextInfo{}
 	}
+	cInfo.NonJIDMentions = &nonJID
 
-	cInfo.MentionedJID = mentioned
-	cInfo.GroupMentions = []*waE2E.GroupMention{
-		{
-			GroupJID:     new(groupJID.String()),
-			GroupSubject: new(groupSubject),
-		},
-	}
-
-	slog.Debug("Sending ReplyWithGroupMention", "chat", ctx.Chat.String(), "group_subject", groupSubject, "participants_count", len(mentioned))
+	slog.Debug("Sending ReplyWithGroupMention", "chat", ctx.Chat.String())
 	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text:        &formatted,

@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated `sendInteractiveButtonsWithMentions` to populate `ButtonsMessage.ContextInfo.MentionedJID` when sending interactive button cards containing user mentions.
   - Preserved raw JID/LID format in `ResolveMentionRaw` and `MentionedJID` arrays so LID/JID references are correctly parsed and rendered by WhatsApp clients.
 - Native `@all` Group Mention for `.tagall` (`plugins/group.go`, `sender/abstract.go`):
-  - Updated `.tagall` command to use WhatsApp's native `@all` group mention (`GroupMentions` in `ContextInfo`) instead of listing individual participant mentions in text.
+  - Updated `.tagall` command to use WhatsApp's exact native `@all` group mention stanza using `NonJIDMentions: 1` in `ContextInfo` matching the official WhatsApp web/app payload.
 - AutoBio Command & Scheduler (`plugins/autobio.go`, `plugins/dispatch.go`):
   - Created `.autobio` command (`.autobio on`, `.autobio off`, `.autobio toggle`, `.autobio tz <TZ>`, `.autobio status`, `.autobio now`).
   - Added background 1-minute ticker scheduler (`StartAutoBioScheduler`) that automatically updates the WhatsApp status bio (`client.SetStatusMessage`) with local time and inspirational quotes.

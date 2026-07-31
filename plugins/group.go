@@ -141,19 +141,7 @@ func handleTagAll(ctx *Context) error {
 		sb.WriteString("*")
 	}
 
-	var participantJIDs []types.JID
-	for _, p := range info.Participants {
-		if !p.JID.IsEmpty() {
-			participantJIDs = append(participantJIDs, p.JID)
-		}
-	}
-
-	groupSubject := info.GroupName.Name
-	if groupSubject == "" {
-		groupSubject = "Group"
-	}
-
-	return ctx.ReplyWithGroupMention(sb.String(), ctx.Chat, groupSubject, participantJIDs)
+	return ctx.ReplyWithGroupMention(sb.String())
 }
 
 func handleKick(ctx *Context) error {
