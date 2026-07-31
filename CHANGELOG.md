@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Connection Notification Owner DM Mention (`events.go`):
+  - Updated `notifyOwnerConnected` to parse owner JID, mention `@owner` in the notification text, and populate `ContextInfo.MentionedJID` array so WhatsApp client highlights the mention.
+- Pre-Execution Default Bot Name Interception Fix (`plugins/dispatch.go`):
+  - Moved default bot name setup interception (`WhatsRook`, `whatsrook`, `rook`) to run before any command or handler execution in `Dispatch`.
+  - Added support for all bot name command aliases (`botname`, `setbotname`, `setname`, `name`) so name setup commands bypass interception while all other commands trigger the setup prompt until customized or ignored.
 - Uncustomized Bot Name Interactive Setup Flow (`plugins/botname.go`, `plugins/dispatch.go`):
   - Intercepts incoming commands when the bot name is uncustomized / default (`WhatsRook`, `whatsrook`, `rook`).
   - Displays interactive buttons: `"It's highly recommended to give your own copy of WhatsRook its own name... [Customize Bot] [Continue]"`.

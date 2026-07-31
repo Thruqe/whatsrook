@@ -239,13 +239,15 @@ func (b *Bot) notifyOwnerConnected() {
 
 	meta := utils.GetSystemMetadata(verStr)
 	msgText := fmt.Sprintf(
-		"WhatsRook Connected Successfully\n\n"+
+		"Hello @%s 👋\n\n"+
+			"WhatsRook Connected Successfully!\n\n"+
 			"Version: %s\n"+
 			"Git Commit: %s\n"+
 			"Session: %s\n"+
 			"OS/Arch: %s/%s\n"+
 			"CPU Cores: %d\n"+
 			"Go Runtime: %s",
+		ownerJID.User,
 		meta.Version,
 		meta.Commit,
 		b.cli.Session,
@@ -257,7 +259,12 @@ func (b *Bot) notifyOwnerConnected() {
 
 	formatted := sender.FormatTextResponseRaw(msgText)
 	if _, err := b.client.SendMessage(context.Background(), ownerJID, &waE2E.Message{
-		Conversation: &formatted,
+		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+			Text: &formatted,
+			ContextInfo: &waE2E.ContextInfo{
+				MentionedJID: []string{ownerJID.String()},
+			},
+		},
 	}); err != nil {
 		slog.Error("failed to send connection metadata notification to owner DM", "err", err)
 	} else {

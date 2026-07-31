@@ -257,9 +257,12 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 					if p != "" && matchesPrefix(trimmedText, p) {
 						body := strings.TrimLeft(strings.TrimSpace(trimmedText[len(p):]), ",:;! \t")
 						fields := strings.Fields(body)
-						if len(fields) > 0 && strings.HasPrefix(strings.ToLower(fields[0]), "botname") {
-							isBotNameCmd = true
-							break
+						if len(fields) > 0 {
+							cmdWord := strings.ToLower(fields[0])
+							if cmdWord == "botname" || cmdWord == "setbotname" || cmdWord == "setname" || cmdWord == "name" {
+								isBotNameCmd = true
+								break
+							}
 						}
 					}
 				}
