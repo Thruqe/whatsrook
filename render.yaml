@@ -11,7 +11,3 @@ services:
         value: "true"
       - key: CLIENT
         value: "ios"
-    disk:
-      name: whatsrook-auth
-      mountPath: /app/auth
-      sizeGB: 1
