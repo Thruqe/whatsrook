@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- AutoBio Command & Scheduler (`plugins/autobio.go`, `plugins/dispatch.go`):
+  - Created `.autobio` command (`.autobio on`, `.autobio off`, `.autobio toggle`, `.autobio tz <TZ>`, `.autobio status`, `.autobio now`).
+  - Added background 1-minute ticker scheduler (`StartAutoBioScheduler`) that automatically updates the WhatsApp status bio (`client.SetStatusMessage`) with local time and inspirational quotes.
+  - Supports configurable timezones (e.g. `Africa/Lagos`, `America/New_York`, `UTC`, `Europe/London`).
+  - Includes interactive setting menu buttons for status toggling and manual status bio updates.
 - Word Chain Game (`.wcg`) End Command & Button (`plugins/wcg.go`):
   - Added `.wcg end` subcommand (alongside `.wcg cancel` / `.wcg stop`) allowing any player to terminate an active WCG match or lobby window.
   - Added interactive `"End Game"` button (`.wcg end`) to WCG lobby menus and in-game turn notifications so players can end the game directly with a single tap.

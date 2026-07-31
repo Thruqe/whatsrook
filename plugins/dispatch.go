@@ -131,6 +131,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	if okStore {
 		initTables(ctx, s)
 		StartAutoMuteScheduler(ctx, client)
+		StartAutoBioScheduler(ctx, client)
 		if fontStyle, err := s.GetSetting(ctx, "font_style"); err == nil && fontStyle != "" {
 			utils.SetFontStyle(fontStyle)
 		}
