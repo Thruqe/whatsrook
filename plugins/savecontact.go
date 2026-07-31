@@ -88,62 +88,58 @@ func handleSaveContact(ctx *Context) error {
 
 	slog.Debug("handleSaveContact: processing contact save", "target", targetJID.String(), "fullName", fullName, "firstName", firstName)
 
-	var contactAction *waSyncAction.ContactAction
-	var patch appstate.PatchInfo
+	var pnStr string
+	var lidStr string
+	var pnJID types.JID
 
 	if targetJID.Server == types.HiddenUserServer {
-		lidStr := targetJID.String()
-		contactAction = &waSyncAction.ContactAction{
-			FullName:                 new(fullName),
-			FirstName:                new(firstName),
-			LidJID:                   new(lidStr),
-			SaveOnPrimaryAddressbook: new(true),
-		}
+		lidStr = targetJID.String()
 		if ctx.Client.Store != nil && ctx.Client.Store.LIDs != nil {
-			if pnJID, err := ctx.Client.Store.LIDs.GetPNForLID(ctx.Ctx, targetJID); err == nil && !pnJID.IsEmpty() {
-				contactAction.PnJID = new(pnJID.ToNonAD().String())
+			if pn, err := ctx.Client.Store.LIDs.GetPNForLID(ctx.Ctx, targetJID); err == nil && !pn.IsEmpty() {
+				pnJID = pn
+				pnStr = pn.ToNonAD().String()
 			}
-		}
-		patch = appstate.PatchInfo{
-			Type: appstate.WAPatchCriticalUnblockLow,
-			Mutations: []appstate.MutationInfo{
-				{
-					Index:   []string{appstate.IndexLIDContact, lidStr},
-					Version: 2,
-					Value: &waSyncAction.SyncActionValue{
-						ContactAction: contactAction,
-					},
-				},
-			},
 		}
 	} else {
-		pnStr := targetJID.ToNonAD().String()
-		contactAction = &waSyncAction.ContactAction{
-			FullName:                 new(fullName),
-			FirstName:                new(firstName),
-			PnJID:                    new(pnStr),
-			SaveOnPrimaryAddressbook: new(true),
-		}
+		pnStr = targetJID.ToNonAD().String()
 		if ctx.Client.Store != nil && ctx.Client.Store.LIDs != nil {
-			if lidJID, err := ctx.Client.Store.LIDs.GetLIDForPN(ctx.Ctx, targetJID); err == nil && !lidJID.IsEmpty() {
-				contactAction.LidJID = new(lidJID.String())
+			if lid, err := ctx.Client.Store.LIDs.GetLIDForPN(ctx.Ctx, targetJID); err == nil && !lid.IsEmpty() {
+				lidStr = lid.String()
 			}
-		}
-		patch = appstate.PatchInfo{
-			Type: appstate.WAPatchCriticalUnblockLow,
-			Mutations: []appstate.MutationInfo{
-				{
-					Index:   []string{appstate.IndexContact, pnStr},
-					Version: 2,
-					Value: &waSyncAction.SyncActionValue{
-						ContactAction: contactAction,
-					},
-				},
-			},
 		}
 	}
 
-	slog.Debug("handleSaveContact: sending AppState patch", "type", patch.Type, "target", targetJID.String())
+	contactAction := &waSyncAction.ContactAction{
+		FullName:                 new(fullName),
+		FirstName:                new(firstName),
+		SaveOnPrimaryAddressbook: new(true),
+	}
+	if pnStr != "" {
+		contactAction.PnJID = new(pnStr)
+	}
+	if lidStr != "" {
+		contactAction.LidJID = new(lidStr)
+	}
+
+	indexJID := pnStr
+	if indexJID == "" {
+		indexJID = lidStr
+	}
+
+	patch := appstate.PatchInfo{
+		Type: appstate.WAPatchCriticalUnblockLow,
+		Mutations: []appstate.MutationInfo{
+			{
+				Index:   []string{appstate.IndexContact, indexJID},
+				Version: 2,
+				Value: &waSyncAction.SyncActionValue{
+					ContactAction: contactAction,
+				},
+			},
+		},
+	}
+
+	slog.Debug("handleSaveContact: sending AppState patch", "type", patch.Type, "indexJID", indexJID, "target", targetJID.String())
 	err := ctx.Client.SendAppState(ctx.Ctx, patch)
 	if err != nil {
 		slog.Error("handleSaveContact: failed to send AppState patch", "err", err, "target", targetJID.String())
@@ -151,12 +147,15 @@ func handleSaveContact(ctx *Context) error {
 		slog.Debug("handleSaveContact: AppState patch sent successfully", "target", targetJID.String())
 	}
 
-	// Update local device contact store cache
+	// Update local device contact store cache (correct argument order: firstName, fullName)
 	if ctx.Client.Store != nil && ctx.Client.Store.Contacts != nil {
-		if err := ctx.Client.Store.Contacts.PutContactName(ctx.Ctx, targetJID.ToNonAD(), fullName, firstName); err != nil {
+		if err := ctx.Client.Store.Contacts.PutContactName(ctx.Ctx, targetJID.ToNonAD(), firstName, fullName); err != nil {
 			slog.Error("handleSaveContact: failed to update local contact store", "err", err, "target", targetJID.String())
 		} else {
 			slog.Debug("handleSaveContact: updated local contact store cache", "target", targetJID.String())
+		}
+		if !pnJID.IsEmpty() {
+			_ = ctx.Client.Store.Contacts.PutContactName(ctx.Ctx, pnJID.ToNonAD(), firstName, fullName)
 		}
 	}
 

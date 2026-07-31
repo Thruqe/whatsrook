@@ -14,9 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - If an explicit name is not provided as an argument, `.savecontact` attempts to auto-detect the user's PushName from event info or local contact store cache.
   - If no PushName can be auto-detected and no name argument is provided, prompts the user to specify a name.
 - Updated `.savecontact` JID/LID AppState mutation handling (`plugins/savecontact.go`):
-  - Uses `PnJID` for Phone JID targets (`s.whatsapp.net`) under `appstate.IndexContact` (`"contact"`).
-  - Uses `LidJID` for LID targets (`@lid`) under `appstate.IndexLIDContact` (`"lid_contact"`).
-  - Queries `Store.LIDs` to map both `PnJID` and `LidJID` fields when available.
+  - Fixed mutation index key to `appstate.IndexContact` ("contact") so WhatsApp servers recognize contact sync actions.
+  - Fixed `PutContactName` argument order (`firstName, fullName`) when caching contact names in the local database store.
+  - Automatically maps both `PnJID` and `LidJID` in `waSyncAction.ContactAction` when available.
   - Converted internal logging to `log/slog` (`slog.Debug`, `slog.Error`).
 - Call Command Debug Logging (`plugins/callplace.go`, `plugins/callaudioreply.go`):
   - Replaced stdout `log.Printf` calls across call handlers with `slog.Debug` and `slog.Error` from `"log/slog"`.
