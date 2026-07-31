@@ -211,6 +211,10 @@ func HandleIncomingCallAutoAccept(call *meowcaller.Call) {
 		})
 	}
 
+	// OnReady fires only on the first inbound RTP packet. Since the bot is acting as
+	// an answering machine, the caller may wait for us to speak first — so OnReady
+	// might never fire. We still register it as a fallback for outbound-initiated flows,
+	// but we start media directly in the forced-accept goroutine below.
 	call.OnReady(func() {
 		startMedia()
 	})
@@ -252,9 +256,23 @@ func HandleIncomingCallAutoAccept(call *meowcaller.Call) {
 
 		if sendErr := client.DangerousInternals().SendNode(context.Background(), acceptNode); sendErr != nil {
 			slog.Error("autoacceptcall: failed to send forced accept", "call_id", callID, "err", sendErr)
-		} else {
-			slog.Info("autoacceptcall: forced <accept> sent successfully", "call_id", callID)
+			return
 		}
+		slog.Info("autoacceptcall: forced <accept> sent successfully", "call_id", callID)
+
+		// Give the relay media loop a moment to bind before starting playback.
+		// meowcaller's maybeStartMedia was already triggered by answer()+relaylatency,
+		// so the media goroutine should be running. We call startMedia here because
+		// OnReady fires only on the FIRST inbound RTP — if the caller is waiting for
+		// us to speak first, OnReady never fires and we'd never start playing.
+		time.Sleep(500 * time.Millisecond)
+
+		if call.State() == meowcaller.CallPhaseEnded {
+			slog.Debug("autoacceptcall: call ended before media start", "call_id", callID)
+			return
+		}
+		slog.Info("autoacceptcall: starting media after accept", "call_id", callID)
+		startMedia()
 	}()
 }
 
