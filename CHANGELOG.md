@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- AutoAcceptCall OnReady Pipeline Sync & AntiCall Bypass Fix (`plugins/autoacceptcall.go`, `events.go`):
+  - Updated `events.go` to skip `handleAntiCall` when `autoacceptcall` status is `on`, preventing conflict between call rejection and call answering.
+  - Registered `call.OnReady` callback before calling `call.Answer()` in `HandleIncomingCallAutoAccept`, ensuring audio and video media playback begins strictly after `meowcaller` establishes the active VoIP transport.
 - `meowcaller` Inbound Call Architecture Alignment (`plugins/callplace.go`, `plugins/autoacceptcall.go`):
   - Aligned incoming call handling strictly with `meowcaller` specification: registered `HandleIncomingCallAutoAccept` handler via `mc.OnIncomingCall` on `meowcaller.Client` initialization.
   - Ensures `meowcaller` receives incoming call offers, sends `<preaccept>` eagerly, invokes the `OnIncomingCall` callback, answers via `call.Answer()`, streams configured audio/video media, and hangs up cleanly when completed.

@@ -289,6 +289,12 @@ func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
 		return
 	}
 
+	autoAcceptStatus, _ := s.GetSetting(ctx, commands.AutoAcceptCallSettingKey)
+	if autoAcceptStatus == "on" {
+		slog.Debug("anticall: skipping reject because autoacceptcall is enabled", "call_id", v.CallID)
+		return
+	}
+
 	status, _ := s.GetSetting(ctx, "anticall_status")
 	if status != "on" {
 		return
