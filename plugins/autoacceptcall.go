@@ -301,45 +301,39 @@ func clearMeowcallerAcceptPending(call *meowcaller.Call) {
 	}
 	vCallElem := vCall.Elem()
 	fEng := vCallElem.FieldByName("eng")
-	if !fEng.IsValid() || fEng.IsNil() {
+	if !fEng.IsValid() {
 		return
 	}
 
-	engPtr := fEng.Pointer()
-	if engPtr == 0 {
+	engPtr := reflect.NewAt(fEng.Type(), unsafe.Pointer(fEng.UnsafeAddr())).Elem()
+	if engPtr.IsNil() {
 		return
 	}
 
-	engType := fEng.Type().Elem()
-	fMu, hasMu := engType.FieldByName("mu")
-	fCalls, hasCalls := engType.FieldByName("calls")
-	if !hasMu || !hasCalls {
+	engElem := engPtr.Elem()
+	fMu := engElem.FieldByName("mu")
+	fCalls := engElem.FieldByName("calls")
+	if !fMu.IsValid() || !fCalls.IsValid() {
 		return
 	}
 
-	mu := (*sync.Mutex)(unsafe.Pointer(engPtr + fMu.Offset))
+	mu := (*sync.Mutex)(unsafe.Pointer(fMu.UnsafeAddr()))
 	mu.Lock()
 	defer mu.Unlock()
 
-	callsMapVal := reflect.NewAt(fCalls.Type(), unsafe.Pointer(engPtr+fCalls.Offset)).Elem()
 	callID := call.ID()
-	mVal := callsMapVal.MapIndex(reflect.ValueOf(callID))
+	mVal := fCalls.MapIndex(reflect.ValueOf(callID))
 	if !mVal.IsValid() || mVal.IsNil() {
 		return
 	}
 
-	engineCallPtr := mVal.Pointer()
-	if engineCallPtr == 0 {
+	engineCallStruct := reflect.NewAt(mVal.Type().Elem(), unsafe.Pointer(mVal.Pointer())).Elem()
+	fPending := engineCallStruct.FieldByName("acceptPending")
+	if !fPending.IsValid() {
 		return
 	}
 
-	engineCallType := mVal.Type().Elem()
-	fPending, hasPending := engineCallType.FieldByName("acceptPending")
-	if !hasPending {
-		return
-	}
-
-	pPending := (*bool)(unsafe.Pointer(engineCallPtr + fPending.Offset))
+	pPending := (*bool)(unsafe.Pointer(fPending.UnsafeAddr()))
 	*pPending = false
 	slog.Info("autoacceptcall: cleared acceptPending via reflection to prevent duplicate accept", "call_id", callID)
 }
