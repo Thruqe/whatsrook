@@ -99,12 +99,14 @@ func handleAutoAcceptCallCmd(ctx *Context) error {
 	}
 }
 
-// HandleAutoAcceptIncomingCall handles an incoming CallOffer when autoacceptcall is ON.
-func HandleAutoAcceptIncomingCall(ctx context.Context, client *whatsmeow.Client, v *events.CallOffer) {
-	if client == nil || v == nil || client.Store.ID == nil {
+// HandleIncomingCallAutoAccept handles incoming call offers via meowcaller.Client.OnIncomingCall.
+func HandleIncomingCallAutoAccept(call *meowcaller.Call) {
+	if call == nil || meowCallerWA == nil {
 		return
 	}
 
+	ctx := context.Background()
+	client := meowCallerWA
 	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
 		return
@@ -124,86 +126,83 @@ func HandleAutoAcceptIncomingCall(ctx context.Context, client *whatsmeow.Client,
 		return
 	}
 
-	slog.Info("autoacceptcall: answering incoming call offer", "from", v.CallCreator.String(), "call_id", v.CallID)
+	slog.Info("autoacceptcall: answering incoming call via meowcaller", "from", call.Peer().String(), "call_id", call.ID(), "is_video", call.IsVideo())
 
-	mc := getMeowCallerClient(client)
-	mc.OnIncomingCall(func(call *meowcaller.Call) {
-		if call.ID() != v.CallID {
-			return
+	if err := call.Answer(); err != nil {
+		slog.Error("autoacceptcall: failed to answer call", "call_id", call.ID(), "err", err)
+		return
+	}
+
+	if call.IsVideo() {
+		mp3Path, h264Path, prepErr := utils.PrepareCallVideo(videoPath)
+		if prepErr != nil {
+			slog.Error("autoacceptcall: failed to prepare video", "err", prepErr)
 		}
 
-		slog.Info("autoacceptcall: accepting call via meowcaller", "call_id", call.ID())
-		if err := call.Answer(); err != nil {
-			slog.Error("autoacceptcall: failed to answer call", "err", err)
-			return
+		duration, durErr := utils.AudioDuration(videoPath)
+		if durErr != nil {
+			duration = 30 * time.Second
 		}
 
-		if call.IsVideo() {
-			mp3Path, h264Path, prepErr := utils.PrepareCallVideo(videoPath)
-			if prepErr != nil {
-				slog.Error("autoacceptcall: failed to prepare video", "err", prepErr)
+		_ = call.SetVideoEnabled(true)
+
+		audioFile := mp3Path
+		if audioFile == "" {
+			audioFile = videoPath
+		}
+		if src, err := openAudioSource(audioFile); err == nil {
+			call.Play(src)
+		}
+
+		if h264Path != "" {
+			if h264Data, rErr := os.ReadFile(h264Path); rErr == nil && len(h264Data) > 0 {
+				frames := utils.SplitAnnexBAccessUnits(h264Data)
+				if len(frames) > 0 {
+					go func() {
+						frameDur := 66 * time.Millisecond
+						ticker := time.NewTicker(frameDur)
+						defer ticker.Stop()
+
+						frameIdx := 0
+						endTime := time.Now().Add(duration + 2*time.Second)
+
+						for time.Now().Before(endTime) {
+							select {
+							case <-ctx.Done():
+								_ = call.Hangup()
+								return
+							case <-ticker.C:
+								if call.State() == meowcaller.CallPhaseEnded {
+									return
+								}
+								_ = call.SendVideoWithDuration(frames[frameIdx], frameDur)
+								frameIdx = (frameIdx + 1) % len(frames)
+							}
+						}
+						_ = call.Hangup()
+					}()
+				}
 			}
-
-			duration, durErr := utils.AudioDuration(videoPath)
+		}
+	} else {
+		if src, err := openAudioSource(audioPath); err == nil {
+			call.Play(src)
+			duration, durErr := utils.AudioDuration(audioPath)
 			if durErr != nil {
 				duration = 30 * time.Second
 			}
-
-			_ = call.SetVideoEnabled(true)
-
-			audioFile := mp3Path
-			if audioFile == "" {
-				audioFile = videoPath
-			}
-			if src, err := openAudioSource(audioFile); err == nil {
-				call.Play(src)
-			}
-
-			if h264Path != "" {
-				if h264Data, rErr := os.ReadFile(h264Path); rErr == nil && len(h264Data) > 0 {
-					frames := utils.SplitAnnexBAccessUnits(h264Data)
-					if len(frames) > 0 {
-						go func() {
-							frameDur := 66 * time.Millisecond
-							ticker := time.NewTicker(frameDur)
-							defer ticker.Stop()
-
-							frameIdx := 0
-							endTime := time.Now().Add(duration + 2*time.Second)
-
-							for time.Now().Before(endTime) {
-								select {
-								case <-ctx.Done():
-									_ = call.Hangup()
-									return
-								case <-ticker.C:
-									if call.State() == meowcaller.CallPhaseEnded {
-										return
-									}
-									_ = call.SendVideoWithDuration(frames[frameIdx], frameDur)
-									frameIdx = (frameIdx + 1) % len(frames)
-								}
-							}
-							_ = call.Hangup()
-						}()
-					}
-				}
-			}
-		} else {
-			if src, err := openAudioSource(audioPath); err == nil {
-				call.Play(src)
-				duration, durErr := utils.AudioDuration(audioPath)
-				if durErr != nil {
-					duration = 30 * time.Second
-				}
-				go func() {
-					time.Sleep(duration + 2*time.Second)
-					_ = call.Hangup()
-				}()
-			} else {
-				slog.Error("autoacceptcall: failed to open audio source", "path", audioPath, "err", err)
+			go func() {
+				time.Sleep(duration + 2*time.Second)
 				_ = call.Hangup()
-			}
+			}()
+		} else {
+			slog.Error("autoacceptcall: failed to open audio source", "path", audioPath, "err", err)
+			_ = call.Hangup()
 		}
-	})
+	}
+}
+
+// HandleAutoAcceptIncomingCall is a compatibility helper for CallOffer events.
+func HandleAutoAcceptIncomingCall(ctx context.Context, client *whatsmeow.Client, v *events.CallOffer) {
+	// meowcaller handles incoming call offers automatically via OnIncomingCall.
 }

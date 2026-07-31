@@ -30,6 +30,7 @@ func RegisterMeowCaller(wa *whatsmeow.Client) *meowcaller.Client {
 
 	logger := zerolog.Nop()
 	mc := meowcaller.NewClient(wa, meowcaller.WithLogger(logger))
+	mc.OnIncomingCall(HandleIncomingCallAutoAccept)
 	meowCallerClient = mc
 	meowCallerWA = wa
 	return mc
