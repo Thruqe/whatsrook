@@ -256,7 +256,7 @@ func (ctx *Context) sendVideoInternal(data []byte, mimetype, caption string, gif
 		},
 	}
 	if gifPlayback {
-		msg.VideoMessage.GifPlayback = proto.Bool(true)
+		msg.VideoMessage.GifPlayback = new(true)
 	}
 	*msg.VideoMessage.FileLength = uint64(len(data))
 	slog.Debug("Sending SendVideo", "chat", ctx.Chat.String(), "url", uploaded.URL)

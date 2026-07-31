@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"google.golang.org/protobuf/proto"
-
 	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/proto/waSyncAction"
@@ -66,14 +64,14 @@ func handleSaveContact(ctx *Context) error {
 	}
 
 	contactAction := &waSyncAction.ContactAction{
-		FullName:                 proto.String(fullName),
-		FirstName:                proto.String(firstName),
-		SaveOnPrimaryAddressbook: proto.Bool(true),
+		FullName:                 new(fullName),
+		FirstName:                new(firstName),
+		SaveOnPrimaryAddressbook: new(true),
 	}
 	if targetJID.Server == types.HiddenUserServer {
-		contactAction.LidJID = proto.String(targetJID.String())
+		contactAction.LidJID = new(targetJID.String())
 	} else {
-		contactAction.PnJID = proto.String(targetJID.ToNonAD().String())
+		contactAction.PnJID = new(targetJID.ToNonAD().String())
 	}
 
 	patch := appstate.PatchInfo{

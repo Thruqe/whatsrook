@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Updated Protobuf pointer constructors to `new(...)` (`plugins/savecontact.go`, `sender/abstract.go`): replaced legacy `proto.Bool` / `proto.String` helper constructors with Go's `new(...)` pointer initializer.
 - Rebuilt `.savecontact` with Protobuf AppState SyncAction (`plugins/savecontact.go`):
   - Removed outdated privacy check heuristics.
   - Implemented WhatsApp AppState patch sync (`appstate.WAPatchCriticalUnblockLow`, `Version: 2`, `Index: [appstate.IndexContact, jid]`) containing `waSyncAction.SyncActionValue{ ContactAction: ... }`.
