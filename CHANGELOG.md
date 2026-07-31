@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Panel deployment support
 - Leaderboard User JID Normalization & Deduplication (`plugins/helper.go`, `plugins/tictactoe.go`, `plugins/wcg.go`, `plugins/unscramble.go`):
   - Created `NormalizeUserJID` to consistently map LID (`@lid`) and Phone JID (`@s.whatsapp.net`) entries to a single primary user identity.
   - Added in-memory entry merging in group leaderboards (`.leaderboard`, `.lb`) to combine XP, stats, and rankings so no player appears duplicated across LID and Phone JID rows.
