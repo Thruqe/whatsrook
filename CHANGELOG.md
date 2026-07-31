@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Rebuilt `.savecontact` with Protobuf AppState SyncAction (`plugins/savecontact.go`):
+  - Removed outdated privacy check heuristics.
+  - Implemented WhatsApp AppState patch sync (`appstate.WAPatchCriticalUnblockLow`, `Version: 2`, `Index: [appstate.IndexContact, jid]`) containing `waSyncAction.SyncActionValue{ ContactAction: ... }`.
+  - Dispatches contact synchronization via `ctx.Client.SendAppState(ctx.Ctx, patch)` to persist contact names across linked devices and servers.
 - Word Prefix Support (`plugins/prefix.go`, `plugins/dispatch.go`, `sender/context.go`):
   - Fixed `.prefix` command so word prefixes (e.g. `jarvis`, `bot`, `rook`) are preserved as full words rather than being split into single-character symbols.
   - Added case-insensitive word-boundary prefix matching in `Dispatch` (`plugins/dispatch.go`). Commands can now be triggered with word prefixes like `jarvis ping`, `Jarvis ping`, `JARVIS menu`, or `jarvis`.
