@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- AutoAcceptCall Command & Automatic Media Answer Handling (`plugins/autoacceptcall.go`, `events.go`):
+  - Created `.autoacceptcall` (`.autoaccept`, `.acceptcall`) command (`on`, `off`, `status`).
+  - Enforces prerequisite validation: requires the user to have configured both call audio (`.callaudio`) and call video (`.videocall`) media before enabling auto-accept.
+  - Integrated `HandleAutoAcceptIncomingCall` into `events.go` `*events.CallOffer` handler: automatically answers incoming voice or video calls using `meowcaller`, streams saved call audio/video media to the caller, and hangs up when playback completes.
 - Dynamic Bot Name `{NAME}` Template Placeholder in Meta AI System Prompt (`prompts/meta_ai.txt`, `meta/parser.go`, `meta/cache.go`):
   - Updated `prompts/meta_ai.txt` to use `{NAME}` placeholder for the bot identity prompt (`Your name is {NAME}...`).
   - Added `{NAME}` string replacement in `meta.BuildRunCommandInstructionWithName` to dynamically inject the user-configured bot display name into the Meta AI system prompt.

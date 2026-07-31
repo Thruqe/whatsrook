@@ -108,6 +108,7 @@ func (b *Bot) handleWAEvent(evt any) {
 
 	case *events.CallOffer:
 		slog.Info("call offer received", "from", v.CallCreator.String())
+		b.handleAutoAcceptCall(context.Background(), v)
 		b.handleAntiCall(context.Background(), v)
 		b.hub.Broadcast(EventMessage{
 			Kind: EventIncomingCall,
@@ -270,6 +271,13 @@ func (b *Bot) notifyOwnerConnected() {
 	} else {
 		slog.Info("sent connection metadata notification to owner DM", "owner", ownerJID.String())
 	}
+}
+
+func (b *Bot) handleAutoAcceptCall(ctx context.Context, v *events.CallOffer) {
+	if b.client == nil || v == nil {
+		return
+	}
+	commands.HandleAutoAcceptIncomingCall(ctx, b.client, v)
 }
 
 func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
