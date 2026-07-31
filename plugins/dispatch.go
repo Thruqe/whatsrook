@@ -216,6 +216,78 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	prefixes := activePrefixes(ctx, client)
 	slog.Debug("Checking active prefixes", "prefixes", prefixes, "text", text)
+
+	// Check default bot name setup prompt
+	if okStore {
+		botName := GetBotName(ctx, client)
+		if strings.EqualFold(botName, "whatsrook") || strings.EqualFold(botName, "rook") {
+			dismissed, _ := s.GetSetting(ctx, BotNamePromptDismissedKey)
+			if dismissed != "true" {
+				senderUser := evt.Info.Sender.ToNonAD().User
+
+				// 1. Check if user is currently replying with their chosen new bot name
+				awaitingInput, _ := s.GetSetting(ctx, BotNameAwaitingInputPrefix+senderUser)
+				if awaitingInput == "true" {
+					newName := strings.TrimSpace(text)
+					if newName != "" {
+						_ = s.PutSetting(ctx, BotNameSettingKey, newName)
+						_ = s.PutSetting(ctx, BotNamePromptDismissedKey, "true")
+						_ = s.PutSetting(ctx, BotNameAwaitingInputPrefix+senderUser, "")
+
+						p := prefixes[0]
+						if p == "" {
+							p = DefaultPrefix
+						}
+						cctx := &Context{
+							Ctx:    ctx,
+							Client: client,
+							Evt:    evt,
+							Chat:   evt.Info.Chat,
+							Sender: evt.Info.Sender,
+						}
+						_ = cctx.Reply(fmt.Sprintf("Bot name updated successfully to \"*%s*\"! 🎉\n\nYou can change it anytime later using the %sbotname command (e.g. `%sbotname <name>`).", newName, p, p))
+						return true
+					}
+				}
+
+				// 2. Allow .botname command execution through
+				trimmedText := strings.TrimSpace(text)
+				isBotNameCmd := false
+				for _, p := range prefixes {
+					if p != "" && matchesPrefix(trimmedText, p) {
+						body := strings.TrimLeft(strings.TrimSpace(trimmedText[len(p):]), ",:;! \t")
+						fields := strings.Fields(body)
+						if len(fields) > 0 && strings.HasPrefix(strings.ToLower(fields[0]), "botname") {
+							isBotNameCmd = true
+							break
+						}
+					}
+				}
+
+				if !isBotNameCmd {
+					cctx := &Context{
+						Ctx:    ctx,
+						Client: client,
+						Evt:    evt,
+						Chat:   evt.Info.Chat,
+						Sender: evt.Info.Sender,
+					}
+					p := prefixes[0]
+					if p == "" {
+						p = DefaultPrefix
+					}
+					bodyText := "⚠️ *BOT NAME CUSTOMIZATION RECOMMENDED*\n\nIt's highly recommended to give your own copy of WhatsRook its own name!\nFor example, you can name it something like *Fuzzy* or *Meow*."
+					buttons := []struct{ ID, Text string }{
+						{ID: p + "botname setup_customize", Text: "Customize Bot"},
+						{ID: p + "botname setup_continue", Text: "Continue"},
+					}
+					_ = sendInteractiveButtons(cctx, bodyText, fmt.Sprintf("Powered by %s", botName), buttons)
+					return true
+				}
+			}
+		}
+	}
+
 	hasEmpty := false
 
 	// Try non-empty prefixes first.

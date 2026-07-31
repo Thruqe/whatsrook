@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Uncustomized Bot Name Interactive Setup Flow (`plugins/botname.go`, `plugins/dispatch.go`):
+  - Intercepts incoming commands when the bot name is uncustomized / default (`WhatsRook`, `whatsrook`, `rook`).
+  - Displays interactive buttons: `"It's highly recommended to give your own copy of WhatsRook its own name... [Customize Bot] [Continue]"`.
+  - Selecting `"Continue"` issues a second warning message: `"Please note: keeping the bot name as WhatsRook will have its consequences... [Customize Bot] [Ignore]"`.
+  - Selecting `"Ignore"` saves user preference and unlocks normal command execution.
+  - Selecting `"Customize Bot"` prompts for the new bot name, updates `bot_name` in DB upon response, and informs the user they can change it anytime later using `[prefix]botname`.
 - Group & Community Commands (`plugins/group.go`):
   - `.kickall`: Group-only command that removes all group participants except the bot itself, the invoker, and sudoers (requires bot admin status).
   - `.community` (Aliases: `listgroups`, `groupslist`, `allgroups`): Lists all joined/community groups along with their active invite URLs.
