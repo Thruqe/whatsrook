@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
 	"whatsrook/store/sqlstore"
 	"whatsrook/utils"
@@ -260,6 +262,10 @@ func HandleIncomingCallAutoAccept(call *meowcaller.Call) {
 		}
 		slog.Info("autoacceptcall: forced <accept> sent successfully", "call_id", callID)
 
+		// Clear acceptPending in meowcaller's engine so that when the caller responds with mute_v2,
+		// meowcaller will NOT send a duplicate <accept> stanza (which causes reconnecting/disconnect).
+		clearMeowcallerAcceptPending(call)
+
 		// Give the relay media loop a moment to bind before starting playback.
 		// meowcaller's maybeStartMedia was already triggered by answer()+relaylatency,
 		// so the media goroutine should be running. We call startMedia here because
@@ -274,6 +280,68 @@ func HandleIncomingCallAutoAccept(call *meowcaller.Call) {
 		slog.Info("autoacceptcall: starting media after accept", "call_id", callID)
 		startMedia()
 	}()
+}
+
+// clearMeowcallerAcceptPending clears the internal acceptPending flag on meowcaller.engine
+// for the given call. This prevents meowcaller from sending a duplicate <accept> node when
+// the incoming mute_v2 arrives.
+func clearMeowcallerAcceptPending(call *meowcaller.Call) {
+	if call == nil {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Warn("autoacceptcall: recover from reflection clearing acceptPending", "err", r)
+		}
+	}()
+
+	vCall := reflect.ValueOf(call)
+	if vCall.Kind() != reflect.Pointer || vCall.IsNil() {
+		return
+	}
+	vCallElem := vCall.Elem()
+	fEng := vCallElem.FieldByName("eng")
+	if !fEng.IsValid() || fEng.IsNil() {
+		return
+	}
+
+	engPtr := fEng.Pointer()
+	if engPtr == 0 {
+		return
+	}
+
+	engType := fEng.Type().Elem()
+	fMu, hasMu := engType.FieldByName("mu")
+	fCalls, hasCalls := engType.FieldByName("calls")
+	if !hasMu || !hasCalls {
+		return
+	}
+
+	mu := (*sync.Mutex)(unsafe.Pointer(engPtr + fMu.Offset))
+	mu.Lock()
+	defer mu.Unlock()
+
+	callsMapVal := reflect.NewAt(fCalls.Type(), unsafe.Pointer(engPtr+fCalls.Offset)).Elem()
+	callID := call.ID()
+	mVal := callsMapVal.MapIndex(reflect.ValueOf(callID))
+	if !mVal.IsValid() || mVal.IsNil() {
+		return
+	}
+
+	engineCallPtr := mVal.Pointer()
+	if engineCallPtr == 0 {
+		return
+	}
+
+	engineCallType := mVal.Type().Elem()
+	fPending, hasPending := engineCallType.FieldByName("acceptPending")
+	if !hasPending {
+		return
+	}
+
+	pPending := (*bool)(unsafe.Pointer(engineCallPtr + fPending.Offset))
+	*pPending = false
+	slog.Info("autoacceptcall: cleared acceptPending via reflection to prevent duplicate accept", "call_id", callID)
 }
 
 // HandleAutoAcceptIncomingCall is a compatibility helper for CallOffer events.

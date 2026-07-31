@@ -18,6 +18,16 @@ import (
 	"go.mau.fi/whatsmeow/types"
 )
 
+// meowLogger returns a zerolog.Logger that forwards meowcaller messages to slog.
+// This makes relay connect failures and media errors visible in the app log.
+func meowLogger() zerolog.Logger {
+	return zerolog.New(zerolog.ConsoleWriter{
+		Out:     os.Stderr,
+		NoColor: true,
+		PartsOrder: []string{zerolog.TimestampFieldName, zerolog.LevelFieldName, "message"},
+	}).With().Str("subsystem", "meowcaller").Timestamp().Logger().Level(zerolog.InfoLevel)
+}
+
 var (
 	meowCallerMu     sync.Mutex
 	meowCallerClient *meowcaller.Client
@@ -28,8 +38,7 @@ func RegisterMeowCaller(wa *whatsmeow.Client) *meowcaller.Client {
 	meowCallerMu.Lock()
 	defer meowCallerMu.Unlock()
 
-	logger := zerolog.Nop()
-	mc := meowcaller.NewClient(wa, meowcaller.WithLogger(logger))
+	mc := meowcaller.NewClient(wa, meowcaller.WithLogger(meowLogger()))
 	mc.OnIncomingCall(HandleIncomingCallAutoAccept)
 	meowCallerClient = mc
 	meowCallerWA = wa
