@@ -10,8 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Animated Task Loader Feature (`sender/loader.go`, `sender/loader_test.go`, `sender/abstract.go`):
-  - Implemented `ctx.StartLoader(text)` which sends an initial status reply and continuously edits the message with an animated Braille spinner (`⠋`, `⠙`, `⠹`, `⠸`...) every 1.2s while a long-running task executes.
-  - Integrated animated loaders across `play`/`ytv`/`yta` downloads, `dl` media fetching, `ai` query processing, `movie` search, and `news` fetching.
+  - Implemented `ctx.StartLoader(text)` which sends an initial status reply and continuously edits the message with an animated Braille spinner (`⠋`, `⠙`, `⠹`, `⠸`...) every 1.2s while a command executes.
+  - Integrated animated loaders across all commands (`play`, `ytv`, `yta`, `dl`, `facebook`, `instagram`, `tiktok`, `twitter`, `threads`, `ai`, `movie`, `news`, `sticker`, `circle`, `crop`, `steal`, `mp4`, `mp3`, `mp4url`, `black`, `sh`, `ping`, `cpu`, `memory`, `status`, `update`, `report`, etc.).
   - Added `ReplyWithID` helper method to `sender.Context` and unit test `TestLoaderLifecycle`.
 - Per-Platform Cookie Support & Embers Sync (`plugins/cookie.go`, `plugins/helper.go`):
   - Updated `setcookie` command syntax to `setcookie PLATFORM <netscape_cookie>` (e.g. `setcookie YOUTUBE <cookies>`, `setcookie TWITTER <cookies>`).

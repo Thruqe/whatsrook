@@ -400,6 +400,9 @@ func handleReport(ctx *Context) error {
 		return ctx.Reply("Cannot report the bot or any of its sudo users.")
 	}
 
+	loader := ctx.StartLoader("Submitting report")
+	defer loader.Delete()
+
 	// Parse iteration count (e.g. "report 2x" or "report 5")
 	count := 1
 	for _, arg := range ctx.Args {

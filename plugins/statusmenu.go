@@ -29,6 +29,9 @@ func handleStatus(ctx *Context) error {
 		return ctx.Reply("Only owner/sudo users can post status updates.")
 	}
 
+	loader := ctx.StartLoader("Posting status update")
+	defer loader.Delete()
+
 	text := strings.TrimSpace(ctx.RawArgs)
 
 	// Check if message has media (either directly or via quoted message)

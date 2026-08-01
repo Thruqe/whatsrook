@@ -93,9 +93,12 @@ func handleSticker(ctx *Context) error {
 	packName, author := parseStickerMetadata(ctx, ctx.RawArgs)
 	isVideo := strings.HasPrefix(mimetype, "video") || strings.Contains(mimetype, "gif")
 
-	_ = ctx.Reply("Processing sticker...")
+	loader := ctx.StartLoader("Processing sticker")
+	defer loader.Delete()
+
 	stickerData, err := processSticker(data, isVideo, packName, author, "")
 	if err != nil {
+		loader.Delete()
 		return ctx.Reply(fmt.Sprintf(" Failed to process sticker: %v", err))
 	}
 
@@ -111,11 +114,14 @@ func handleCircle(ctx *Context) error {
 	packName, author := parseStickerMetadata(ctx, ctx.RawArgs)
 	isVideo := strings.HasPrefix(mimetype, "video") || strings.Contains(mimetype, "gif")
 
-	_ = ctx.Reply("Processing circular sticker...")
+	loader := ctx.StartLoader("Processing circular sticker")
+	defer loader.Delete()
+
 	// apply transparent circle mask using ffmpeg's geq/alpha filter
 	circleFilter := "format=yuva420p,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0,geq=alpha_expr='if(lte(hypot(X-W/2,Y-H/2),W/2),255,0)'"
 	stickerData, err := processSticker(data, isVideo, packName, author, circleFilter)
 	if err != nil {
+		loader.Delete()
 		return ctx.Reply(fmt.Sprintf(" Failed to process circular sticker: %v", err))
 	}
 
@@ -131,11 +137,14 @@ func handleCrop(ctx *Context) error {
 	packName, author := parseStickerMetadata(ctx, ctx.RawArgs)
 	isVideo := strings.HasPrefix(mimetype, "video") || strings.Contains(mimetype, "gif")
 
-	_ = ctx.Reply("Processing cropped sticker...")
+	loader := ctx.StartLoader("Processing cropped sticker")
+	defer loader.Delete()
+
 	// crop to square first, then scale
 	cropFilter := "crop='min(iw,ih)':'min(iw,ih)',scale=512:512"
 	stickerData, err := processSticker(data, isVideo, packName, author, cropFilter)
 	if err != nil {
+		loader.Delete()
 		return ctx.Reply(fmt.Sprintf(" Failed to process cropped sticker: %v", err))
 	}
 
@@ -148,9 +157,12 @@ func handleMP4(ctx *Context) error {
 		return ctx.Reply("No media found in this message or the replied message.")
 	}
 
-	_ = ctx.Reply("Converting to MP4...")
+	loader := ctx.StartLoader("Converting to MP4")
+	defer loader.Delete()
+
 	mp4Data, err := processMP4(data)
 	if err != nil {
+		loader.Delete()
 		return ctx.Reply(fmt.Sprintf(" Failed to convert to MP4: %v", err))
 	}
 
@@ -163,9 +175,12 @@ func handleMP3(ctx *Context) error {
 		return ctx.Reply("No media found in this message or the replied message.")
 	}
 
-	_ = ctx.Reply("Converting to MP3...")
+	loader := ctx.StartLoader("Converting to MP3")
+	defer loader.Delete()
+
 	mp3Data, err := processMP3(data)
 	if err != nil {
+		loader.Delete()
 		return ctx.Reply(fmt.Sprintf(" Failed to convert to MP3: %v", err))
 	}
 
@@ -178,14 +193,18 @@ func handleMP4URL(ctx *Context) error {
 	}
 	videoURL := ctx.Args[0]
 
-	_ = ctx.Reply("Downloading and converting video...")
+	loader := ctx.StartLoader("Downloading video")
+	defer loader.Delete()
+
 	videoBytes, err := downloadFromURL(ctx.Ctx, videoURL)
 	if err != nil {
+		loader.Delete()
 		return ctx.Reply(fmt.Sprintf(" Failed to download video: %v", err))
 	}
 
 	mp4Data, err := processMP4(videoBytes)
 	if err != nil {
+		loader.Delete()
 		return ctx.Reply(fmt.Sprintf(" Failed to process video into MP4: %v", err))
 	}
 
@@ -198,9 +217,12 @@ func handleBlack(ctx *Context) error {
 		return ctx.Reply("No media found in this message or the replied message.")
 	}
 
-	_ = ctx.Reply("Creating black video...")
+	loader := ctx.StartLoader("Creating black video")
+	defer loader.Delete()
+
 	blackData, err := processBlackVideo(data)
 	if err != nil {
+		loader.Delete()
 		return ctx.Reply(fmt.Sprintf(" Failed to create black video: %v", err))
 	}
 
@@ -239,10 +261,12 @@ func handleSteal(ctx *Context) error {
 
 	packName, author := parseStickerMetadata(ctx, ctx.RawArgs)
 
-	_ = ctx.Reply("Remapping sticker metadata...")
+	loader := ctx.StartLoader("Remapping sticker metadata")
+	defer loader.Delete()
 
 	updatedData, err := utils.AddStickerMetadata(data, packName, author)
 	if err != nil {
+		loader.Delete()
 		return ctx.Reply(fmt.Sprintf(" Failed to update sticker metadata: %v", err))
 	}
 

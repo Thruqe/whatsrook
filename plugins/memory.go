@@ -21,6 +21,9 @@ func init() {
 }
 
 func handleMemory(ctx *Context) error {
+	loader := ctx.StartLoader("Reading memory stats")
+	defer loader.Delete()
+
 	// 1. Process Memory
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)

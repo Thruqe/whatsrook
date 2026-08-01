@@ -27,8 +27,12 @@ func handleSh(ctx *Context) error {
 	name := ctx.Args[0]
 	args := ctx.Args[1:]
 
+	loader := ctx.StartLoader("Executing command")
+	defer loader.Delete()
+
 	output, err := runShellCmd(name, args...)
 	if err != nil && output == "" {
+		loader.Delete()
 		slog.Warn("handleSh: command error", "command", name, "args", args, "err", err)
 		return sendText(ctx, "Error: "+err.Error())
 	}

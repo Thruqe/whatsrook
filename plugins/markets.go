@@ -244,6 +244,9 @@ func fetchMarketBars(ctx context.Context, pair string) (*FFBarsResponse, error) 
 }
 
 func fetchAndSendSingleMarket(ctx *Context, pair string) error {
+	loader := ctx.StartLoader("Fetching market rates")
+	defer loader.Delete()
+
 	apiURL := fmt.Sprintf("https://mds-api.forexfactory.com/instruments?instruments=%s", url.QueryEscape(pair))
 	slog.Debug("fetchAndSendSingleMarket: requesting market metrics from primary API", "pair", pair, "url", apiURL)
 

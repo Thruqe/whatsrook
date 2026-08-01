@@ -88,6 +88,9 @@ func handleSaveContact(ctx *Context) error {
 
 	slog.Debug("handleSaveContact: processing contact save", "target", targetJID.String(), "fullName", fullName, "firstName", firstName)
 
+	loader := ctx.StartLoader("Saving contact")
+	defer loader.Delete()
+
 	var pnStr string
 	var lidStr string
 	var pnJID types.JID

@@ -22,6 +22,9 @@ func init() {
 }
 
 func handleCPU(ctx *Context) error {
+	loader := ctx.StartLoader("Reading CPU stats")
+	defer loader.Delete()
+
 	// 1. CPU Model
 	model := getCPUModel()
 

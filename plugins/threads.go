@@ -31,9 +31,13 @@ func handleThreads(ctx *Context) error {
 		slog.Warn("handleThreads: invalid URL", "url", ctx.Args[0])
 		return sendText(ctx, "Invalid threads url!")
 	}
+	loader := ctx.StartLoader("Downloading Threads post")
+	defer loader.Delete()
+
 	slog.Debug("handleThreads: calling Fetch", "url", ctx.Args[0])
 	data, err := ember.Fetch(ctx.Ctx, ctx.Args[0], "")
 	if err != nil {
+		loader.Delete()
 		slog.Error("handleThreads: Fetch failed", "err", err)
 		return sendText(ctx, fmt.Sprintf("Failed: %s", err))
 	}

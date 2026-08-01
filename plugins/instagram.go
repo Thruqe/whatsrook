@@ -31,9 +31,13 @@ func handleInstagram(ctx *Context) error {
 		slog.Warn("handleInstagram: invalid URL", "url", ctx.Args[0])
 		return sendText(ctx, "Invalid instagram url!")
 	}
+	loader := ctx.StartLoader("Downloading Instagram media")
+	defer loader.Delete()
+
 	slog.Debug("handleInstagram: calling Fetch", "url", ctx.Args[0])
 	data, err := ember.Fetch(ctx.Ctx, ctx.Args[0], "")
 	if err != nil {
+		loader.Delete()
 		slog.Error("handleInstagram: Fetch failed", "err", err)
 		return sendText(ctx, fmt.Sprintf("Failed: %s", err))
 	}

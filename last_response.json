@@ -1,0 +1,1019 @@
+{
+  "error": false,
+  "data": {
+    "_format_sort_fields": [
+      "quality",
+      "res",
+      "fps",
+      "hdr:12",
+      "source",
+      "vcodec",
+      "channels",
+      "acodec",
+      "lang",
+      "proto"
+    ],
+    "_has_drm": null,
+    "_type": "video",
+    "_version": {
+      "current_git_head": null,
+      "release_git_head": "997fa140840a08df3938b40da470c78049fef1f6",
+      "repository": "yt-dlp/yt-dlp",
+      "version": "2026.07.04"
+    },
+    "age_limit": 0,
+    "automatic_captions": {},
+    "availability": "public",
+    "average_rating": null,
+    "categories": [
+      "Entertainment"
+    ],
+    "channel": "Marvel Entertainment",
+    "channel_follower_count": 23200000,
+    "channel_id": "UCvC4D8onUfXzvjTOM-dBfEA",
+    "channel_is_verified": true,
+    "channel_url": "https://www.youtube.com/channel/UCvC4D8onUfXzvjTOM-dBfEA",
+    "chapters": null,
+    "comment_count": 16000,
+    "creators": null,
+    "description": "It's about to be a Brand New Day. Get tickets now.\n\n#SpiderManBrandNewDay is in theatres July 31. \n\nIt's a BRAND NEW DAY for Peter Parker. Fighting crime full-time as Spider-Man in a world that doesn’t remember him—and the pressure of seeing his old friends move on without him—sparks a change in Peter he may not have the power to control. But that transformation might also be the only thing that can stop a shocking new threat to the city and those he loves - a powerful villain no one can even see.\n \nThe world may have forgotten Peter Parker, but he hasn’t forgotten them.\n\n► SUBSCRIBE to the channel to get notified when new Marvel videos are posted: https://www.youtube.com/marvel?sub_confirmation=1\n\n► SUBSCRIBE to Disney+ to stream all of your favorite Marvel shows and movies: https://www.disneyplus.com/\n\nFollow on social media to get the latest news and announcements from Marvel:\n\nTikTok: https://www.tiktok.com/@marvel\nInstagram: https://www.instagram.com/marvel\nFacebook: https://www.facebook.com/Marvel\nX: https://x.com/marvel\n\nExperience more stories by subscribing: \n\n@Disney \n@StarWars \n@pixar \n@disneyplus",
+    "display_id": "daXaTug8rL4",
+    "duration": 157,
+    "duration_string": "2:37",
+    "epoch": 1785607589,
+    "extractor": "youtube",
+    "extractor_key": "Youtube",
+    "formats": [
+      {
+        "abr": 0,
+        "acodec": "none",
+        "aspect_ratio": 1.78,
+        "audio_ext": "none",
+        "columns": 10,
+        "ext": "mhtml",
+        "filesize_approx": null,
+        "format": "sb3 - 48x27 (storyboard)",
+        "format_id": "sb3",
+        "format_note": "storyboard",
+        "fps": 0.6369426751592356,
+        "fragments": [
+          {
+            "duration": 157,
+            "url": "https://i.ytimg.com/sb/daXaTug8rL4/storyboard3_L0/default.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgifsP7SBg==&sigh=rs$AOn4CLA0bI0dBfDDr9MgWRHhbbbK1XwUeg"
+          }
+        ],
+        "height": 27,
+        "http_headers": {
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en-us,en;q=0.5",
+          "Sec-Fetch-Mode": "navigate",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
+        },
+        "protocol": "mhtml",
+        "resolution": "48x27",
+        "rows": 10,
+        "tbr": null,
+        "url": "https://i.ytimg.com/sb/daXaTug8rL4/storyboard3_L0/default.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgifsP7SBg==&sigh=rs$AOn4CLA0bI0dBfDDr9MgWRHhbbbK1XwUeg",
+        "vbr": 0,
+        "vcodec": "none",
+        "video_ext": "none",
+        "width": 48
+      },
+      {
+        "abr": 0,
+        "acodec": "none",
+        "aspect_ratio": 1.78,
+        "audio_ext": "none",
+        "columns": 10,
+        "ext": "mhtml",
+        "filesize_approx": null,
+        "format": "sb2 - 80x45 (storyboard)",
+        "format_id": "sb2",
+        "format_note": "storyboard",
+        "fps": 0.5095541401273885,
+        "fragments": [
+          {
+            "duration": 157,
+            "url": "https://i.ytimg.com/sb/daXaTug8rL4/storyboard3_L1/M0.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgifsP7SBg==&sigh=rs$AOn4CLCQxnA2e8KJVa4ttqfvzjUC_XcEjg"
+          }
+        ],
+        "height": 45,
+        "http_headers": {
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en-us,en;q=0.5",
+          "Sec-Fetch-Mode": "navigate",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
+        },
+        "protocol": "mhtml",
+        "resolution": "80x45",
+        "rows": 10,
+        "tbr": null,
+        "url": "https://i.ytimg.com/sb/daXaTug8rL4/storyboard3_L1/M$M.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgifsP7SBg==&sigh=rs$AOn4CLCQxnA2e8KJVa4ttqfvzjUC_XcEjg",
+        "vbr": 0,
+        "vcodec": "none",
+        "video_ext": "none",
+        "width": 80
+      },
+      {
+        "abr": 0,
+        "acodec": "none",
+        "aspect_ratio": 1.78,
+        "audio_ext": "none",
+        "columns": 5,
+        "ext": "mhtml",
+        "filesize_approx": null,
+        "format": "sb1 - 160x90 (storyboard)",
+        "format_id": "sb1",
+        "format_note": "storyboard",
+        "fps": 0.5095541401273885,
+        "fragments": [
+          {
+            "duration": 49.0625,
+            "url": "https://i.ytimg.com/sb/daXaTug8rL4/storyboard3_L2/M0.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgifsP7SBg==&sigh=rs$AOn4CLApoXGAbPgkazrVi7JRkRL5gmoavA"
+          },
+          {
+            "duration": 49.0625,
+            "url": "https://i.ytimg.com/sb/daXaTug8rL4/storyboard3_L2/M1.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgifsP7SBg==&sigh=rs$AOn4CLApoXGAbPgkazrVi7JRkRL5gmoavA"
+          },
+          {
+            "duration": 49.0625,
+            "url": "https://i.ytimg.com/sb/daXaTug8rL4/storyboard3_L2/M2.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgifsP7SBg==&sigh=rs$AOn4CLApoXGAbPgkazrVi7JRkRL5gmoavA"
+          },
+          {
+            "duration": 9.8125,
+            "url": "https://i.ytimg.com/sb/daXaTug8rL4/storyboard3_L2/M3.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgifsP7SBg==&sigh=rs$AOn4CLApoXGAbPgkazrVi7JRkRL5gmoavA"
+          }
+        ],
+        "height": 90,
+        "http_headers": {
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en-us,en;q=0.5",
+          "Sec-Fetch-Mode": "navigate",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
+        },
+        "protocol": "mhtml",
+        "resolution": "160x90",
+        "rows": 5,
+        "tbr": null,
+        "url": "https://i.ytimg.com/sb/daXaTug8rL4/storyboard3_L2/M$M.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgifsP7SBg==&sigh=rs$AOn4CLApoXGAbPgkazrVi7JRkRL5gmoavA",
+        "vbr": 0,
+        "vcodec": "none",
+        "video_ext": "none",
+        "width": 160
+      },
+      {
+        "abr": 0,
+        "acodec": "none",
+        "aspect_ratio": 1.78,
+        "audio_ext": "none",
+        "columns": 3,
+        "ext": "mhtml",
+        "filesize_approx": null,
+        "format": "sb0 - 320x180 (storyboard)",
+        "format_id": "sb0",
+        "format_note": "storyboard",
+        "fps": 0.5095541401273885,
+        "fragments": [
+          {
+            "duration": 17.662499999999998,
+            "url": "https://i.ytimg.com/sb/daXaTug8rL4/storyboard3_L3/M0.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgifsP7SBg==&sigh=rs$AOn4CLAnwS3amLRn2GWDh6txbMeXBfu7og"
+          },
+          {
+            "duration": 17.662499999999998,
+            "url": "https://i.ytimg.com/sb/daXaTug8rL4/storyboard3_L3/M1.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgifsP7SBg==&sigh=rs$AOn4CLAnwS3amLRn2GWDh6txbMeXBfu7og"
+          },
+          {
+            "duration": 17.662499999999998,
+            "url": "https://i.ytimg.com/sb/daXaTug8rL4/storyboard3_L3/M2.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgifsP7SBg==&sigh=rs$AOn4CLAnwS3amLRn2GWDh6txbMeXBfu7og"
+          },
+          {
+            "duration": 17.662499999999998,
+            "url": "https://i.ytimg.com/sb/daXaTug8rL4/storyboard3_L3/M3.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgifsP7SBg==&sigh=rs$AOn4CLAnwS3amLRn2GWDh6txbMeXBfu7og"
+          },
+          {
+            "duration": 17.662499999999998,
+            "url": "https://i.ytimg.com/sb/daXaTug8rL4/storyboard3_L3/M4.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgifsP7SBg==&sigh=rs$AOn4CLAnwS3amLRn2GWDh6txbMeXBfu7og"
+          },
+          {
+            "duration": 17.662499999999998,
+            "url": "https://i.ytimg.com/sb/daXaTug8rL4/storyboard3_L3/M5.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgifsP7SBg==&sigh=rs$AOn4CLAnwS3amLRn2GWDh6txbMeXBfu7og"
+          },
+          {
+            "duration": 17.662499999999998,
+            "url": "https://i.ytimg.com/sb/daXaTug8rL4/storyboard3_L3/M6.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgifsP7SBg==&sigh=rs$AOn4CLAnwS3amLRn2GWDh6txbMeXBfu7og"
+          },
+          {
+            "duration": 17.662499999999998,
+            "url": "https://i.ytimg.com/sb/daXaTug8rL4/storyboard3_L3/M7.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgifsP7SBg==&sigh=rs$AOn4CLAnwS3amLRn2GWDh6txbMeXBfu7og"
+          },
+          {
+            "duration": 15.700000000000017,
+            "url": "https://i.ytimg.com/sb/daXaTug8rL4/storyboard3_L3/M8.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgifsP7SBg==&sigh=rs$AOn4CLAnwS3amLRn2GWDh6txbMeXBfu7og"
+          }
+        ],
+        "height": 180,
+        "http_headers": {
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en-us,en;q=0.5",
+          "Sec-Fetch-Mode": "navigate",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
+        },
+        "protocol": "mhtml",
+        "resolution": "320x180",
+        "rows": 3,
+        "tbr": null,
+        "url": "https://i.ytimg.com/sb/daXaTug8rL4/storyboard3_L3/M$M.jpg?sqp=-oaymwENSDfyq4qpAwVwAcABBqLzl_8DBgifsP7SBg==&sigh=rs$AOn4CLAnwS3amLRn2GWDh6txbMeXBfu7og",
+        "vbr": 0,
+        "vcodec": "none",
+        "video_ext": "none",
+        "width": 320
+      }
+    ],
+    "fulltitle": "SPIDER-MAN: BRAND NEW DAY – Final Trailer (Peter’s Journey) 4K",
+    "heatmap": [
+      {
+        "end_time": 1.58,
+        "start_time": 0,
+        "value": 0.7860461928432679
+      },
+      {
+        "end_time": 3.16,
+        "start_time": 1.58,
+        "value": 0.6111205479567706
+      },
+      {
+        "end_time": 4.74,
+        "start_time": 3.16,
+        "value": 0.5180591847700918
+      },
+      {
+        "end_time": 6.32,
+        "start_time": 4.74,
+        "value": 0.49926075444921947
+      },
+      {
+        "end_time": 7.9,
+        "start_time": 6.32,
+        "value": 0.4188446056046394
+      },
+      {
+        "end_time": 9.48,
+        "start_time": 7.9,
+        "value": 0.34509793825159674
+      },
+      {
+        "end_time": 11.06,
+        "start_time": 9.48,
+        "value": 0.30642873425951567
+      },
+      {
+        "end_time": 12.64,
+        "start_time": 11.06,
+        "value": 0.31666309115486263
+      },
+      {
+        "end_time": 14.22,
+        "start_time": 12.64,
+        "value": 0.28097630501786475
+      },
+      {
+        "end_time": 15.8,
+        "start_time": 14.22,
+        "value": 0.21642480117405358
+      },
+      {
+        "end_time": 17.38,
+        "start_time": 15.8,
+        "value": 0.2016872279836731
+      },
+      {
+        "end_time": 18.96,
+        "start_time": 17.38,
+        "value": 0.17140056832093664
+      },
+      {
+        "end_time": 20.54,
+        "start_time": 18.96,
+        "value": 0.12830483261338255
+      },
+      {
+        "end_time": 22.12,
+        "start_time": 20.54,
+        "value": 0.09373376260334194
+      },
+      {
+        "end_time": 23.7,
+        "start_time": 22.12,
+        "value": 0.08728734881246053
+      },
+      {
+        "end_time": 25.28,
+        "start_time": 23.7,
+        "value": 0.061303872788401416
+      },
+      {
+        "end_time": 26.86,
+        "start_time": 25.28,
+        "value": 0.04446489126804992
+      },
+      {
+        "end_time": 28.44,
+        "start_time": 26.86,
+        "value": 0.03487341170975688
+      },
+      {
+        "end_time": 30.02,
+        "start_time": 28.44,
+        "value": 0.054432632360841324
+      },
+      {
+        "end_time": 31.6,
+        "start_time": 30.02,
+        "value": 0.04479345084020122
+      },
+      {
+        "end_time": 33.18,
+        "start_time": 31.6,
+        "value": 0.03548872251838633
+      },
+      {
+        "end_time": 34.76,
+        "start_time": 33.18,
+        "value": 0.06523814506772296
+      },
+      {
+        "end_time": 36.34,
+        "start_time": 34.76,
+        "value": 0.05405026141471073
+      },
+      {
+        "end_time": 37.92,
+        "start_time": 36.34,
+        "value": 0.040883063258452944
+      },
+      {
+        "end_time": 39.5,
+        "start_time": 37.92,
+        "value": 0.05783407763184856
+      },
+      {
+        "end_time": 41.08,
+        "start_time": 39.5,
+        "value": 0.054695863036863364
+      },
+      {
+        "end_time": 42.66,
+        "start_time": 41.08,
+        "value": 0.05013017699639827
+      },
+      {
+        "end_time": 44.24,
+        "start_time": 42.66,
+        "value": 0.05887561767938571
+      },
+      {
+        "end_time": 45.82,
+        "start_time": 44.24,
+        "value": 0.06455545540586029
+      },
+      {
+        "end_time": 47.4,
+        "start_time": 45.82,
+        "value": 0.044974966449822115
+      },
+      {
+        "end_time": 48.98,
+        "start_time": 47.4,
+        "value": 0.03230691936182192
+      },
+      {
+        "end_time": 50.56,
+        "start_time": 48.98,
+        "value": 0.06979403986570461
+      },
+      {
+        "end_time": 52.14,
+        "start_time": 50.56,
+        "value": 0.06655764311468702
+      },
+      {
+        "end_time": 53.72,
+        "start_time": 52.14,
+        "value": 0.055866739193789365
+      },
+      {
+        "end_time": 55.3,
+        "start_time": 53.72,
+        "value": 0.06817058173183693
+      },
+      {
+        "end_time": 56.88,
+        "start_time": 55.3,
+        "value": 0.07545647992991521
+      },
+      {
+        "end_time": 58.46,
+        "start_time": 56.88,
+        "value": 0.05280178359215143
+      },
+      {
+        "end_time": 60.04,
+        "start_time": 58.46,
+        "value": 0.0445948747323137
+      },
+      {
+        "end_time": 61.62,
+        "start_time": 60.04,
+        "value": 0.06712958114669557
+      },
+      {
+        "end_time": 63.2,
+        "start_time": 61.62,
+        "value": 0.0618127206932232
+      },
+      {
+        "end_time": 64.78,
+        "start_time": 63.2,
+        "value": 0.05216101015844105
+      },
+      {
+        "end_time": 66.36,
+        "start_time": 64.78,
+        "value": 0.05931120659086024
+      },
+      {
+        "end_time": 67.94,
+        "start_time": 66.36,
+        "value": 0.06107042043662657
+      },
+      {
+        "end_time": 69.52,
+        "start_time": 67.94,
+        "value": 0.04911067398772882
+      },
+      {
+        "end_time": 71.1,
+        "start_time": 69.52,
+        "value": 0.04820445808217369
+      },
+      {
+        "end_time": 72.68,
+        "start_time": 71.1,
+        "value": 0.10614147862569742
+      },
+      {
+        "end_time": 74.26,
+        "start_time": 72.68,
+        "value": 0.10956906084978031
+      },
+      {
+        "end_time": 75.84,
+        "start_time": 74.26,
+        "value": 0.10840247341890079
+      },
+      {
+        "end_time": 77.42,
+        "start_time": 75.84,
+        "value": 0.17574415769305812
+      },
+      {
+        "end_time": 79,
+        "start_time": 77.42,
+        "value": 0.19234781222980943
+      },
+      {
+        "end_time": 80.58,
+        "start_time": 79,
+        "value": 0.20820503962263634
+      },
+      {
+        "end_time": 82.16,
+        "start_time": 80.58,
+        "value": 0.30232795691173586
+      },
+      {
+        "end_time": 83.74,
+        "start_time": 82.16,
+        "value": 0.297825549810296
+      },
+      {
+        "end_time": 85.32,
+        "start_time": 83.74,
+        "value": 0.2477096550808261
+      },
+      {
+        "end_time": 86.9,
+        "start_time": 85.32,
+        "value": 0.2174518027100244
+      },
+      {
+        "end_time": 88.48,
+        "start_time": 86.9,
+        "value": 0.2999203362393588
+      },
+      {
+        "end_time": 90.06,
+        "start_time": 88.48,
+        "value": 0.28850617508443566
+      },
+      {
+        "end_time": 91.64,
+        "start_time": 90.06,
+        "value": 0.26294372248716497
+      },
+      {
+        "end_time": 93.22,
+        "start_time": 91.64,
+        "value": 0.32350347433338394
+      },
+      {
+        "end_time": 94.8,
+        "start_time": 93.22,
+        "value": 0.3756129523464679
+      },
+      {
+        "end_time": 96.38,
+        "start_time": 94.8,
+        "value": 0.3461555542785282
+      },
+      {
+        "end_time": 97.96,
+        "start_time": 96.38,
+        "value": 0.32938755252290175
+      },
+      {
+        "end_time": 99.54,
+        "start_time": 97.96,
+        "value": 0.4579630738799281
+      },
+      {
+        "end_time": 101.12,
+        "start_time": 99.54,
+        "value": 0.4586731142852569
+      },
+      {
+        "end_time": 102.7,
+        "start_time": 101.12,
+        "value": 0.4486345282933394
+      },
+      {
+        "end_time": 104.28,
+        "start_time": 102.7,
+        "value": 0.5765908547124866
+      },
+      {
+        "end_time": 105.86,
+        "start_time": 104.28,
+        "value": 0.5799604447290229
+      },
+      {
+        "end_time": 107.44,
+        "start_time": 105.86,
+        "value": 0.5250314125581425
+      },
+      {
+        "end_time": 109.02,
+        "start_time": 107.44,
+        "value": 0.5578401668136409
+      },
+      {
+        "end_time": 110.6,
+        "start_time": 109.02,
+        "value": 0.6523260883488624
+      },
+      {
+        "end_time": 112.18,
+        "start_time": 110.6,
+        "value": 0.6157875989814033
+      },
+      {
+        "end_time": 113.76,
+        "start_time": 112.18,
+        "value": 0.5629733133482296
+      },
+      {
+        "end_time": 115.34,
+        "start_time": 113.76,
+        "value": 0.5636314035248446
+      },
+      {
+        "end_time": 116.92,
+        "start_time": 115.34,
+        "value": 0.485221946900096
+      },
+      {
+        "end_time": 118.5,
+        "start_time": 116.92,
+        "value": 0.3826735980211872
+      },
+      {
+        "end_time": 120.08,
+        "start_time": 118.5,
+        "value": 0.4153691730660506
+      },
+      {
+        "end_time": 121.66,
+        "start_time": 120.08,
+        "value": 0.40436883351493214
+      },
+      {
+        "end_time": 123.24,
+        "start_time": 121.66,
+        "value": 0.378436013009837
+      },
+      {
+        "end_time": 124.82,
+        "start_time": 123.24,
+        "value": 0.4474109736334652
+      },
+      {
+        "end_time": 126.4,
+        "start_time": 124.82,
+        "value": 0.5163710990412095
+      },
+      {
+        "end_time": 127.98,
+        "start_time": 126.4,
+        "value": 0.5199531832954444
+      },
+      {
+        "end_time": 129.56,
+        "start_time": 127.98,
+        "value": 0.552848521265466
+      },
+      {
+        "end_time": 131.14,
+        "start_time": 129.56,
+        "value": 0.8495149147393845
+      },
+      {
+        "end_time": 132.72,
+        "start_time": 131.14,
+        "value": 0.890556890133075
+      },
+      {
+        "end_time": 134.3,
+        "start_time": 132.72,
+        "value": 0.9085533556563772
+      },
+      {
+        "end_time": 135.88,
+        "start_time": 134.3,
+        "value": 0.9456429058611281
+      },
+      {
+        "end_time": 137.46,
+        "start_time": 135.88,
+        "value": 1
+      },
+      {
+        "end_time": 139.04,
+        "start_time": 137.46,
+        "value": 0.9442975945385259
+      },
+      {
+        "end_time": 140.62,
+        "start_time": 139.04,
+        "value": 0.7601332245543376
+      },
+      {
+        "end_time": 142.2,
+        "start_time": 140.62,
+        "value": 0.7820213718008143
+      },
+      {
+        "end_time": 143.78,
+        "start_time": 142.2,
+        "value": 0.7580333132325149
+      },
+      {
+        "end_time": 145.36,
+        "start_time": 143.78,
+        "value": 0.8562080246838571
+      },
+      {
+        "end_time": 146.94,
+        "start_time": 145.36,
+        "value": 0.9123029429845027
+      },
+      {
+        "end_time": 148.52,
+        "start_time": 146.94,
+        "value": 0.8989795165184262
+      },
+      {
+        "end_time": 150.1,
+        "start_time": 148.52,
+        "value": 0.7941562547165029
+      },
+      {
+        "end_time": 151.68,
+        "start_time": 150.1,
+        "value": 0.4153762939696749
+      },
+      {
+        "end_time": 153.26,
+        "start_time": 151.68,
+        "value": 0.1589722178619425
+      },
+      {
+        "end_time": 154.84,
+        "start_time": 153.26,
+        "value": 0.0545594060238502
+      },
+      {
+        "end_time": 156.42,
+        "start_time": 154.84,
+        "value": 0.004276830900643394
+      },
+      {
+        "end_time": 158,
+        "start_time": 156.42,
+        "value": 0
+      }
+    ],
+    "id": "daXaTug8rL4",
+    "is_live": false,
+    "like_count": 638855,
+    "live_status": "not_live",
+    "media_type": "video",
+    "original_url": "https://www.youtube.com/watch?v=daXaTug8rL4",
+    "playable_in_embed": true,
+    "playlist": null,
+    "playlist_index": null,
+    "release_timestamp": null,
+    "release_year": null,
+    "requested_downloads": [
+      {
+        "__write_download_archive": false,
+        "_filename": "SPIDER-MAN： BRAND NEW DAY – Final Trailer (Peter’s Journey) 4K [daXaTug8rL4].NA",
+        "filename": "SPIDER-MAN： BRAND NEW DAY – Final Trailer (Peter’s Journey) 4K [daXaTug8rL4].NA"
+      }
+    ],
+    "requested_subtitles": null,
+    "subtitles": {},
+    "tags": [
+      "marvel",
+      "comics"
+    ],
+    "thumbnail": "https://i.ytimg.com/vi/daXaTug8rL4/maxresdefault.jpg",
+    "thumbnails": [
+      {
+        "id": "0",
+        "preference": -37,
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/3.jpg"
+      },
+      {
+        "id": "1",
+        "preference": -36,
+        "url": "https://i.ytimg.com/vi_webp/daXaTug8rL4/3.webp"
+      },
+      {
+        "id": "2",
+        "preference": -35,
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/2.jpg"
+      },
+      {
+        "id": "3",
+        "preference": -34,
+        "url": "https://i.ytimg.com/vi_webp/daXaTug8rL4/2.webp"
+      },
+      {
+        "id": "4",
+        "preference": -33,
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/1.jpg"
+      },
+      {
+        "id": "5",
+        "preference": -32,
+        "url": "https://i.ytimg.com/vi_webp/daXaTug8rL4/1.webp"
+      },
+      {
+        "id": "6",
+        "preference": -31,
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/mq3.jpg"
+      },
+      {
+        "id": "7",
+        "preference": -30,
+        "url": "https://i.ytimg.com/vi_webp/daXaTug8rL4/mq3.webp"
+      },
+      {
+        "id": "8",
+        "preference": -29,
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/mq2.jpg"
+      },
+      {
+        "id": "9",
+        "preference": -28,
+        "url": "https://i.ytimg.com/vi_webp/daXaTug8rL4/mq2.webp"
+      },
+      {
+        "id": "10",
+        "preference": -27,
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/mq1.jpg"
+      },
+      {
+        "id": "11",
+        "preference": -26,
+        "url": "https://i.ytimg.com/vi_webp/daXaTug8rL4/mq1.webp"
+      },
+      {
+        "id": "12",
+        "preference": -25,
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/hq3.jpg"
+      },
+      {
+        "id": "13",
+        "preference": -24,
+        "url": "https://i.ytimg.com/vi_webp/daXaTug8rL4/hq3.webp"
+      },
+      {
+        "id": "14",
+        "preference": -23,
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/hq2.jpg"
+      },
+      {
+        "id": "15",
+        "preference": -22,
+        "url": "https://i.ytimg.com/vi_webp/daXaTug8rL4/hq2.webp"
+      },
+      {
+        "id": "16",
+        "preference": -21,
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/hq1.jpg"
+      },
+      {
+        "id": "17",
+        "preference": -20,
+        "url": "https://i.ytimg.com/vi_webp/daXaTug8rL4/hq1.webp"
+      },
+      {
+        "id": "18",
+        "preference": -19,
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/sd3.jpg"
+      },
+      {
+        "id": "19",
+        "preference": -18,
+        "url": "https://i.ytimg.com/vi_webp/daXaTug8rL4/sd3.webp"
+      },
+      {
+        "id": "20",
+        "preference": -17,
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/sd2.jpg"
+      },
+      {
+        "id": "21",
+        "preference": -16,
+        "url": "https://i.ytimg.com/vi_webp/daXaTug8rL4/sd2.webp"
+      },
+      {
+        "id": "22",
+        "preference": -15,
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/sd1.jpg"
+      },
+      {
+        "id": "23",
+        "preference": -14,
+        "url": "https://i.ytimg.com/vi_webp/daXaTug8rL4/sd1.webp"
+      },
+      {
+        "height": 90,
+        "id": "24",
+        "preference": -13,
+        "resolution": "120x90",
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/default.jpg",
+        "width": 120
+      },
+      {
+        "id": "25",
+        "preference": -12,
+        "url": "https://i.ytimg.com/vi_webp/daXaTug8rL4/default.webp"
+      },
+      {
+        "height": 180,
+        "id": "26",
+        "preference": -11,
+        "resolution": "320x180",
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/mqdefault.jpg",
+        "width": 320
+      },
+      {
+        "id": "27",
+        "preference": -10,
+        "url": "https://i.ytimg.com/vi_webp/daXaTug8rL4/mqdefault.webp"
+      },
+      {
+        "id": "28",
+        "preference": -9,
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/0.jpg"
+      },
+      {
+        "id": "29",
+        "preference": -8,
+        "url": "https://i.ytimg.com/vi_webp/daXaTug8rL4/0.webp"
+      },
+      {
+        "height": 94,
+        "id": "30",
+        "preference": -7,
+        "resolution": "168x94",
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/hqdefault.jpg?sqp=-oaymwEbCKgBEF5IVfKriqkDDggBFQAAiEIYAXABwAEG&rs=AOn4CLAYTsltVKMKQ4x4NMWFmeoceL8P7Q",
+        "width": 168
+      },
+      {
+        "height": 110,
+        "id": "31",
+        "preference": -7,
+        "resolution": "196x110",
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/hqdefault.jpg?sqp=-oaymwEbCMQBEG5IVfKriqkDDggBFQAAiEIYAXABwAEG&rs=AOn4CLB4mDcr5UbyMNdhDlhjkLXxOgkCcA",
+        "width": 196
+      },
+      {
+        "height": 138,
+        "id": "32",
+        "preference": -7,
+        "resolution": "246x138",
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/hqdefault.jpg?sqp=-oaymwEcCPYBEIoBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLBppGTPnJ_4tMlu1vNeugl7qkPM7Q",
+        "width": 246
+      },
+      {
+        "height": 188,
+        "id": "33",
+        "preference": -7,
+        "resolution": "336x188",
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/hqdefault.jpg?sqp=-oaymwEcCNACELwBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLA2jIh54XeZYkTQHz-cg3hxSTipxw",
+        "width": 336
+      },
+      {
+        "height": 360,
+        "id": "34",
+        "preference": -7,
+        "resolution": "480x360",
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/hqdefault.jpg",
+        "width": 480
+      },
+      {
+        "id": "35",
+        "preference": -6,
+        "url": "https://i.ytimg.com/vi_webp/daXaTug8rL4/hqdefault.webp"
+      },
+      {
+        "height": 480,
+        "id": "36",
+        "preference": -5,
+        "resolution": "640x480",
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/sddefault.jpg",
+        "width": 640
+      },
+      {
+        "id": "37",
+        "preference": -4,
+        "url": "https://i.ytimg.com/vi_webp/daXaTug8rL4/sddefault.webp"
+      },
+      {
+        "id": "38",
+        "preference": -3,
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/hq720.jpg"
+      },
+      {
+        "height": 386,
+        "id": "39",
+        "preference": -3,
+        "resolution": "686x386",
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/hq720.jpg?sqp=-oaymwEhCK4FEIIDSFryq4qpAxMIARUAAAAAGAElAADIQj0AgKJD&rs=AOn4CLCx5PhPmDWsOuwzn4xm_83vANCxEw",
+        "width": 686
+      },
+      {
+        "id": "40",
+        "preference": -2,
+        "url": "https://i.ytimg.com/vi_webp/daXaTug8rL4/hq720.webp"
+      },
+      {
+        "height": 1080,
+        "id": "41",
+        "preference": -1,
+        "resolution": "1920x1080",
+        "url": "https://i.ytimg.com/vi/daXaTug8rL4/maxresdefault.jpg",
+        "width": 1920
+      },
+      {
+        "id": "42",
+        "preference": 0,
+        "url": "https://i.ytimg.com/vi_webp/daXaTug8rL4/maxresdefault.webp"
+      }
+    ],
+    "timestamp": 1784649935,
+    "title": "SPIDER-MAN: BRAND NEW DAY – Final Trailer (Peter’s Journey) 4K",
+    "upload_date": "20260721",
+    "uploader": "Marvel Entertainment",
+    "uploader_id": "@marvel",
+    "uploader_url": "https://www.youtube.com/@marvel",
+    "view_count": 20519706,
+    "was_live": false,
+    "webpage_url": "https://www.youtube.com/watch?v=daXaTug8rL4",
+    "webpage_url_basename": "watch",
+    "webpage_url_domain": "youtube.com"
+  }
+}

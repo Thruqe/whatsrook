@@ -4,8 +4,6 @@ package commands
 import (
 	"fmt"
 	"time"
-
-	"go.mau.fi/whatsmeow/proto/waE2E"
 )
 
 func init() {
@@ -21,14 +19,8 @@ func init() {
 func handlePing(ctx *Context) error {
 	start := time.Now()
 
-	pongText := new("Ponging...")
-
-	resp, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
-		Conversation: pongText,
-	})
-	if err != nil {
-		return err
-	}
+	loader := ctx.StartLoader("Ponging")
+	defer loader.Stop()
 
 	elapsed := time.Since(start)
 
@@ -49,8 +41,6 @@ func handlePing(ctx *Context) error {
 		}
 	}
 
-	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, ctx.Client.BuildEdit(ctx.Chat, resp.ID, &waE2E.Message{
-		Conversation: &text,
-	}))
+	_, err := ctx.Edit(loader.MessageID(), text)
 	return err
 }

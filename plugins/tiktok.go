@@ -31,9 +31,13 @@ func handleTikTok(ctx *Context) error {
 		slog.Warn("handleTikTok: invalid URL", "url", ctx.Args[0])
 		return sendText(ctx, "Invalid tiktok url!")
 	}
+	loader := ctx.StartLoader("Downloading TikTok video")
+	defer loader.Delete()
+
 	slog.Debug("handleTikTok: calling Fetch", "url", ctx.Args[0])
 	data, err := ember.Fetch(ctx.Ctx, ctx.Args[0], "")
 	if err != nil {
+		loader.Delete()
 		slog.Error("handleTikTok: Fetch failed", "err", err)
 		return sendText(ctx, fmt.Sprintf("Failed: %s", err))
 	}

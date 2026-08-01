@@ -31,9 +31,13 @@ func handleFacebook(ctx *Context) error {
 		slog.Warn("handleFacebook: invalid URL", "url", ctx.Args[0])
 		return sendText(ctx, "Invalid facebook url!")
 	}
+	loader := ctx.StartLoader("Downloading Facebook post")
+	defer loader.Delete()
+
 	slog.Debug("handleFacebook: calling Fetch", "url", ctx.Args[0])
 	data, err := ember.Fetch(ctx.Ctx, ctx.Args[0], "")
 	if err != nil {
+		loader.Delete()
 		slog.Error("handleFacebook: Fetch failed", "err", err)
 		return sendText(ctx, fmt.Sprintf("Failed: %s", err))
 	}

@@ -31,9 +31,13 @@ func handleTwitter(ctx *Context) error {
 		slog.Warn("handleTwitter: invalid URL", "url", ctx.Args[0])
 		return sendText(ctx, "Invalid twitter/x url!")
 	}
+	loader := ctx.StartLoader("Downloading Twitter/X media")
+	defer loader.Delete()
+
 	slog.Debug("handleTwitter: calling Fetch", "url", ctx.Args[0])
 	data, err := ember.Fetch(ctx.Ctx, ctx.Args[0], "")
 	if err != nil {
+		loader.Delete()
 		slog.Error("handleTwitter: Fetch failed", "err", err)
 		return sendText(ctx, fmt.Sprintf("Failed: %s", err))
 	}

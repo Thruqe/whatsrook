@@ -99,9 +99,12 @@ func showUpdateStatus(ctx *Context, channel string) error {
 }
 
 func performCheck(ctx *Context) error {
-	_ = ctx.Reply("Checking for system binary updates...")
+	loader := ctx.StartLoader("Checking for system updates")
+	defer loader.Delete()
+
 	check, err := updater.CheckUpdate()
 	if err != nil {
+		loader.Delete()
 		slog.Error("update check failed", "err", err)
 		return ctx.Reply(fmt.Sprintf("Update check failed: %v", err))
 	}
@@ -123,10 +126,12 @@ func performUpgrade(ctx *Context, isBeta bool) error {
 		channelName = "beta"
 	}
 
-	_ = ctx.Reply(fmt.Sprintf("Downloading %s binary release for %s...", channelName, updater.GetPlatform()))
+	loader := ctx.StartLoader(fmt.Sprintf("Downloading %s release", channelName))
+	defer loader.Delete()
 
 	res, err := updater.PerformUpdate(isBeta)
 	if err != nil {
+		loader.Delete()
 		slog.Error("update execution failed", "err", err)
 		return ctx.Reply(fmt.Sprintf("Update failed: %v", err))
 	}
