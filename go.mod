@@ -1,6 +1,6 @@
 module whatsrook
 
-go 1.26.4
+go 1.26.5
 
 require (
 	github.com/coder/websocket v1.8.15
@@ -15,6 +15,8 @@ require (
 	go.mau.fi/whatsmeow v0.0.0-20260722203353-e9a033b24933
 	google.golang.org/protobuf v1.36.11
 )
+
+require github.com/Thruqe/htmlbuilder v1.0.0 // indirect
 
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect

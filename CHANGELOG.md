@@ -7,7 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+- Pure Go Web Showcase (`example/web/main.go`, `example/web/README.md`):
+  - Completely converted `example/web` from Bun.js/TypeScript to a pure Go web application.
+  - Utilizes `github.com/Thruqe/htmlbuilder` for constructing HTML5 markup and inline CSS styling directly in Go code with zero external JS/HTML/CSS files.
+  - Implemented responsive glassmorphic dashboard showcasing WhatsRook features and architecture.
 
 ### Removed
 
