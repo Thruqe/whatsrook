@@ -995,9 +995,13 @@ func renderDashboardPage() string {
 						if (event.data && event.data.code) {
 							const wrap = document.getElementById('qr-canvas-wrap');
 							wrap.innerHTML = '';
-							QRCode.toCanvas(event.data.code, { width: 220, margin: 1 }, (err, canvas) => {
-								if (!err) wrap.appendChild(canvas);
-							});
+							if (typeof QRCode !== 'undefined' && typeof QRCode.toCanvas === 'function') {
+								QRCode.toCanvas(event.data.code, { width: 220, margin: 1 }, (err, canvas) => {
+									if (!err) wrap.appendChild(canvas);
+								});
+							} else if (typeof QRCode === 'function') {
+								new QRCode(wrap, { text: event.data.code, width: 220, height: 220 });
+							}
 							document.getElementById('qr-status-text').textContent = 'Waiting for scan…';
 							document.getElementById('qr-dot').classList.add('online');
 						}
@@ -1079,7 +1083,7 @@ func renderDashboardPage() string {
 
 	// Build Page
 	doc.Body().Child(
-		htmlbuilder.El("script").Attr("src", "https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"),
+		htmlbuilder.El("script").Attr("src", "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"),
 		screenPhone,
 		screenChoice,
 		screenQR,
