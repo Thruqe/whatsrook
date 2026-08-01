@@ -27,14 +27,6 @@ func sendTextRaw(ctx context.Context, client *whatsmeow.Client, chat types.JID, 
 	return err
 }
 
-func getYouTubeCookie(ctx *Context) string {
-	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
-	if !ok {
-		return ""
-	}
-	cookie, _ := s.GetSetting(ctx.Ctx, CookieSettingKeyPrefix+"youtube.com")
-	return cookie
-}
 
 func isWordPrefix(s string) bool {
 	for _, r := range s {

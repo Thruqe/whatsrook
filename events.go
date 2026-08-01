@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"whatsrook/ember"
 	"whatsrook/plugins"
 	"whatsrook/sender"
 	"whatsrook/store/sqlstore"
@@ -381,7 +380,6 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 			tag, _ := s.GetSetting(ctx, "welcome_tag:"+chatKey)
 			descOpt, _ := s.GetSetting(ctx, "welcome_desc:"+chatKey)
 			customMsg, _ := s.GetSetting(ctx, "welcome_msg:"+chatKey)
-			mediaURL, _ := s.GetSetting(ctx, "welcome_media:"+chatKey)
 
 			info, err := b.client.GetGroupInfo(ctx, g.JID)
 			groupName := "the group"
@@ -425,13 +423,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 					},
 				}
 
-				if mediaURL != "" {
-					_ = sender.SendResult(ctx, b.client, g.JID, &ember.Data{
-						Medias: []ember.Media{{URL: mediaURL, Type: "video"}},
-					})
-				} else {
-					_, _ = b.client.SendMessage(ctx, g.JID, msg)
-				}
+				_, _ = b.client.SendMessage(ctx, g.JID, msg)
 			}
 		}
 	}
@@ -443,7 +435,6 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 			tag, _ := s.GetSetting(ctx, "goodbye_tag:"+chatKey)
 			descOpt, _ := s.GetSetting(ctx, "goodbye_desc:"+chatKey)
 			customMsg, _ := s.GetSetting(ctx, "goodbye_msg:"+chatKey)
-			mediaURL, _ := s.GetSetting(ctx, "goodbye_media:"+chatKey)
 
 			info, err := b.client.GetGroupInfo(ctx, g.JID)
 			groupName := "the group"
@@ -492,13 +483,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 					},
 				}
 
-				if mediaURL != "" {
-					_ = sender.SendResult(ctx, b.client, g.JID, &ember.Data{
-						Medias: []ember.Media{{URL: mediaURL, Type: "video"}},
-					})
-				} else {
-					_, _ = b.client.SendMessage(ctx, g.JID, msg)
-				}
+				_, _ = b.client.SendMessage(ctx, g.JID, msg)
 			}
 		}
 	}
