@@ -16,7 +16,7 @@ require (
 	google.golang.org/protobuf v1.36.11
 )
 
-require github.com/Thruqe/htmlbuilder v1.0.0 // indirect
+require github.com/Thruqe/htmlbuilder v1.0.0
 
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect

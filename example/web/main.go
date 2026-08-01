@@ -792,10 +792,11 @@ func renderDashboardPage() string {
 							Attr("id", "phone-number").
 							Attr("placeholder", "e.g. 2348012345678").
 							Attr("inputmode", "numeric").
-							Attr("autocomplete", "off"),
+							Attr("autocomplete", "off").
+							Attr("onkeydown", "if(event.key==='Enter') document.getElementById('btn-continue').click()"),
 					),
 				),
-				htmlbuilder.El("button").Class("primary").Attr("id", "btn-continue").Child(
+				htmlbuilder.El("button").Class("primary").Attr("type", "button").Attr("id", "btn-continue").Child(
 					htmlbuilder.Span("Continue").Attr("id", "btn-continue-text"),
 				),
 				htmlbuilder.El("div").Class("error-msg").Attr("id", "phone-error").Child(
@@ -926,7 +927,7 @@ func renderDashboardPage() string {
 
 	// Interactive JavaScript for WebSocket bridge & UI screen switching
 	scriptBlock := `
-		(function() {
+		window.addEventListener('DOMContentLoaded', function() {
 			let ws = null;
 			let userPhone = '';
 			let currentStatus = null;
@@ -979,14 +980,14 @@ func renderDashboardPage() string {
 				switch (event.type) {
 					case 'status':
 						currentStatus = event.data;
-						if (currentStatus.loggedIn) {
+						if (currentStatus && currentStatus.loggedIn) {
 							document.getElementById('dash-name').textContent = currentStatus.pushName || 'WhatsApp User';
 							document.getElementById('dash-number').textContent = currentStatus.jid || 'Connected';
 							document.getElementById('dash-conn-status').textContent = 'Online';
 							showScreen('dashboard');
-						} else if (!screens.choice.classList.contains('active') && 
-								   !screens.qr.classList.contains('active') && 
-								   !screens.code.classList.contains('active')) {
+						} else if (screens.choice && !screens.choice.classList.contains('active') && 
+								   screens.qr && !screens.qr.classList.contains('active') && 
+								   screens.code && !screens.code.classList.contains('active')) {
 							showScreen('phone');
 						}
 						break;
@@ -1033,6 +1034,7 @@ func renderDashboardPage() string {
 
 			function addFeedItem(m) {
 				const feed = document.getElementById('dash-feed');
+				if (!feed) return;
 				const empty = feed.querySelector('.feed-empty');
 				if (empty) empty.remove();
 
@@ -1045,40 +1047,57 @@ func renderDashboardPage() string {
 			}
 
 			// Handlers
-			document.getElementById('btn-continue').onclick = () => {
-				const phoneInput = document.getElementById('phone-number');
-				const val = phoneInput.value.replace(/\D/g, '');
-				if (!val) {
-					document.getElementById('phone-error-text').textContent = 'Please enter a valid phone number.';
-					document.getElementById('phone-error').classList.add('active');
-					return;
-				}
-				userPhone = val;
-				document.getElementById('phone-error').classList.remove('active');
-				showScreen('choice');
-			};
+			const btnContinue = document.getElementById('btn-continue');
+			if (btnContinue) {
+				btnContinue.onclick = () => {
+					const phoneInput = document.getElementById('phone-number');
+					const val = phoneInput ? phoneInput.value.replace(/\D/g, '') : '';
+					if (!val) {
+						document.getElementById('phone-error-text').textContent = 'Please enter a valid phone number.';
+						document.getElementById('phone-error').classList.add('active');
+						return;
+					}
+					userPhone = val;
+					document.getElementById('phone-error').classList.remove('active');
+					showScreen('choice');
+				};
+			}
 
-			document.getElementById('choice-qr').onclick = () => {
-				showScreen('qr');
-				sendAction('request_pair_qr');
-			};
+			const choiceQr = document.getElementById('choice-qr');
+			if (choiceQr) {
+				choiceQr.onclick = () => {
+					showScreen('qr');
+					sendAction('request_pair_qr');
+				};
+			}
 
-			document.getElementById('choice-pair').onclick = () => {
-				showScreen('code');
-				sendAction('request_pair_code', { phoneNumber: userPhone });
-			};
+			const choicePair = document.getElementById('choice-pair');
+			if (choicePair) {
+				choicePair.onclick = () => {
+					showScreen('code');
+					sendAction('request_pair_code', { phoneNumber: userPhone });
+				};
+			}
 
-			document.getElementById('choice-back').onclick = () => showScreen('phone');
-			document.getElementById('qr-back').onclick = () => showScreen('choice');
-			document.getElementById('code-back').onclick = () => showScreen('choice');
+			const choiceBack = document.getElementById('choice-back');
+			if (choiceBack) choiceBack.onclick = () => showScreen('phone');
 
-			document.getElementById('btn-logout').onclick = () => {
-				sendAction('logout');
-				showScreen('phone');
-			};
+			const qrBack = document.getElementById('qr-back');
+			if (qrBack) qrBack.onclick = () => showScreen('choice');
+
+			const codeBack = document.getElementById('code-back');
+			if (codeBack) codeBack.onclick = () => showScreen('choice');
+
+			const btnLogout = document.getElementById('btn-logout');
+			if (btnLogout) {
+				btnLogout.onclick = () => {
+					sendAction('logout');
+					showScreen('phone');
+				};
+			}
 
 			initWS();
-		})();
+		});
 	`
 
 	// Build Page
