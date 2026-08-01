@@ -1,4 +1,5 @@
-// Play command & YouTube downloader (ytv/yta) – search via Ember API, show interactive quality buttons, then download.
+// Play command & YouTube downloader (ytv/yta) – search via Ember /youtube/search,
+// show interactive quality buttons using search metadata, then download on button press.
 package commands
 
 import (
@@ -49,12 +50,11 @@ func handlePlay(ctx *Context) error {
 		return ctx.Reply("Please specify a song name or YouTube URL.")
 	}
 
-	// Button response: !play audio|video <videoID>
-	firstArg := strings.ToLower(ctx.Args[0])
-	if (firstArg == "audio" || firstArg == "video") && len(ctx.Args) >= 2 {
+	// Button response: !play audio <videoID>
+	if strings.ToLower(ctx.Args[0]) == "audio" && len(ctx.Args) >= 2 {
 		videoID := ctx.Args[1]
 		videoURL := "https://www.youtube.com/watch?v=" + videoID
-		return handlePlayDownload(ctx, firstArg, videoURL)
+		return handlePlayDownload(ctx, "audio", videoURL)
 	}
 
 	query := strings.TrimSpace(ctx.RawArgs)
@@ -62,13 +62,12 @@ func handlePlay(ctx *Context) error {
 		query = strings.Join(ctx.Args, " ")
 	}
 
-	videoURL, title, uploader, err := resolveYouTubeURL(ctx, query)
-	if err != nil || videoURL == "" {
+	sr, err := resolveToSearchResult(ctx, query)
+	if err != nil || sr == nil {
 		return ctx.Reply("Could not find any video for that query.")
 	}
 
-	// play = audio mode (music player)
-	return sendQualityButtons(ctx, videoURL, title, uploader, "play")
+	return sendQualityButtons(ctx, sr, "play")
 }
 
 // handleYTV: video-focused download with quality selection.
@@ -85,12 +84,12 @@ func handleYTV(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("Usage: `%sytv <youtube_url_or_query>`", prefix))
 	}
 
-	videoURL, title, uploader, err := resolveYouTubeURL(ctx, input)
-	if err != nil || videoURL == "" {
+	sr, err := resolveToSearchResult(ctx, input)
+	if err != nil || sr == nil {
 		return ctx.Reply("Could not find any video for that query.")
 	}
 
-	return sendQualityButtons(ctx, videoURL, title, uploader, "ytv")
+	return sendQualityButtons(ctx, sr, "ytv")
 }
 
 // handleYTA: audio-only download with quality selection.
@@ -107,36 +106,39 @@ func handleYTA(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("Usage: `%syta <youtube_url_or_query>`", prefix))
 	}
 
-	videoURL, title, uploader, err := resolveYouTubeURL(ctx, input)
-	if err != nil || videoURL == "" {
+	sr, err := resolveToSearchResult(ctx, input)
+	if err != nil || sr == nil {
 		return ctx.Reply("Could not find any video for that query.")
 	}
 
-	return sendQualityButtons(ctx, videoURL, title, uploader, "yta")
+	return sendQualityButtons(ctx, sr, "yta")
 }
 
-// resolveYouTubeURL resolves a query or a URL to a canonical YouTube watch URL plus metadata.
-// If the input is already a URL it is returned as-is with empty title/uploader.
-func resolveYouTubeURL(ctx *Context, input string) (videoURL, title, uploader string, err error) {
+// resolveToSearchResult: if input is a URL, wraps it in a synthetic SearchResult.
+// If it's a query, calls the Ember /youtube/search endpoint.
+func resolveToSearchResult(ctx *Context, input string) (*ember.SearchResult, error) {
 	if strings.HasPrefix(input, "http://") || strings.HasPrefix(input, "https://") {
-		return input, "", "", nil
+		videoID := extractVideoID(input)
+		return &ember.SearchResult{
+			ID:    videoID,
+			URL:   input,
+			Title: "",
+		}, nil
 	}
 
-	results, searchErr := ember.SearchYouTube(ctx.Ctx, input, 1)
-	if searchErr != nil {
-		slog.Error("resolveYouTubeURL: search failed", "query", input, "err", searchErr)
-		return "", "", "", searchErr
+	results, err := ember.SearchYouTube(ctx.Ctx, input, 1)
+	if err != nil {
+		slog.Error("resolveToSearchResult: search failed", "query", input, "err", err)
+		return nil, err
 	}
 	if len(results) == 0 {
-		return "", "", "", fmt.Errorf("no results")
+		return nil, fmt.Errorf("no results")
 	}
-	r := results[0]
-	return r.URL, r.Title, r.Uploader, nil
+	return &results[0], nil
 }
 
-// extractVideoID returns the "v=" parameter from a YouTube watch URL, or the raw path segment.
+// extractVideoID returns the "v=" parameter from a YouTube watch URL.
 func extractVideoID(videoURL string) string {
-	// Fast path: standard watch URL
 	if idx := strings.Index(videoURL, "watch?v="); idx >= 0 {
 		id := videoURL[idx+8:]
 		if end := strings.IndexAny(id, "&?#"); end >= 0 {
@@ -144,7 +146,7 @@ func extractVideoID(videoURL string) string {
 		}
 		return id
 	}
-	// youtu.be/<id> short links
+	// youtu.be/<id>
 	if idx := strings.LastIndex(videoURL, "/"); idx >= 0 {
 		id := videoURL[idx+1:]
 		if qi := strings.IndexByte(id, '?'); qi >= 0 {
@@ -155,79 +157,70 @@ func extractVideoID(videoURL string) string {
 	return videoURL
 }
 
-// sendQualityButtons fetches format info via Ember and sends an interactive message
-// with quality-selection buttons. mode is "play" | "ytv" | "yta".
-func sendQualityButtons(ctx *Context, videoURL, title, uploader string, mode string) error {
-	// Fetch format list from Ember (cookie already registered server-side)
-	data, err := ember.Fetch(ctx.Ctx, videoURL, "")
-	if err != nil {
-		slog.Error("sendQualityButtons: ember.Fetch failed", "url", videoURL, "err", err)
-		errStr := strings.ToLower(err.Error())
-		if isCookieError2(errStr) {
-			return sendCookieHelp(ctx)
-		}
-		return ctx.Reply(fmt.Sprintf("Failed to fetch video details: %s", err))
-	}
-
-	// Use metadata from Fetch if not already populated from search
-	if title == "" && data.Title != "" {
-		title = data.Title
-	}
+// sendQualityButtons shows an interactive message with quality-selection buttons.
+// It uses ONLY the search result metadata — no /download call here.
+// The actual /download happens when the user clicks a button.
+func sendQualityButtons(ctx *Context, sr *ember.SearchResult, mode string) error {
+	title := sr.Title
 	if title == "" {
 		title = "YouTube Content"
 	}
-	if uploader == "" && data.Author != "" {
-		uploader = data.Author
-	}
+	uploader := sr.Uploader
+	duration := formatDuration(sr.Duration)
 
-	duration := formatDuration(data.Duration)
 	bodyText := fmt.Sprintf("Title: %s\nChannel: %s\nDuration: %s\n\nAvailable Qualities:", title, uploader, duration)
 
 	prefix := ctx.GetPrefix()
-	videoID := extractVideoID(videoURL)
+	videoID := sr.ID
+	if videoID == "" {
+		videoID = extractVideoID(sr.URL)
+	}
 
 	var buttons []*waE2E.ButtonsMessage_Button
 
 	switch mode {
-	case "yta", "play":
-		// Audio qualities — the API delivers a single combined stream; present meaningful labels
-		audioQualities := []string{"128kbps", "320kbps"}
-		cmd := "yta"
-		if mode == "play" {
-			cmd = "play audio"
-		}
-		for _, q := range audioQualities {
-			btnID := fmt.Sprintf("%s%s %s", prefix, cmd, videoID)
-			label := q
+	case "yta":
+		// Audio quality options
+		for _, q := range []string{"128kbps", "320kbps"} {
+			q := q
+			btnID := fmt.Sprintf("%syta download %s", prefix, videoID)
 			buttons = append(buttons, &waE2E.ButtonsMessage_Button{
 				ButtonID:   &btnID,
-				ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: &label},
+				ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: &q},
+				Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
+			})
+		}
+
+	case "play":
+		// play = audio mode with the same quality labels
+		for _, q := range []string{"128kbps", "320kbps"} {
+			q := q
+			btnID := fmt.Sprintf("%splay audio %s", prefix, videoID)
+			buttons = append(buttons, &waE2E.ButtonsMessage_Button{
+				ButtonID:   &btnID,
+				ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: &q},
 				Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
 			})
 		}
 
 	case "ytv":
-		// Video — extract available resolutions from formats list
-		heights := collectVideoHeights(data)
-		if len(heights) == 0 {
-			heights = []int{360} // fallback
-		}
-		for _, h := range heights {
-			label := fmt.Sprintf("%dp", h)
+		// Video quality options — the API currently delivers up to 360p combined;
+		// show what's realistically available
+		for _, res := range []string{"360p", "720p", "1080p"} {
+			res := res
 			btnID := fmt.Sprintf("%sytv download %s", prefix, videoID)
 			buttons = append(buttons, &waE2E.ButtonsMessage_Button{
 				ButtonID:   &btnID,
-				ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: &label},
+				ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: &res},
 				Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
 			})
 		}
 
 	default:
 		// Generic: one Video button + one Audio button
-		topRes := bestVideoResolution(data)
 		videoBtnID := fmt.Sprintf("%sytv download %s", prefix, videoID)
 		audioBtnID := fmt.Sprintf("%syta download %s", prefix, videoID)
-		videoLabel := fmt.Sprintf("Video (%s)", topRes)
+		videoLabel := "Video (360p)"
 		audioLabel := "Audio (128kbps)"
 		buttons = []*waE2E.ButtonsMessage_Button{
 			{
@@ -284,11 +277,12 @@ func sendQualityButtons(ctx *Context, videoURL, title, uploader string, mode str
 		AdditionalNodes: &[]waBinary.Node{bizNode},
 	}
 
-	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
+	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
 	return err
 }
 
-// handlePlayDownload performs the actual download and sends the media to WhatsApp.
+// handlePlayDownload is called when the user clicks a quality button.
+// It calls /download, gets the stream URL, downloads the bytes, and sends to WhatsApp.
 func handlePlayDownload(ctx *Context, format string, videoURL string) error {
 	if !dlLimiter.Acquire(ctx.Sender.String(), 30*time.Second) {
 		return ctx.Reply("Please wait a moment before requesting another download.")
@@ -304,68 +298,41 @@ func handlePlayDownload(ctx *Context, format string, videoURL string) error {
 		if isCookieError2(errStr) {
 			return sendCookieHelp(ctx)
 		}
+		if strings.Contains(errStr, "no active cookies") {
+			return sendCookieHelp(ctx)
+		}
+		if strings.Contains(errStr, "requested format is not available") {
+			return ctx.Reply("This video's format is not currently supported by the download server. Try a different video.")
+		}
 		return ctx.Reply(fmt.Sprintf("Failed to download: %s", err))
 	}
 
-	// For audio mode, filter medias to audio-only
+	// For audio mode: filter to audio-only media, or fall back to top-level URL
 	if format == "audio" {
+		audioFound := false
 		for i := range data.Medias {
 			if data.Medias[i].IsAudio || data.Medias[i].Type == "audio" {
 				data.Medias = []ember.Media{data.Medias[i]}
+				audioFound = true
 				break
 			}
 		}
-		// Mark type so sender picks the right path
-		data.Type = "audio"
-		if len(data.Medias) == 0 && data.URL != "" {
-			// Fall back to the top-level URL as audio
-			data.Medias = []ember.Media{{URL: data.URL, Type: "audio", Extension: "mp4", IsAudio: true}}
+		if !audioFound && data.URL != "" {
+			// Use top-level stream URL as audio (combined stream, extract audio via ffmpeg)
+			data.Medias = []ember.Media{{
+				URL:       data.URL,
+				Type:      "audio",
+				Extension: "mp4",
+				IsAudio:   true,
+			}}
 		}
+		data.Type = "audio"
 	}
 
 	return sender.SendResult(ctx.Ctx, ctx.Client, ctx.Chat, data)
 }
 
-// collectVideoHeights returns unique video heights from formats, sorted ascending (max 3).
-func collectVideoHeights(data *ember.Data) []int {
-	seen := make(map[int]bool)
-	for _, f := range data.Formats {
-		if f.Height != nil && *f.Height > 0 {
-			// Skip audio-only (no vcodec or vcodec=="none")
-			if f.VCodec != nil && *f.VCodec != "none" && *f.VCodec != "" {
-				seen[*f.Height] = true
-			}
-		}
-	}
-	var list []int
-	for h := range seen {
-		list = append(list, h)
-	}
-	// Sort ascending
-	for i := 0; i < len(list); i++ {
-		for j := i + 1; j < len(list); j++ {
-			if list[j] < list[i] {
-				list[i], list[j] = list[j], list[i]
-			}
-		}
-	}
-	// Cap at 3
-	if len(list) > 3 {
-		list = list[len(list)-3:]
-	}
-	return list
-}
-
-// bestVideoResolution returns the highest available video resolution label.
-func bestVideoResolution(data *ember.Data) string {
-	heights := collectVideoHeights(data)
-	if len(heights) == 0 {
-		return "360p"
-	}
-	return fmt.Sprintf("%dp", heights[len(heights)-1])
-}
-
-// formatDuration converts a duration value (float64 seconds or string) to mm:ss.
+// formatDuration converts float64 seconds to a mm:ss string.
 func formatDuration(dur any) string {
 	switch v := dur.(type) {
 	case float64:
@@ -381,7 +348,9 @@ func formatDuration(dur any) string {
 		}
 		return fmt.Sprintf("%d:%02d", v/60, v%60)
 	case string:
-		return v
+		if v != "" {
+			return v
+		}
 	}
 	return "Unknown"
 }
