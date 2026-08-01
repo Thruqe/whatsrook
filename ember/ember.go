@@ -14,7 +14,10 @@ import (
 	"time"
 )
 
-const baseURL string = "https://embers-0kn7.onrender.com/download"
+const (
+	baseURL       = "https://embers-0kn7.onrender.com/download"
+	baseSearchURL = "https://embers-0kn7.onrender.com/youtube/search"
+)
 
 // Owner holds information about the content creator of downloaded media.
 type Owner struct {
@@ -87,14 +90,67 @@ type Data struct {
 	Medias    []Media `json:"-"`
 }
 
-var httpClient = &http.Client{Timeout: 30 * time.Second}
+var httpClient = &http.Client{Timeout: 90 * time.Second}
 
-// Fetch calls the Ember API for the given post/video URL with an optional cookie.
-func Fetch(ctx context.Context, postURL string, cookie string) (*Data, error) {
-	q := url.Values{"url": {postURL}}
-	if cookie != "" {
-		q.Set("cookie", cookie)
+// SearchResult is a single entry returned by the Ember /youtube/search endpoint.
+type SearchResult struct {
+	ID        string  `json:"id"`
+	Title     string  `json:"title"`
+	URL       string  `json:"url"`
+	Duration  float64 `json:"duration,omitempty"`
+	ViewCount float64 `json:"view_count,omitempty"`
+	Uploader  string  `json:"uploader,omitempty"`
+	Thumbnail string  `json:"thumbnail,omitempty"`
+}
+
+// searchResponse is the envelope returned by /youtube/search.
+type searchResponse struct {
+	Error   bool   `json:"error"`
+	Message string `json:"message,omitempty"`
+	Data    struct {
+		Query   string         `json:"query"`
+		Count   int            `json:"count"`
+		Results []SearchResult `json:"results"`
+	} `json:"data"`
+}
+
+// SearchYouTube calls the Ember /youtube/search endpoint and returns the top results.
+func SearchYouTube(ctx context.Context, query string, limit int) ([]SearchResult, error) {
+	if limit <= 0 {
+		limit = 1
 	}
+	q := url.Values{
+		"q":     {query},
+		"limit": {fmt.Sprintf("%d", limit)},
+	}
+	fullURL := baseSearchURL + "?" + q.Encode()
+
+	slog.Debug("ember.SearchYouTube: sending request", "url", fullURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("ember search request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var sr searchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
+		return nil, fmt.Errorf("ember search decode failed: %w", err)
+	}
+	if sr.Error {
+		return nil, fmt.Errorf("ember search: %s", sr.Message)
+	}
+	return sr.Data.Results, nil
+}
+
+// Fetch calls the Ember /download API for the given URL.
+// Cookies are managed server-side via POST /cookies — no cookie param needed here.
+func Fetch(ctx context.Context, postURL string, _ string) (*Data, error) {
+	q := url.Values{"url": {postURL}}
 	fullURL := baseURL + "?" + q.Encode()
 
 	slog.Debug("ember.Fetch: sending HTTP request", "url", fullURL)
@@ -113,7 +169,8 @@ func Fetch(ctx context.Context, postURL string, cookie string) (*Data, error) {
 
 	slog.Debug("ember.Fetch: HTTP response received", "status_code", resp.StatusCode)
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusBadRequest &&
+		resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusInternalServerError {
 		return nil, fmt.Errorf("ember API returned status %d", resp.StatusCode)
 	}
 

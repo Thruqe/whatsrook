@@ -22,6 +22,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Emoji Removal from `autoacceptcall` (`plugins/autoacceptcall.go`):
   - Cleaned up all status and command response messages to remove emojis.
 
+### Changed
+
+- Ember API Integration Rewrite (`ember/ember.go`, `plugins/play.go`):
+  - Replaced local `yt-dlp` search in `play`/`ytv`/`yta` commands with Ember's `/youtube/search` endpoint; removed `go-ytdlp` dependency.
+  - `ember.Fetch` no longer passes raw cookie content as a query parameter — cookies are managed server-side by Embers (registered via POST `/cookies` from `setcookie`).
+  - Added `ember.SearchYouTube()` function wrapping the `/youtube/search` API.
+  - Interactive quality buttons now embed only the YouTube video ID (not full URL) to keep button IDs compact and valid.
+  - `handlePlayDownload` now correctly falls back to top-level stream URL for audio-only mode when no dedicated audio media entry is present.
+  - Increased Ember HTTP client timeout from 30s to 90s to handle long yt-dlp extraction.
+  - Removed unused `isCookieError` function; renamed to `isCookieError2` (takes pre-lowercased string for efficiency).
+  - `go mod tidy` cleaned `go-ytdlp` from `go.mod`/`go.sum`.
+
+
 - AutoAcceptCall Forced Accept Protocol Deadlock & Duplicate Accept Prevention (`plugins/autoacceptcall.go`, `plugins/callplace.go`):
   - Solved incoming call deadlock with WhatsApp Android callers (`stop_probing_before_accept_send=1`) by sending forced `<accept>` node via `DangerousInternals` after relay election.
   - Added `clearMeowcallerAcceptPending` using reflection and `unsafe.Pointer` to clear `acceptPending` on `meowcaller.engine`, preventing duplicate `<accept>` nodes when `<mute_v2>` arrives and eliminating call reconnecting/disruption.

@@ -5,7 +5,6 @@ go 1.26.4
 require (
 	github.com/coder/websocket v1.8.15
 	github.com/google/uuid v1.6.0
-	github.com/lrstanley/go-ytdlp v1.3.5
 	github.com/mattn/go-sqlite3 v1.14.48
 	github.com/purpshell/meowcaller v0.0.0-20260726180203-6d9b7b2c1807
 	github.com/rs/zerolog v1.35.1
@@ -15,12 +14,6 @@ require (
 	go.mau.fi/util v0.9.12-0.20260717235539-f9ffa7eca58d
 	go.mau.fi/whatsmeow v0.0.0-20260722203353-e9a033b24933
 	google.golang.org/protobuf v1.36.11
-)
-
-require (
-	github.com/ProtonMail/go-crypto v1.4.1 // indirect
-	github.com/cloudflare/circl v1.6.4 // indirect
-	github.com/ulikunitz/xz v0.5.16 // indirect
 )
 
 require (
