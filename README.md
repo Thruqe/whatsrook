@@ -26,7 +26,7 @@ Connect your app to WhatsApp and receive live events — messages, groups, stori
 
 ### 1. Pterodactyl Deployment
 
-1. [Download the installer](https://raw.githubusercontent.com/Thruqe/whatsrook/refs/heads/master/scripts/panel/index.js) script.
+1. [Download the installer](https://raw.githubusercontent.com/Thruqe/whatsrook/refs/heads/master/scripts/panel.zip) script.
 2. In the **Files** tab, upload the downloaded script.
 3. Open the installer file and fill in the required variables before running it.
 4. Go to the **Start Up** tab, scroll down and put
