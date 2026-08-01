@@ -11,7 +11,7 @@ import (
 
 const (
 	BotNameSettingKey          = "bot_name"
-	BotNamePromptDismissedKey = "botname_prompt_dismissed"
+	BotNamePromptDismissedKey  = "botname_prompt_dismissed"
 	BotNameAwaitingInputPrefix = "botname_awaiting_input:"
 )
 

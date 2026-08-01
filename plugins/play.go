@@ -1,14 +1,16 @@
-// Play command – search for a song using go-ytdlp and send interactive buttons to choose video or audio format.
+// Play command & YouTube downloader (ytv/yta) – search and download YouTube media via Ember API with interactive quality buttons.
 package commands
 
 import (
 	"fmt"
 	"log/slog"
-	"os"
-	"os/exec"
-	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
+
+	"whatsrook/ember"
+	"whatsrook/sender"
 
 	"github.com/lrstanley/go-ytdlp"
 	"go.mau.fi/whatsmeow"
@@ -19,16 +21,35 @@ import (
 func init() {
 	Register(&Command{
 		Name:        "play",
-		Description: "Search YouTube for a song and download as video or audio via interactive buttons",
+		Description: "Search YouTube for a song/video and download via interactive quality selection buttons",
 		Category:    "media",
 		IsPublic:    true,
 		Handler:     handlePlay,
 	})
+
+	Register(&Command{
+		Name:        "ytv",
+		Aliases:     []string{"youtubevideo"},
+		Description: "Download YouTube video by URL or query with quality selection buttons",
+		Category:    "media",
+		IsPublic:    true,
+		Handler:     handleYTV,
+	})
+
+	Register(&Command{
+		Name:        "yta",
+		Aliases:     []string{"youtubeaudio"},
+		Description: "Download YouTube audio by URL or query with quality selection buttons",
+		Category:    "media",
+		IsPublic:    true,
+		Handler:     handleYTA,
+	})
 }
 
+// handlePlay handles searching YouTube or direct downloading when quality choice is triggered
 func handlePlay(ctx *Context) error {
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("Please specify a song name.")
+		return ctx.Reply("Please specify a song name or YouTube URL.")
 	}
 
 	firstArg := strings.ToLower(ctx.Args[0])
@@ -36,11 +57,68 @@ func handlePlay(ctx *Context) error {
 		return handlePlayDownload(ctx, firstArg, strings.Join(ctx.Args[1:], " "))
 	}
 
-	songQuery := ctx.RawArgs
-	if songQuery == "" {
-		songQuery = strings.Join(ctx.Args, " ")
+	query := strings.TrimSpace(ctx.RawArgs)
+	if query == "" {
+		query = strings.Join(ctx.Args, " ")
 	}
 
+	targetURL := query
+	if !strings.HasPrefix(query, "http://") && !strings.HasPrefix(query, "https://") {
+		resolved, err := searchYouTubeURL(ctx, query)
+		if err != nil || resolved == "" {
+			return ctx.Reply("Could not find any video for that query.")
+		}
+		targetURL = resolved
+	}
+
+	return sendInteractiveQualityMessage(ctx, targetURL, "play")
+}
+
+func handleYTV(ctx *Context) error {
+	link := resolveFetchURL(ctx)
+	if link == "" && len(ctx.Args) > 0 {
+		link = ctx.RawArgs
+	}
+
+	if link == "" {
+		prefix := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage: `%sytv <youtube_url_or_query>`", prefix))
+	}
+
+	if !strings.HasPrefix(link, "http://") && !strings.HasPrefix(link, "https://") {
+		resolved, err := searchYouTubeURL(ctx, link)
+		if err != nil || resolved == "" {
+			return ctx.Reply("Could not find any video for that query.")
+		}
+		link = resolved
+	}
+
+	return sendInteractiveQualityMessage(ctx, link, "ytv")
+}
+
+func handleYTA(ctx *Context) error {
+	link := resolveFetchURL(ctx)
+	if link == "" && len(ctx.Args) > 0 {
+		link = ctx.RawArgs
+	}
+
+	if link == "" {
+		prefix := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage: `%syta <youtube_url_or_query>`", prefix))
+	}
+
+	if !strings.HasPrefix(link, "http://") && !strings.HasPrefix(link, "https://") {
+		resolved, err := searchYouTubeURL(ctx, link)
+		if err != nil || resolved == "" {
+			return ctx.Reply("Could not find any video for that query.")
+		}
+		link = resolved
+	}
+
+	return sendInteractiveQualityMessage(ctx, link, "yta")
+}
+
+func searchYouTubeURL(ctx *Context, query string) (string, error) {
 	cmd := ytdlp.New().
 		PrintJSON().
 		JsRuntimes("bun").
@@ -52,16 +130,15 @@ func handlePlay(ctx *Context) error {
 		cmd.Cookies(cookiePath)
 	}
 
-	res, err := cmd.Run(ctx.Ctx, "ytsearch1:"+songQuery)
+	res, err := cmd.Run(ctx.Ctx, "ytsearch1:"+query)
 	if err != nil {
-		slog.Error("play search failed", "query", songQuery, "err", err)
-		return ctx.Reply("Search failed for the requested song.")
+		slog.Error("play/yt search failed", "query", query, "err", err)
+		return "", err
 	}
 
 	infos, err := res.GetExtractedInfo()
 	if err != nil || len(infos) == 0 {
-		slog.Warn("play search returned no info", "query", songQuery, "err", err)
-		return ctx.Reply("No results found for that song.")
+		return "", fmt.Errorf("no results found")
 	}
 
 	info := infos[0]
@@ -69,43 +146,131 @@ func handlePlay(ctx *Context) error {
 		info = info.Entries[0]
 	}
 
-	videoID := info.ID
-	if videoID == "" && info.WebpageURL != nil {
-		videoID = *info.WebpageURL
+	if info.WebpageURL != nil && *info.WebpageURL != "" {
+		return *info.WebpageURL, nil
 	}
-	if videoID == "" {
-		return ctx.Reply("Could not resolve video details for that song.")
+	if info.ID != "" {
+		return "https://www.youtube.com/watch?v=" + info.ID, nil
+	}
+	return "", fmt.Errorf("video url missing")
+}
+
+func sendInteractiveQualityMessage(ctx *Context, targetURL string, mode string) error {
+	cookie := getYouTubeCookie(ctx)
+	data, err := ember.Fetch(ctx.Ctx, targetURL, cookie)
+	if err != nil {
+		slog.Error("sendInteractiveQualityMessage: ember.Fetch failed", "url", targetURL, "err", err)
+		errStr := strings.ToLower(err.Error())
+		if strings.Contains(errStr, "cookie") || strings.Contains(errStr, "login") || strings.Contains(errStr, "sign in") {
+			return sendCookieHelp(ctx)
+		}
+		return ctx.Reply(fmt.Sprintf("Failed to fetch video details: %s", err))
 	}
 
-	title := "Unknown Title"
-	if info.Title != nil && *info.Title != "" {
-		title = *info.Title
+	title := data.Title
+	if title == "" {
+		title = "YouTube Content"
 	}
-
+	uploader := data.Author
 	durationStr := "Unknown"
-	if info.Duration != nil && *info.Duration > 0 {
-		d := time.Duration(*info.Duration) * time.Second
-		m := int(d.Minutes())
-		s := int(d.Seconds()) % 60
-		durationStr = fmt.Sprintf("%02d:%02d", m, s)
-	}
 
-	uploaderStr := ""
-	if info.Uploader != nil && *info.Uploader != "" {
-		uploaderStr = *info.Uploader
-	} else if info.Channel != nil && *info.Channel != "" {
-		uploaderStr = *info.Channel
-	}
-
-	bodyText := fmt.Sprintf("Title: %s\nDuration: %s", title, durationStr)
-	if uploaderStr != "" {
-		bodyText = fmt.Sprintf("Title: %s\nChannel: %s\nDuration: %s", title, uploaderStr, durationStr)
-	}
-	bodyText += "\n\nWould you like to download this as video or audio?"
+	bodyText := fmt.Sprintf("Title: %s\nChannel: %s\nDuration: %s\n\nAvailable Qualities:", title, uploader, durationStr)
 
 	prefix := ctx.GetPrefix()
-	videoBtnID := prefix + "play video " + videoID
-	audioBtnID := prefix + "play audio " + videoID
+
+	var buttons []*waE2E.ButtonsMessage_Button
+
+	if mode == "yta" {
+		// Audio qualities
+		qualities := []string{"128kbps", "320kbps"}
+		for _, q := range qualities {
+			btnID := fmt.Sprintf("%splay audio %s", prefix, targetURL)
+			buttons = append(buttons, &waE2E.ButtonsMessage_Button{
+				ButtonID:   new(btnID),
+				ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: new(q)},
+				Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
+			})
+		}
+	} else if mode == "ytv" {
+		// Extract available video resolutions
+		resMap := make(map[string]bool)
+		for _, f := range data.Formats {
+			if f.Height != nil && *f.Height > 0 {
+				resMap[fmt.Sprintf("%dp", *f.Height)] = true
+			} else if resStr, ok := f.Resolution.(string); ok && resStr != "" && resStr != "audio only" {
+				if parts := strings.Split(resStr, "x"); len(parts) == 2 {
+					if h, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil && h > 0 {
+						resMap[fmt.Sprintf("%dp", h)] = true
+					}
+				}
+			}
+		}
+
+		var resList []int
+		for res := range resMap {
+			var h int
+			if _, err := fmt.Sscanf(res, "%dp", &h); err == nil {
+				resList = append(resList, h)
+			}
+		}
+		sort.Ints(resList)
+
+		if len(resList) == 0 {
+			resList = []int{360, 720, 1080}
+		}
+
+		// Take up to top 3 resolutions for buttons
+		if len(resList) > 3 {
+			resList = resList[len(resList)-3:]
+		}
+
+		for _, h := range resList {
+			label := fmt.Sprintf("%dp", h)
+			btnID := fmt.Sprintf("%splay video %s", prefix, targetURL)
+			buttons = append(buttons, &waE2E.ButtonsMessage_Button{
+				ButtonID:   new(btnID),
+				ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: new(label)},
+				Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
+			})
+		}
+	} else {
+		// Default play mode: Video & Audio buttons with quality labels
+		resMap := make(map[string]bool)
+		for _, f := range data.Formats {
+			if f.Height != nil && *f.Height > 0 {
+				resMap[fmt.Sprintf("%dp", *f.Height)] = true
+			}
+		}
+		topRes := "720p"
+		if len(resMap) > 0 {
+			var maxH int
+			for r := range resMap {
+				var h int
+				if _, err := fmt.Sscanf(r, "%dp", &h); err == nil && h > maxH {
+					maxH = h
+				}
+			}
+			if maxH > 0 {
+				topRes = fmt.Sprintf("%dp", maxH)
+			}
+		}
+
+		videoBtnID := fmt.Sprintf("%splay video %s", prefix, targetURL)
+		audioBtnID := fmt.Sprintf("%splay audio %s", prefix, targetURL)
+
+		buttons = []*waE2E.ButtonsMessage_Button{
+			{
+				ButtonID:   new(videoBtnID),
+				ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: new("Video (" + topRes + ")")},
+				Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
+			},
+			{
+				ButtonID:   new(audioBtnID),
+				ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: new("Audio (128kbps)")},
+				Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
+			},
+		}
+	}
 
 	msg := &waE2E.Message{
 		DocumentWithCaptionMessage: &waE2E.FutureProofMessage{
@@ -114,18 +279,7 @@ func handlePlay(ctx *Context) error {
 					ContentText: &bodyText,
 					FooterText:  new("Powered by WhatsRook"),
 					HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
-					Buttons: []*waE2E.ButtonsMessage_Button{
-						{
-							ButtonID:   new(videoBtnID),
-							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: new("Video")},
-							Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
-						},
-						{
-							ButtonID:   new(audioBtnID),
-							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: new("Audio")},
-							Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
-						},
-					},
+					Buttons:     buttons,
 				},
 			},
 		},
@@ -162,8 +316,6 @@ func handlePlay(ctx *Context) error {
 	return err
 }
 
-// isCookieError checks if the yt-dlp error is caused by missing/invalid cookies
-// (YouTube bot detection requiring sign-in).
 func isCookieError(err error) bool {
 	if err == nil {
 		return false
@@ -172,18 +324,17 @@ func isCookieError(err error) bool {
 	return strings.Contains(errStr, "sign in to confirm") ||
 		strings.Contains(errStr, "use --cookies-from-browser") ||
 		strings.Contains(errStr, "use --cookies for the authentication") ||
-		strings.Contains(errStr, "login_required")
+		strings.Contains(errStr, "login_required") ||
+		strings.Contains(errStr, "cookie")
 }
 
-// sendCookieHelp sends a helpful message guiding the user to set cookies.
 func sendCookieHelp(ctx *Context) error {
 	prefix := ctx.GetPrefix()
-	bodyText := fmt.Sprintf("You haven't configured your YouTube cookies yet or they have expired. YouTube is blocking this request.\n\nDownload & install the Cookie Editor browser extension to get your cookies:\nhttps://cookie-editor.com/#download\n\nUse `%scookie` for instructions, then use `%ssetcookie <cookies>` to save your Netscape cookies.", prefix, prefix)
+	bodyText := fmt.Sprintf("YouTube cookies are required to process this request.\n\nDownload & install the Cookie Editor browser extension to get your cookies:\nhttps://cookie-editor.com/#download\n\nUse `%scookie` for instructions, then use `%ssetcookie YOUTUBE <netscape_cookie>` to save your Netscape cookies.", prefix, prefix)
 	return ctx.Reply(bodyText)
 }
 
 func handlePlayDownload(ctx *Context, format string, target string) error {
-	// Rate limit: 30s cooldown per user
 	if !dlLimiter.Acquire(ctx.Sender.String(), 30*time.Second) {
 		return ctx.Reply("Please wait a moment before requesting another download.")
 	}
@@ -196,127 +347,25 @@ func handlePlayDownload(ctx *Context, format string, target string) error {
 
 	_ = ctx.Reply("Downloading " + format + "...")
 
-	tmpDir, err := os.MkdirTemp("", "whatsrook_play_*")
+	cookie := getYouTubeCookie(ctx)
+	data, err := ember.Fetch(ctx.Ctx, targetURL, cookie)
 	if err != nil {
-		slog.Error("play: failed to create temp dir", "err", err)
-		return ctx.Reply("Failed to create download directory.")
-	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	if format == "audio" {
-		rawPath := filepath.Join(tmpDir, "audio_raw")
-
-		cmdAud := ytdlp.New().
-			ExtractAudio().
-			JsRuntimes("bun").
-			Output(rawPath + ".%(ext)s")
-
-		if cookiePath, cleanupCookie, ok := GetYouTubeCookieFile(ctx); ok {
-			defer cleanupCookie()
-			cmdAud.Cookies(cookiePath)
-		}
-
-		_, err := cmdAud.Run(ctx.Ctx, targetURL)
-		if err != nil {
-			slog.Error("play audio download failed", "target", targetURL, "err", err)
-			if isCookieError(err) {
-				return sendCookieHelp(ctx)
-			}
-			return ctx.Reply("Failed to download audio.")
-		}
-
-		matches, _ := filepath.Glob(rawPath + ".*")
-		if len(matches) == 0 {
-			slog.Error("play raw audio file not found", "pattern", rawPath+".*")
-			return ctx.Reply("Failed to locate downloaded audio file.")
-		}
-		downloadedFile := matches[0]
-
-		outMP4 := filepath.Join(tmpDir, "output.mp4")
-
-		ffmpegCmd := exec.CommandContext(ctx.Ctx, "ffmpeg", "-y", "-i", downloadedFile,
-			"-vn", "-c:a", "aac", "-b:a", "128k", "-ar", "44100", outMP4)
-
-		if out, err := ffmpegCmd.CombinedOutput(); err != nil {
-			slog.Warn("ffmpeg aac transcode failed, trying fallback", "err", err, "out", string(out))
-			audData, rErr := os.ReadFile(downloadedFile)
-			if rErr != nil || len(audData) == 0 {
-				return ctx.Reply("Failed to process audio file.")
-			}
-			return ctx.ReplyWithAudio(audData, "audio/mp4")
-		}
-
-		audData, err := os.ReadFile(outMP4)
-		if err != nil || len(audData) == 0 {
-			slog.Error("play audio read failed", "path", outMP4, "err", err)
-			return ctx.Reply("Failed to read processed audio file.")
-		}
-		return ctx.ReplyWithAudio(audData, "audio/mp4")
-	}
-
-	// Video download
-	rawPath := filepath.Join(tmpDir, "video_raw")
-
-	cmdVid := ytdlp.New().
-		Format("bestvideo+bestaudio/best").
-		JsRuntimes("bun").
-		Output(rawPath + ".%(ext)s")
-
-	if cookiePath, cleanupCookie, ok := GetYouTubeCookieFile(ctx); ok {
-		defer cleanupCookie()
-		cmdVid.Cookies(cookiePath)
-	}
-
-	_, err = cmdVid.Run(ctx.Ctx, targetURL)
-	if err != nil {
-		slog.Warn("play video download standard format failed, retrying", "target", targetURL, "err", err)
-		if isCookieError(err) {
+		slog.Error("handlePlayDownload: ember.Fetch failed", "url", targetURL, "err", err)
+		errStr := strings.ToLower(err.Error())
+		if strings.Contains(errStr, "cookie") || strings.Contains(errStr, "login") || strings.Contains(errStr, "sign in") {
 			return sendCookieHelp(ctx)
 		}
+		return ctx.Reply(fmt.Sprintf("Failed to download: %s", err))
+	}
 
-		cmdFallback := ytdlp.New().JsRuntimes("bun").Output(rawPath + ".%(ext)s")
-		if cookiePath, cleanupCookie, ok := GetYouTubeCookieFile(ctx); ok {
-			defer cleanupCookie()
-			cmdFallback.Cookies(cookiePath)
-		}
-		_, err = cmdFallback.Run(ctx.Ctx, targetURL)
-		if err != nil {
-			slog.Error("play video download failed", "target", targetURL, "err", err)
-			if isCookieError(err) {
-				return sendCookieHelp(ctx)
+	if format == "audio" {
+		for i := range data.Medias {
+			if data.Medias[i].IsAudio || data.Medias[i].Type == "audio" {
+				data.Medias = []ember.Media{data.Medias[i]}
+				break
 			}
-			return ctx.Reply("Failed to download video.")
 		}
 	}
 
-	matches, _ := filepath.Glob(rawPath + ".*")
-	if len(matches) == 0 {
-		slog.Error("play raw video file not found", "pattern", rawPath+".*")
-		return ctx.Reply("Failed to locate downloaded video file.")
-	}
-	downloadedFile := matches[0]
-
-	outMP4 := filepath.Join(tmpDir, "output.mp4")
-
-	ffmpegCmd := exec.CommandContext(ctx.Ctx, "ffmpeg", "-y", "-i", downloadedFile,
-		"-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-profile:v", "main", "-level:v", "4.0",
-		"-c:a", "aac", "-b:a", "128k",
-		"-movflags", "+faststart",
-		outMP4)
-
-	if out, err := ffmpegCmd.CombinedOutput(); err != nil {
-		slog.Warn("ffmpeg video transcode failed, falling back", "err", err, "out", string(out))
-		vidData, rErr := os.ReadFile(downloadedFile)
-		if rErr == nil && len(vidData) > 0 {
-			return ctx.ReplyWithVideo(vidData, "video/mp4", "")
-		}
-		return ctx.Reply("Failed to transcode video.")
-	}
-
-	vidData, err := os.ReadFile(outMP4)
-	if err != nil || len(vidData) == 0 {
-		slog.Error("play video read failed", "path", outMP4, "err", err)
-		return ctx.Reply("Failed to read processed video file.")
-	}
-	return ctx.ReplyWithVideo(vidData, "video/mp4", "")
+	return sender.SendResult(ctx.Ctx, ctx.Client, ctx.Chat, data)
 }

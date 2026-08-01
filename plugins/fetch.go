@@ -57,6 +57,12 @@ func handleDl(ctx *Context) error {
 	data, err := ember.Fetch(ctx.Ctx, link, cookie)
 	if err != nil {
 		slog.Error("handleDl: ember.Fetch failed", "err", err)
+		errStr := strings.ToLower(err.Error())
+		if strings.Contains(errStr, "cookie") || strings.Contains(errStr, "login") || strings.Contains(errStr, "sign in") || strings.Contains(errStr, "auth") {
+			platformName := utils.GetPlatformNameFromURL(link)
+			prefix := ctx.GetPrefix()
+			return sendText(ctx, fmt.Sprintf("Cookies are required to download from %s.\n\nPlease export your Netscape cookie and set it using: `%ssetcookie %s <netscape_cookie>`", platformName, prefix, strings.ToUpper(platformName)))
+		}
 		return sendText(ctx, fmt.Sprintf("Failed: %s", err))
 	}
 	slog.Debug("handleDl: ember.Fetch success, calling SendResult", "title", data.Title, "medias_count", len(data.Medias))

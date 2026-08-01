@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Per-Platform Cookie Support & Embers Sync (`plugins/cookie.go`, `plugins/helper.go`):
+  - Updated `setcookie` command syntax to `setcookie PLATFORM <netscape_cookie>` (e.g. `setcookie YOUTUBE <cookies>`, `setcookie TWITTER <cookies>`).
+  - Automatically posts Netscape cookies to Embers API `/cookies` endpoint for caching.
+  - Removed 10-minute cookie expiration notice as requested.
+- `ytv` and `yta` Commands & Interactive Quality Selection (`plugins/play.go`):
+  - Added dedicated `ytv` (video) and `yta` (audio) commands for YouTube downloads.
+  - Implemented interactive buttons with quality choices (e.g., `360p`, `720p`, `1080p` for video; `128kbps`, `320kbps` for audio) without emojis.
+  - Refactored `play` command to present interactive quality selection buttons.
+- On-Demand Cookie Prompting for Non-YouTube Downloads (`plugins/fetch.go`, `utils/utils.go`):
+  - Enforced YouTube-only default cookie passing; non-YouTube downloads (Twitter/X, Instagram, TikTok, Facebook, Threads) only request cookies when an authentication or login error occurs.
+- Emoji Removal from `autoacceptcall` (`plugins/autoacceptcall.go`):
+  - Cleaned up all status and command response messages to remove emojis.
+
 - AutoAcceptCall Forced Accept Protocol Deadlock & Duplicate Accept Prevention (`plugins/autoacceptcall.go`, `plugins/callplace.go`):
   - Solved incoming call deadlock with WhatsApp Android callers (`stop_probing_before_accept_send=1`) by sending forced `<accept>` node via `DangerousInternals` after relay election.
   - Added `clearMeowcallerAcceptPending` using reflection and `unsafe.Pointer` to clear `acceptPending` on `meowcaller.engine`, preventing duplicate `<accept>` nodes when `<mute_v2>` arrives and eliminating call reconnecting/disruption.

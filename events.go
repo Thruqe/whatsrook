@@ -108,7 +108,6 @@ func (b *Bot) handleWAEvent(evt any) {
 
 	case *events.CallOffer:
 		slog.Info("call offer received", "from", v.CallCreator.String())
-		b.handleAutoAcceptCall(context.Background(), v)
 		b.handleAntiCall(context.Background(), v)
 		b.hub.Broadcast(EventMessage{
 			Kind: EventIncomingCall,

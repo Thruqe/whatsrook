@@ -282,6 +282,26 @@ func IsTikTokURL(link string) bool {
 	return MatchesHost(link, "tiktok.com")
 }
 
+// GetPlatformNameFromURL returns the human-readable platform name for a URL.
+func GetPlatformNameFromURL(link string) string {
+	switch {
+	case IsYouTubeURL(link):
+		return "YouTube"
+	case IsTwitterURL(link):
+		return "Twitter"
+	case IsInstagramURL(link):
+		return "Instagram"
+	case IsTikTokURL(link):
+		return "TikTok"
+	case IsFacebookURL(link):
+		return "Facebook"
+	case IsThreadsURL(link):
+		return "Threads"
+	default:
+		return "this platform"
+	}
+}
+
 // MatchesHost parses the URL and checks if its host matches
 // any of the given domains (including subdomains like www.).
 func MatchesHost(link string, domains ...string) bool {

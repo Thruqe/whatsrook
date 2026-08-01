@@ -22,8 +22,8 @@ import (
 // This makes relay connect failures and media errors visible in the app log.
 func meowLogger() zerolog.Logger {
 	return zerolog.New(zerolog.ConsoleWriter{
-		Out:     os.Stderr,
-		NoColor: true,
+		Out:        os.Stderr,
+		NoColor:    true,
 		PartsOrder: []string{zerolog.TimestampFieldName, zerolog.LevelFieldName, "message"},
 	}).With().Str("subsystem", "meowcaller").Timestamp().Logger().Level(zerolog.InfoLevel)
 }
@@ -39,9 +39,14 @@ func RegisterMeowCaller(wa *whatsmeow.Client) *meowcaller.Client {
 	defer meowCallerMu.Unlock()
 
 	mc := meowcaller.NewClient(wa, meowcaller.WithLogger(meowLogger()))
-	mc.OnIncomingCall(HandleIncomingCallAutoAccept)
+
+	// Set globals BEFORE calling SetupAutoAcceptCall
 	meowCallerClient = mc
 	meowCallerWA = wa
+
+	// Pass mc (meowcaller.Client) first, wa (whatsmeow.Client) second
+	SetupAutoAcceptCall(mc, wa)
+
 	return mc
 }
 

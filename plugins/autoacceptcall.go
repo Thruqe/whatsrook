@@ -6,17 +6,14 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"reflect"
 	"strings"
 	"sync"
 	"time"
-	"unsafe"
 
 	"whatsrook/store/sqlstore"
 	"whatsrook/utils"
 
 	"github.com/purpshell/meowcaller"
-	"github.com/purpshell/meowcaller/signaling"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -33,6 +30,10 @@ func init() {
 		Handler:     handleAutoAcceptCallCmd,
 	})
 }
+
+// ---------------------------------------------------------------------------
+// Command handler (user-facing .autoacceptcall on/off/status)
+// ---------------------------------------------------------------------------
 
 func handleAutoAcceptCallCmd(ctx *Context) error {
 	if !ctx.IsSudo() {
@@ -51,7 +52,6 @@ func handleAutoAcceptCallCmd(ctx *Context) error {
 
 	switch arg {
 	case "on", "enable":
-		// Check prerequisites: user MUST have set both audio and video call media
 		ownerJID := ctx.Sender.ToNonAD()
 		audioPath, errA := s.GetCallMediaConfig(ctx.Ctx, ownerJID, sqlstore.CallMediaAudio)
 		videoPath, errV := s.GetCallMediaConfig(ctx.Ctx, ownerJID, sqlstore.CallMediaVideo)
@@ -65,13 +65,13 @@ func handleAutoAcceptCallCmd(ctx *Context) error {
 				missing = append(missing, "- Call Video (.videocall <reply to video>)")
 			}
 			p := ctx.GetPrefix()
-			return ctx.Reply(fmt.Sprintf("❌ You must configure both call audio and call video media before enabling autoacceptcall.\n\nMissing media:\n%s\n\nConfigure missing media using `%scallaudio` and `%svideocall`.", strings.Join(missing, "\n"), p, p))
+			return ctx.Reply(fmt.Sprintf("You must configure both call audio and call video media before enabling autoacceptcall.\n\nMissing media:\n%s\n\nConfigure missing media using `%scallaudio` and `%svideocall`.", strings.Join(missing, "\n"), p, p))
 		}
 
 		if err := s.PutSetting(ctx.Ctx, AutoAcceptCallSettingKey, "on"); err != nil {
 			return ctx.Reply("Failed to enable autoacceptcall.")
 		}
-		return ctx.Reply("✅ Auto accept call enabled! Incoming voice and video calls will be answered automatically with your saved call media.")
+		return ctx.Reply("Auto accept call enabled! Incoming voice and video calls will be answered automatically with your saved call media.")
 
 	case "off", "disable":
 		if err := s.PutSetting(ctx.Ctx, AutoAcceptCallSettingKey, "off"); err != nil {
@@ -89,13 +89,13 @@ func handleAutoAcceptCallCmd(ctx *Context) error {
 		videoPath, _ := s.GetCallMediaConfig(ctx.Ctx, ownerJID, sqlstore.CallMediaVideo)
 
 		p := ctx.GetPrefix()
-		audioStatus := "✅ Set"
+		audioStatus := "Set"
 		if audioPath == "" {
-			audioStatus = "❌ Not Set"
+			audioStatus = "Not Set"
 		}
-		videoStatus := "✅ Set"
+		videoStatus := "Set"
 		if videoPath == "" {
-			videoStatus = "❌ Not Set"
+			videoStatus = "Not Set"
 		}
 
 		bodyText := fmt.Sprintf("AutoAcceptCall Status: *%s*\n\nRequired Call Media:\n- Call Audio: %s\n- Call Video: %s\n\nUsage:\n- %sautoacceptcall on\n- %sautoacceptcall off", strings.ToUpper(status), audioStatus, videoStatus, p, p)
@@ -103,21 +103,31 @@ func handleAutoAcceptCallCmd(ctx *Context) error {
 	}
 }
 
-// HandleIncomingCallAutoAccept handles incoming call offers via meowcaller.Client.OnIncomingCall.
-//
-// Protocol note: meowcaller defers <accept> until the caller's <mute_v2> stanza arrives.
-// However, many WhatsApp callers (especially Android) use stop_probing_before_accept_send=1,
-// which means they do NOT send <mute_v2> until AFTER receiving <accept>. This creates a
-// deadlock. We break it by sending <accept> directly via DangerousInternals right after
-// call.Answer() sets acceptPending, without waiting for <mute_v2>.
-func HandleIncomingCallAutoAccept(call *meowcaller.Call) {
-	if call == nil || meowCallerWA == nil {
+// ---------------------------------------------------------------------------
+// Incoming call handler – set up once in your bot initialization
+// ---------------------------------------------------------------------------
+
+// SetupAutoAcceptCall wires the meowcaller OnIncomingCall handler.
+// Call this once after creating the meowcaller client.
+func SetupAutoAcceptCall(mc *meowcaller.Client, wa *whatsmeow.Client) {
+	if mc == nil || wa == nil {
+		slog.Error("SetupAutoAcceptCall: nil client")
+		return
+	}
+
+	mc.OnIncomingCall(func(call *meowcaller.Call) {
+		handleIncomingCall(call, wa)
+	})
+}
+
+func handleIncomingCall(call *meowcaller.Call, waClient *whatsmeow.Client) {
+	if call == nil || waClient == nil {
 		return
 	}
 
 	ctx := context.Background()
-	client := meowCallerWA
-	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
+
+	s, ok := waClient.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
 		return
 	}
@@ -127,7 +137,7 @@ func HandleIncomingCallAutoAccept(call *meowcaller.Call) {
 		return
 	}
 
-	ownerJID := client.Store.ID.ToNonAD()
+	ownerJID := waClient.Store.ID.ToNonAD()
 	audioPath, errA := s.GetCallMediaConfig(ctx, ownerJID, sqlstore.CallMediaAudio)
 	videoPath, errV := s.GetCallMediaConfig(ctx, ownerJID, sqlstore.CallMediaVideo)
 
@@ -136,209 +146,159 @@ func HandleIncomingCallAutoAccept(call *meowcaller.Call) {
 		return
 	}
 
-	slog.Info("autoacceptcall: answering incoming call via meowcaller", "from", call.Peer().String(), "call_id", call.ID(), "is_video", call.IsVideo())
+	isVideo := call.IsVideo()
+	slog.Info("autoacceptcall: answering incoming call", "from", call.Peer().String(), "call_id", call.ID(), "is_video", isVideo)
 
-	var startOnce sync.Once
+	// Set up null receivers BEFORE answering
+	call.Receive(meowcaller.SinkFunc(func(pcm []float32) {}))
+	if isVideo {
+		call.ReceiveVideo(meowcaller.VideoSinkFunc(func(accessUnit []byte) {}))
+	}
+
+	// Media starter — sync.Once ensures it runs exactly once
+	var mediaOnce sync.Once
 	startMedia := func() {
-		startOnce.Do(func() {
-			slog.Info("autoacceptcall: media ready, starting playback", "call_id", call.ID(), "is_video", call.IsVideo())
-
-			if call.IsVideo() {
-				mp3Path, h264Path, prepErr := utils.PrepareCallVideo(videoPath)
-				if prepErr != nil {
-					slog.Error("autoacceptcall: failed to prepare video", "err", prepErr)
-				}
-
-				duration, durErr := utils.AudioDuration(videoPath)
-				if durErr != nil {
-					duration = 30 * time.Second
-				}
-
-				_ = call.SetVideoEnabled(true)
-
-				audioFile := mp3Path
-				if audioFile == "" {
-					audioFile = videoPath
-				}
-				if src, err := openAudioSource(audioFile); err == nil {
-					call.Play(src)
-				}
-
-				if h264Path != "" {
-					if h264Data, rErr := os.ReadFile(h264Path); rErr == nil && len(h264Data) > 0 {
-						frames := utils.SplitAnnexBAccessUnits(h264Data)
-						if len(frames) > 0 {
-							go func() {
-								frameDur := 66 * time.Millisecond
-								ticker := time.NewTicker(frameDur)
-								defer ticker.Stop()
-
-								frameIdx := 0
-								endTime := time.Now().Add(duration + 2*time.Second)
-
-								for time.Now().Before(endTime) {
-									select {
-									case <-ctx.Done():
-										_ = call.Hangup()
-										return
-									case <-ticker.C:
-										if call.State() == meowcaller.CallPhaseEnded {
-											return
-										}
-										_ = call.SendVideoWithDuration(frames[frameIdx], frameDur)
-										frameIdx = (frameIdx + 1) % len(frames)
-									}
-								}
-								_ = call.Hangup()
-							}()
-						}
-					}
-				}
+		mediaOnce.Do(func() {
+			if isVideo {
+				startVideoMedia(call, videoPath)
 			} else {
-				if src, err := openAudioSource(audioPath); err == nil {
-					call.Play(src)
-					duration, durErr := utils.AudioDuration(audioPath)
-					if durErr != nil {
-						duration = 30 * time.Second
-					}
-					go func() {
-						time.Sleep(duration + 2*time.Second)
-						_ = call.Hangup()
-					}()
-				} else {
-					slog.Error("autoacceptcall: failed to open audio source", "path", audioPath, "err", err)
-					_ = call.Hangup()
-				}
+				startAudioMedia(call, audioPath)
 			}
 		})
 	}
 
-	// OnReady fires only on the first inbound RTP packet. Since the bot is acting as
-	// an answering machine, the caller may wait for us to speak first — so OnReady
-	// might never fire. We still register it as a fallback for outbound-initiated flows,
-	// but we start media directly in the forced-accept goroutine below.
+	// OnReady fires when first inbound RTP packet arrives
 	call.OnReady(func() {
+		slog.Info("autoacceptcall: OnReady fired, starting media", "call_id", call.ID())
 		startMedia()
 	})
 
-	// call.Answer() sets acceptPending=true in meowcaller and calls maybeStartMedia.
-	// meowcaller normally waits for <mute_v2> to actually send <accept>, but many
-	// Android callers use stop_probing_before_accept_send=1 — they won't send <mute_v2>
-	// until they receive <accept> first. Break this deadlock by sending <accept>
-	// directly via DangerousInternals after a short relay election delay.
+	// Let meowcaller handle the full signaling — Answer waits for mute_v2 then sends accept
 	if err := call.Answer(); err != nil {
-		slog.Error("autoacceptcall: failed to answer call", "call_id", call.ID(), "err", err)
+		slog.Error("autoacceptcall: call.Answer() failed", "call_id", call.ID(), "err", err)
 		return
 	}
 
-	peer := call.Peer()
-	callID := call.ID()
+	// If OnReady hasn't fired within 10s, something is wrong with the media path.
+	// Start anyway — the audio will queue until the relay connects, or fail gracefully.
 	go func() {
-		// Wait for relay election to complete (relay latency round-trips take ~500ms–1s).
-		// We send <accept> at 1.2s to give relay election time to settle but beat the
-		// ~10s caller timeout.
-		time.Sleep(1200 * time.Millisecond)
-
-		if call.State() == meowcaller.CallPhaseEnded {
-			slog.Debug("autoacceptcall: call already ended before forced accept", "call_id", callID)
-			return
+		time.Sleep(10 * time.Second)
+		if call.State() != meowcaller.CallPhaseEnded {
+			slog.Info("autoacceptcall: OnReady timeout, starting media anyway", "call_id", call.ID())
+			startMedia()
 		}
-
-		slog.Info("autoacceptcall: sending forced <accept> to break mute_v2 deadlock", "call_id", callID, "peer", peer.String())
-
-		acceptNode := signaling.BuildAccept(&signaling.AcceptParams{
-			CallID:      callID,
-			To:          peer,
-			CallCreator: peer,
-			AudioRates:  []string{"16000"},
-			Metadata:    map[string]interface{}{"peer_abtest_bucket_id_list": "125208,94276"},
-			Video:       call.IsVideo(),
-		})
-		acceptNode.Attrs["id"] = client.GenerateMessageID()
-
-		if sendErr := client.DangerousInternals().SendNode(context.Background(), acceptNode); sendErr != nil {
-			slog.Error("autoacceptcall: failed to send forced accept", "call_id", callID, "err", sendErr)
-			return
-		}
-		slog.Info("autoacceptcall: forced <accept> sent successfully", "call_id", callID)
-
-		// Clear acceptPending in meowcaller's engine so that when the caller responds with mute_v2,
-		// meowcaller will NOT send a duplicate <accept> stanza (which causes reconnecting/disconnect).
-		clearMeowcallerAcceptPending(call)
-
-		// Give the relay media loop a moment to bind before starting playback.
-		// meowcaller's maybeStartMedia was already triggered by answer()+relaylatency,
-		// so the media goroutine should be running. We call startMedia here because
-		// OnReady fires only on the FIRST inbound RTP — if the caller is waiting for
-		// us to speak first, OnReady never fires and we'd never start playing.
-		time.Sleep(500 * time.Millisecond)
-
-		if call.State() == meowcaller.CallPhaseEnded {
-			slog.Debug("autoacceptcall: call ended before media start", "call_id", callID)
-			return
-		}
-		slog.Info("autoacceptcall: starting media after accept", "call_id", callID)
-		startMedia()
 	}()
 }
 
-// clearMeowcallerAcceptPending clears the internal acceptPending flag on meowcaller.engine
-// for the given call. This prevents meowcaller from sending a duplicate <accept> node when
-// the incoming mute_v2 arrives.
-func clearMeowcallerAcceptPending(call *meowcaller.Call) {
-	if call == nil {
+// ---------------------------------------------------------------------------
+// Media helpers
+// ---------------------------------------------------------------------------
+
+func startAudioMedia(call *meowcaller.Call, audioPath string) {
+	slog.Info("autoacceptcall: starting audio media", "call_id", call.ID(), "path", audioPath)
+
+	src, err := meowcaller.MP3File(audioPath)
+	if err != nil {
+		slog.Error("autoacceptcall: failed to load MP3", "path", audioPath, "err", err)
+		_ = call.Hangup()
 		return
 	}
-	defer func() {
-		if r := recover(); r != nil {
-			slog.Warn("autoacceptcall: recover from reflection clearing acceptPending", "err", r)
+
+	call.Play(src)
+
+	duration, err := utils.AudioDuration(audioPath)
+	if err != nil {
+		duration = 30 * time.Second
+	}
+
+	go func() {
+		time.Sleep(duration + 2*time.Second)
+		if call.State() != meowcaller.CallPhaseEnded {
+			slog.Info("autoacceptcall: audio duration exceeded, hanging up", "call_id", call.ID())
+			_ = call.Hangup()
 		}
 	}()
-
-	vCall := reflect.ValueOf(call)
-	if vCall.Kind() != reflect.Pointer || vCall.IsNil() {
-		return
-	}
-	vCallElem := vCall.Elem()
-	fEng := vCallElem.FieldByName("eng")
-	if !fEng.IsValid() {
-		return
-	}
-
-	engPtr := reflect.NewAt(fEng.Type(), unsafe.Pointer(fEng.UnsafeAddr())).Elem()
-	if engPtr.IsNil() {
-		return
-	}
-
-	engElem := engPtr.Elem()
-	fMu := engElem.FieldByName("mu")
-	fCalls := engElem.FieldByName("calls")
-	if !fMu.IsValid() || !fCalls.IsValid() {
-		return
-	}
-
-	mu := (*sync.Mutex)(unsafe.Pointer(fMu.UnsafeAddr()))
-	mu.Lock()
-	defer mu.Unlock()
-
-	callID := call.ID()
-	mVal := fCalls.MapIndex(reflect.ValueOf(callID))
-	if !mVal.IsValid() || mVal.IsNil() {
-		return
-	}
-
-	engineCallStruct := reflect.NewAt(mVal.Type().Elem(), unsafe.Pointer(mVal.Pointer())).Elem()
-	fPending := engineCallStruct.FieldByName("acceptPending")
-	if !fPending.IsValid() {
-		return
-	}
-
-	pPending := (*bool)(unsafe.Pointer(fPending.UnsafeAddr()))
-	*pPending = false
-	slog.Info("autoacceptcall: cleared acceptPending via reflection to prevent duplicate accept", "call_id", callID)
 }
 
-// HandleAutoAcceptIncomingCall is a compatibility helper for CallOffer events.
+func startVideoMedia(call *meowcaller.Call, videoPath string) {
+	slog.Info("autoacceptcall: starting video media", "call_id", call.ID(), "path", videoPath)
+
+	mp3Path, h264Path, err := utils.PrepareCallVideo(videoPath)
+	if err != nil {
+		slog.Error("autoacceptcall: failed to prepare video", "err", err)
+		_ = call.Hangup()
+		return
+	}
+
+	if err := call.SetVideoEnabled(true); err != nil {
+		slog.Error("autoacceptcall: SetVideoEnabled failed", "err", err)
+	}
+
+	// Play audio track
+	audioFile := mp3Path
+	if audioFile == "" {
+		audioFile = videoPath
+	}
+	src, err := meowcaller.MP3File(audioFile)
+	if err != nil {
+		slog.Error("autoacceptcall: failed to load audio", "path", audioFile, "err", err)
+		_ = call.Hangup()
+		return
+	}
+	call.Play(src)
+
+	// Send video frames
+	if h264Path == "" {
+		slog.Warn("autoacceptcall: no h264 track, audio-only for video call", "call_id", call.ID())
+		return
+	}
+
+	h264Data, err := os.ReadFile(h264Path)
+	if err != nil || len(h264Data) == 0 {
+		slog.Error("autoacceptcall: failed to read h264", "path", h264Path, "err", err)
+		return
+	}
+
+	frames := utils.SplitAnnexBAccessUnits(h264Data)
+	if len(frames) == 0 {
+		slog.Error("autoacceptcall: no video frames", "path", h264Path)
+		return
+	}
+
+	duration, err := utils.AudioDuration(audioFile)
+	if err != nil {
+		duration = 30 * time.Second
+	}
+
+	go func() {
+		ticker := time.NewTicker(66 * time.Millisecond)
+		defer ticker.Stop()
+
+		frameIdx := 0
+		endTime := time.Now().Add(duration + 2*time.Second)
+
+		for time.Now().Before(endTime) {
+			select {
+			case <-ticker.C:
+				if call.State() == meowcaller.CallPhaseEnded {
+					return
+				}
+				if err := call.SendVideoWithDuration(frames[frameIdx], 66*time.Millisecond); err != nil {
+					slog.Error("autoacceptcall: SendVideoWithDuration failed", "err", err)
+					return
+				}
+				frameIdx = (frameIdx + 1) % len(frames)
+			}
+		}
+
+		slog.Info("autoacceptcall: video duration exceeded, hanging up", "call_id", call.ID())
+		_ = call.Hangup()
+	}()
+}
+
+// HandleAutoAcceptIncomingCall is the compatibility entry point called from your main bot event handler.
+// Since meowcaller handles incoming calls via OnIncomingCall, this is a no-op for the event-based path.
 func HandleAutoAcceptIncomingCall(ctx context.Context, client *whatsmeow.Client, v *events.CallOffer) {
-	// meowcaller handles incoming call offers automatically via OnIncomingCall.
+	// meowcaller handles incoming calls automatically via OnIncomingCall.
+	// This function is kept for compatibility with the existing event dispatcher.
 }

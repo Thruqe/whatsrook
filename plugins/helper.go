@@ -32,7 +32,7 @@ func getYouTubeCookie(ctx *Context) string {
 	if !ok {
 		return ""
 	}
-	cookie, _ := s.GetSetting(ctx.Ctx, "youtube_cookie")
+	cookie, _ := s.GetSetting(ctx.Ctx, CookieSettingKeyPrefix+"youtube.com")
 	return cookie
 }
 
