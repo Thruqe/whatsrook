@@ -12,4 +12,4 @@ At the beginning of every session, you MUST read and follow these files to under
 
 ## Command Reference
 
-Run the the [Makefile](./Makefile)
+Use standard Go commands (`go build -v -o ./tmp/whatsrook .`, `go test -v ./...`) for building and testing.

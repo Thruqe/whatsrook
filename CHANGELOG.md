@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Makefile References in Agent Prompts & Docs (`GEMINI.md`, `CLAUDE.md`, `Documentation/README.md`):
+  - Removed all Makefile references and replaced them with standard Go toolchain commands (`go build`, `go test ./...`, `./scripts/generate-proto.sh`).
+
 - Complete Removal of Ember Package & Ember Commands (`ember/`, `plugins/play.go`, `plugins/fetch.go`, `plugins/facebook.go`, `plugins/instagram.go`, `plugins/tiktok.go`, `plugins/twitter.go`, `plugins/threads.go`, `plugins/cookie.go`):
   - Completely deleted the `ember` package (`ember/ember.go`, `ember/ember_test.go`).
   - Removed all commands relying on the Ember API: `play`, `ytv`, `yta`, `dl`, `download`, `fetch`, `facebook`, `fb`, `instagram`, `ig`, `tiktok`, `tt`, `twitter`, `x`, `twt`, `threads`, `th`, `cookie`, `cookies`, `setcookie`.
