@@ -53,9 +53,14 @@ func handleDl(ctx *Context) error {
 		cookie = getYouTubeCookie(ctx)
 		slog.Debug("handleDl: YouTube cookie retrieved", "cookie_len", len(cookie))
 	}
+
+	loader := ctx.StartLoader("Processing download")
+	defer loader.Delete()
+
 	slog.Debug("handleDl: calling ember.Fetch", "url", link)
 	data, err := ember.Fetch(ctx.Ctx, link, cookie)
 	if err != nil {
+		loader.Delete()
 		slog.Error("handleDl: ember.Fetch failed", "err", err)
 		errStr := strings.ToLower(err.Error())
 		if strings.Contains(errStr, "cookie") || strings.Contains(errStr, "login") || strings.Contains(errStr, "sign in") || strings.Contains(errStr, "auth") {

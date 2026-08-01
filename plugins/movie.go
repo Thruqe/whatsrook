@@ -259,6 +259,9 @@ func handleMovieSelectByIndex(ctx *Context, idxVal int) error {
 }
 
 func renderMovieSearchResults(ctx *Context, query string, page int) error {
+	loader := ctx.StartLoader("Searching movies")
+	defer loader.Delete()
+
 	client := &http.Client{Timeout: 15 * time.Second}
 
 	// Fetch Source 1 results

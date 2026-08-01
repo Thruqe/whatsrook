@@ -118,12 +118,18 @@ func (ctx *Context) Delete(msgID types.MessageID, senderJID ...types.JID) (whats
 
 // Reply sends a text message replying to the current message (with typing simulation and monospace format).
 func (ctx *Context) Reply(text string) error {
+	_, err := ctx.ReplyWithID(text)
+	return err
+}
+
+// ReplyWithID sends a text message replying to the current message and returns the sent MessageID.
+func (ctx *Context) ReplyWithID(text string) (types.MessageID, error) {
 	ctx.simulateTyping()
 	formatted := ctx.formatTextResponse(text)
 	cinfo := ctx.replyContextInfo()
 	slog.Debug("Building Reply", "text", text, "formatted", formatted, "context_info", cinfo)
 	slog.Debug("Sending Reply", "chat", ctx.Chat.String())
-	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
+	resp, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text:        &formatted,
 			ContextInfo: cinfo,
@@ -131,10 +137,10 @@ func (ctx *Context) Reply(text string) error {
 	})
 	if err != nil {
 		slog.Error("Reply failed", "err", err)
-	} else {
-		slog.Debug("Reply sent successfully")
+		return "", err
 	}
-	return err
+	slog.Debug("Reply sent successfully", "msgID", resp.ID)
+	return resp.ID, nil
 }
 
 func (ctx *Context) replyContextInfo() *waE2E.ContextInfo {

@@ -289,10 +289,12 @@ func handlePlayDownload(ctx *Context, format string, videoURL string) error {
 	}
 	defer dlLimiter.Release(ctx.Sender.String())
 
-	_ = ctx.Reply("Downloading " + format + "...")
+	loader := ctx.StartLoader("Downloading " + format)
+	defer loader.Delete()
 
 	data, err := ember.Fetch(ctx.Ctx, videoURL, "")
 	if err != nil {
+		loader.Delete()
 		slog.Warn("handlePlayDownload: ember.Fetch failed", "url", videoURL, "err", err)
 		errStr := strings.ToLower(err.Error())
 		if isCookieError2(errStr) || strings.Contains(errStr, "no active cookies") {

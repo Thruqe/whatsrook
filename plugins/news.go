@@ -53,6 +53,9 @@ func handleNews(ctx *Context) error {
 	country := strings.ToLower(strings.TrimSpace(strings.Join(ctx.Args, "-")))
 	hubURL := fmt.Sprintf("https://apnews.com/hub/%s", country)
 
+	loader := ctx.StartLoader("Fetching news")
+	defer loader.Delete()
+
 	req, err := http.NewRequestWithContext(ctx.Ctx, http.MethodGet, hubURL, nil)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf("Failed to create request: %v", err))

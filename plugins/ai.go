@@ -694,13 +694,9 @@ func handleAI(ctx *Context) error {
 
 	slog.Debug("handleAI: sending request to Meta AI", "chat", ctx.Chat.String())
 
-	placeholderResp, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
-		Conversation: new("Thinking..."),
-	})
-	if err != nil {
-		slog.Error("handleAI: failed to send placeholder message", "chat", ctx.Chat.String(), "err", err)
-		return fmt.Errorf("failed to send placeholder message: %w", err)
-	}
+	loader := ctx.StartLoader("Thinking")
+	defer loader.Stop()
+	placeholderMsgID := loader.MessageID()
 
 	onUpdate := func(text string) error {
 		trimmed := strings.TrimSpace(text)
@@ -710,10 +706,8 @@ func handleAI(ctx *Context) error {
 		if _, _, ok := meta.ParseRunCommand(trimmed); ok {
 			return nil
 		}
-		editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
-			Conversation: new(text),
-		})
-		_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
+		loader.Stop()
+		_, err := ctx.Edit(placeholderMsgID, text)
 		if err != nil {
 			slog.Error("handleAI: failed to send edit", "chat", ctx.Chat.String(), "err", err)
 		}
@@ -722,13 +716,11 @@ func handleAI(ctx *Context) error {
 
 	res, err := queryMetaAi(ctx.Ctx, ctx.Client, ctx.Chat, query, onUpdate)
 	if err != nil {
+		loader.Stop()
 		slog.Error("handleAI: queryMetaAi failed", "chat", ctx.Chat.String(), "err", err)
 		if strings.Contains(err.Error(), "488") {
 			errMsg := "Meta AI session initialization required.\n\nPlease make sure you have manually started a direct 1-on-1 chat/conversation with Meta AI on WhatsApp first before WhatsRook can interact with it."
-			editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
-				Conversation: &errMsg,
-			})
-			_, _ = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
+			_, _ = ctx.Edit(placeholderMsgID, errMsg)
 
 			// Send Meta AI contact card
 			metaName := "Meta AI"
@@ -743,10 +735,7 @@ func handleAI(ctx *Context) error {
 			return err
 		}
 
-		editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
-			Conversation: new("Failed to get a response: " + err.Error()),
-		})
-		_, _ = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
+		_, _ = ctx.Edit(placeholderMsgID, "Failed to get a response: "+err.Error())
 		return err
 	}
 
@@ -766,10 +755,7 @@ func handleAI(ctx *Context) error {
 		if cmdName == "sh" || cmdName == "exec" || cmdName == "run" || cmdName == "shell" {
 			if !ctx.IsSudo() {
 				slog.Warn("handleAI: blocked unauthorized shell execution request", "sender", ctx.Sender.String())
-				editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
-					Conversation: new("You are not authorized to run shell commands."),
-				})
-				_, _ = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
+				_, _ = ctx.Edit(placeholderMsgID, "You are not authorized to run shell commands.")
 				return nil
 			}
 
@@ -782,38 +768,26 @@ func handleAI(ctx *Context) error {
 			}
 
 			resText := fmt.Sprintf("Output:\n```\n%s\n```", output)
-			editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
-				Conversation: &resText,
-			})
-			_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
+			_, err = ctx.Edit(placeholderMsgID, resText)
 			return err
 		}
 
 		if cmdName == "ai" || cmdName == "autoai" || cmdName == "gpt" || cmdName == "ask" {
 			slog.Warn("handleAI: blocked recursive AI command execution", "command", cmdName)
-			editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
-				Conversation: new("Recursive AI command execution is not allowed."),
-			})
-			_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
+			_, err := ctx.Edit(placeholderMsgID, "Recursive AI command execution is not allowed.")
 			return err
 		}
 
 		targetCmd, exists := Get(cmdName)
 		if !exists {
 			slog.Warn("handleAI: RUN_COMMAND referenced unknown command", "command", cmdName)
-			editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
-				Conversation: new("Sorry, I don't have a command called \"" + cmdName + "\"."),
-			})
-			_, _ = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
+			_, _ = ctx.Edit(placeholderMsgID, "Sorry, I don't have a command called \""+cmdName+"\".")
 			return nil
 		}
 
 		if !targetCmd.IsPublic && !ctx.IsSudo() {
 			slog.Warn("handleAI: blocked unauthorized RUN_COMMAND", "sender", ctx.Sender.String(), "command", cmdName)
-			editMsg := ctx.Client.BuildEdit(ctx.Chat, placeholderResp.ID, &waE2E.Message{
-				Conversation: new("You are not authorized to run this command."),
-			})
-			_, _ = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg)
+			_, _ = ctx.Edit(placeholderMsgID, "You are not authorized to run this command.")
 			return nil
 		}
 
