@@ -293,16 +293,13 @@ func handlePlayDownload(ctx *Context, format string, videoURL string) error {
 
 	data, err := ember.Fetch(ctx.Ctx, videoURL, "")
 	if err != nil {
-		slog.Error("handlePlayDownload: ember.Fetch failed", "url", videoURL, "err", err)
+		slog.Warn("handlePlayDownload: ember.Fetch failed", "url", videoURL, "err", err)
 		errStr := strings.ToLower(err.Error())
-		if isCookieError2(errStr) {
-			return sendCookieHelp(ctx)
-		}
-		if strings.Contains(errStr, "no active cookies") {
+		if isCookieError2(errStr) || strings.Contains(errStr, "no active cookies") {
 			return sendCookieHelp(ctx)
 		}
 		if strings.Contains(errStr, "requested format is not available") {
-			return ctx.Reply("This video's format is not currently supported by the download server. Try a different video.")
+			return ctx.Reply("This video format is restricted or unavailable on YouTube. Please try another track or update YouTube cookies.")
 		}
 		return ctx.Reply(fmt.Sprintf("Failed to download: %s", err))
 	}

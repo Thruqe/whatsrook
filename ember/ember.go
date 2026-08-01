@@ -185,7 +185,7 @@ func Fetch(ctx context.Context, postURL string, _ string) (*Data, error) {
 		if msg == "" {
 			msg = "unknown error from ember api"
 		}
-		slog.Error("ember.Fetch: API returned error", "msg", msg)
+		slog.Warn("ember.Fetch: API returned error", "msg", msg)
 		return nil, fmt.Errorf("ember: %s", msg)
 	}
 

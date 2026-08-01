@@ -22,8 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Emoji Removal from `autoacceptcall` (`plugins/autoacceptcall.go`):
   - Cleaned up all status and command response messages to remove emojis.
 
+### Security
+
+- Erased `cookie.txt` from Git history via `git filter-branch` and updated `.gitignore` (`cookie.txt`, `*.cookie`, `*.txt`) to prevent sensitive credential files from being tracked.
+
 ### Changed
 
+- Download Format Exception Log Adjustments (`ember/ember.go`, `plugins/play.go`):
+  - Changed log severity for external Embers/yt-dlp extraction errors (e.g. format restriction errors) from `ERROR` to `WARN` so user-driven YouTube download failures do not pollute `debug.log`.
 - Error-Only Log Filtering for `debug.log` (`logger/logger.go`, `logger/logger_test.go`):
   - Adjusted logger configuration across `slog`, `zerolog`, and whatsmeow adapters so `debug.log` strictly captures `ERROR` level events.
   - Console output (stdout) retains full log output based on verbosity (`INFO` / `DEBUG`).
