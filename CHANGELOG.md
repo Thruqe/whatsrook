@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Error-Only Log Filtering for `debug.log` (`logger/logger.go`, `logger/logger_test.go`):
+  - Adjusted logger configuration across `slog`, `zerolog`, and whatsmeow adapters so `debug.log` strictly captures `ERROR` level events.
+  - Console output (stdout) retains full log output based on verbosity (`INFO` / `DEBUG`).
+  - Added unit test `TestDebugLogOnlyErrors` in `logger/logger_test.go`.
 - Ember API Integration Rewrite (`ember/ember.go`, `plugins/play.go`):
   - Replaced local `yt-dlp` search in `play`/`ytv`/`yta` commands with Ember's `/youtube/search` endpoint; removed `go-ytdlp` dependency.
   - `ember.Fetch` no longer passes raw cookie content as a query parameter — cookies are managed server-side by Embers (registered via POST `/cookies` from `setcookie`).

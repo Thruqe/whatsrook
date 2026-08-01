@@ -16,11 +16,29 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-// LogFile is the open file handle for debug.log, used as a log sink.
+// LogFile is the open file handle for debug.log, used as an error-only log sink.
 var LogFile *os.File
 
-// InitLogger initializes both slog and zerolog loggers to write to stdout and "debug.log".
-// If verbose is true, the levels are set to DEBUG.
+type errorLevelWriter struct {
+	w io.Writer
+}
+
+func (e *errorLevelWriter) Write(p []byte) (int, error) {
+	if LogFile == nil {
+		return len(p), nil
+	}
+	return e.w.Write(p)
+}
+
+func (e *errorLevelWriter) WriteLevel(level zerolog.Level, p []byte) (int, error) {
+	if level >= zerolog.ErrorLevel && LogFile != nil {
+		return e.w.Write(p)
+	}
+	return len(p), nil
+}
+
+// InitLogger initializes both slog and zerolog loggers to write to stdout,
+// while restricting "debug.log" to error-level logs only.
 func InitLogger(verbose bool) error {
 	logLevel := slog.LevelInfo
 	zerologLevel := zerolog.InfoLevel
@@ -37,15 +55,12 @@ func InitLogger(verbose bool) error {
 		return err
 	}
 
-	// Create multi-writers so logs print to console and save to debug.log
-	slogWriter := io.MultiWriter(os.Stdout, LogFile)
-	zerologWriter := io.MultiWriter(os.Stdout, LogFile)
+	// Configure slog with the whatsmeow-style handler writing to stdout (errors also mirror to debug.log)
+	slog.SetDefault(slog.New(newWMSlogHandler(os.Stdout, logLevel, "App", true)))
 
-	// Configure slog with the whatsmeow-style handler instead of TextHandler
-	slog.SetDefault(slog.New(newWMSlogHandler(slogWriter, logLevel, "App", true)))
-
-	// Configure zerolog
+	// Configure zerolog: stdout gets all logs per zerologLevel, debug.log gets only ErrorLevel+
 	zerolog.SetGlobalLevel(zerologLevel)
+	zerologWriter := zerolog.MultiLevelWriter(os.Stdout, &errorLevelWriter{w: LogFile})
 	zLogger := zerolog.New(zerologWriter).With().Timestamp().Logger()
 	zerolog.DefaultContextLogger = &zLogger
 
@@ -94,8 +109,7 @@ func wmFormat(mod, level, msg string, color bool) string {
 
 // WhatsmeowStyle returns a waLog.Logger-compatible logger that reproduces
 // whatsmeow's own Stdout() formatting (timestamp, "[mod LEVEL]" bracket,
-// ANSI colors), but writes to both stdout and debug.log via the
-// multiwriter set up in InitLogger.
+// ANSI colors), writing all logs to stdout and errors to debug.log.
 func WhatsmeowStyle(module string, minLevel string, color bool) *wmLogger {
 	return &wmLogger{
 		mod:   module,
@@ -116,11 +130,10 @@ func (w *wmLogger) outputf(level, msg string, args ...any) {
 	}
 	line := wmFormat(w.mod, level, fmt.Sprintf(msg, args...), w.color)
 
-	dest := io.Writer(os.Stdout)
-	if LogFile != nil {
-		dest = io.MultiWriter(os.Stdout, LogFile)
+	fmt.Fprint(os.Stdout, line)
+	if strings.ToUpper(level) == "ERROR" && LogFile != nil {
+		fmt.Fprint(LogFile, line)
 	}
-	fmt.Fprint(dest, line)
 }
 
 func (w *wmLogger) Errorf(msg string, args ...any) { w.outputf("ERROR", msg, args...) }
@@ -168,6 +181,11 @@ func (h *wmSlogHandler) Handle(_ context.Context, r slog.Record) error {
 
 	line := wmFormat(h.mod, levelStr, msg, h.color)
 	_, err := fmt.Fprint(h.w, line)
+
+	if r.Level >= slog.LevelError && LogFile != nil {
+		fmt.Fprint(LogFile, line)
+	}
+
 	return err
 }
 
