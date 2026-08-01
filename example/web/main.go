@@ -1,36 +1,416 @@
-// Package main implements a pure Go web showcase and dashboard for WhatsRook using htmlbuilder.
+// Package main implements a pure Go web dashboard for WhatsRook using github.com/Thruqe/htmlbuilder.
+// It bridges browser WebSockets with the WhatsRook daemon's protobuf WebSocket protocol.
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"strconv"
+	"sync"
+	"time"
 
 	"github.com/Thruqe/htmlbuilder"
+	"github.com/coder/websocket"
+	"google.golang.org/protobuf/proto"
+
+	"whatsrook/proto/wsproto"
 )
 
-func main() {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-	addr := ":" + port
+type DaemonBridge struct {
+	mu             sync.Mutex
+	daemonConn     *websocket.Conn
+	browserClients map[*websocket.Conn]bool
+	lastStatus     map[string]any
+	daemonURL      string
+}
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+func NewDaemonBridge(daemonURL string) *DaemonBridge {
+	return &DaemonBridge{
+		browserClients: make(map[*websocket.Conn]bool),
+		daemonURL:      daemonURL,
+	}
+}
+
+func (b *DaemonBridge) Start(ctx context.Context) {
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				b.connectToDaemon(ctx)
+				time.Sleep(3 * time.Second)
+			}
+		}
+	}()
+}
+
+func (b *DaemonBridge) connectToDaemon(ctx context.Context) {
+	log.Printf("[daemon] connecting to %s...", b.daemonURL)
+
+	opts := &websocket.DialOptions{
+		Subprotocols: []string{"protobuf"},
+	}
+
+	conn, _, err := websocket.Dial(ctx, b.daemonURL, opts)
+	if err != nil {
+		log.Printf("[daemon] connection failed: %v", err)
+		return
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "disconnecting")
+
+	b.mu.Lock()
+	b.daemonConn = conn
+	b.mu.Unlock()
+
+	log.Printf("[daemon] connected successfully")
+
+	// Send initial get_status request
+	b.sendControl(&wsproto.ControlFrame{
+		Type: wsproto.ControlType_CONTROL_TYPE_GET_STATUS,
+		Id:   reqID("status"),
+		Payload: &wsproto.ControlFrame_GetStatus{
+			GetStatus: &wsproto.GetStatusPayload{},
+		},
+	})
+
+	for {
+		typ, data, err := conn.Read(ctx)
+		if err != nil {
+			log.Printf("[daemon] read error / disconnected: %v", err)
+			b.mu.Lock()
+			b.daemonConn = nil
+			b.mu.Unlock()
+			return
+		}
+
+		if typ != websocket.MessageBinary {
+			continue
+		}
+
+		var frame wsproto.EventFrame
+		if err := proto.Unmarshal(data, &frame); err != nil {
+			log.Printf("[daemon] failed to decode EventFrame: %v", err)
+			continue
+		}
+
+		eventObj := b.frameToBrowserEvent(&frame)
+		if eventObj != nil {
+			if eventObj["type"] == "status" {
+				b.mu.Lock()
+				b.lastStatus = eventObj["data"].(map[string]any)
+				b.mu.Unlock()
+			}
+			b.broadcastToBrowsers(eventObj)
+		}
+	}
+}
+
+func (b *DaemonBridge) sendControl(frame *wsproto.ControlFrame) {
+	b.mu.Lock()
+	conn := b.daemonConn
+	b.mu.Unlock()
+
+	if conn == nil {
+		log.Printf("[daemon] cannot send control, daemon not connected")
+		return
+	}
+
+	data, err := proto.Marshal(frame)
+	if err != nil {
+		log.Printf("[daemon] failed to marshal ControlFrame: %v", err)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := conn.Write(ctx, websocket.MessageBinary, data); err != nil {
+		log.Printf("[daemon] failed to write ControlFrame: %v", err)
+	}
+}
+
+func (b *DaemonBridge) frameToBrowserEvent(frame *wsproto.EventFrame) map[string]any {
+	switch p := frame.Payload.(type) {
+	case *wsproto.EventFrame_Status:
+		s := p.Status
+		var jid *string
+		if s.GetJid() != "" {
+			val := s.GetJid()
+			jid = &val
+		}
+		var pushName *string
+		if s.GetPushName() != "" {
+			val := s.GetPushName()
+			pushName = &val
+		}
+		return map[string]any{
+			"type": "status",
+			"data": map[string]any{
+				"connected": s.Connected,
+				"loggedIn":  s.LoggedIn,
+				"jid":       jid,
+				"pushName":  pushName,
+			},
+		}
+
+	case *wsproto.EventFrame_PairQr:
+		return map[string]any{
+			"type": "pair_qr",
+			"data": map[string]any{
+				"code": p.PairQr.GetCode(),
+			},
+		}
+
+	case *wsproto.EventFrame_PairCode:
+		return map[string]any{
+			"type": "pair_code",
+			"data": map[string]any{
+				"code": p.PairCode.GetCode(),
+			},
+		}
+
+	case *wsproto.EventFrame_PairError:
+		return map[string]any{
+			"type": "pair_error",
+			"data": map[string]any{
+				"reason": p.PairError.GetReason(),
+			},
+		}
+
+	case *wsproto.EventFrame_Ack:
+		return map[string]any{
+			"type": "ack",
+			"data": map[string]any{
+				"ok":    p.Ack.GetOk(),
+				"error": p.Ack.GetError(),
+			},
+		}
+
+	case *wsproto.EventFrame_Message:
+		m := p.Message
+		return map[string]any{
+			"type": "message",
+			"data": map[string]any{
+				"from":      m.GetFrom(),
+				"chat":      m.GetChat(),
+				"sender":    m.GetSender(),
+				"text":      m.GetText(),
+				"messageId": m.GetMessageId(),
+				"pushName":  m.GetPushName(),
+				"timestamp": m.GetTimestampUnix(),
+				"isGroup":   m.GetIsGroup(),
+				"isFromMe":  m.GetIsFromMe(),
+			},
+		}
+
+	case *wsproto.EventFrame_IncomingCall:
+		c := p.IncomingCall
+		return map[string]any{
+			"type": "incoming_call",
+			"data": map[string]any{
+				"callId": c.GetCallId(),
+				"from":   c.GetFrom(),
+			},
+		}
+
+	default:
+		return nil
+	}
+}
+
+func (b *DaemonBridge) registerBrowser(ws *websocket.Conn) {
+	b.mu.Lock()
+	b.browserClients[ws] = true
+	lastSt := b.lastStatus
+	b.mu.Unlock()
+
+	log.Printf("[browser] client connected")
+
+	// If we have a cached status, send it immediately
+	if lastSt != nil {
+		msg, _ := json.Marshal(map[string]any{
+			"type": "status",
+			"data": lastSt,
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		_ = ws.Write(ctx, websocket.MessageText, msg)
+		cancel()
+	}
+}
+
+func (b *DaemonBridge) unregisterBrowser(ws *websocket.Conn) {
+	b.mu.Lock()
+	delete(b.browserClients, ws)
+	b.mu.Unlock()
+	log.Printf("[browser] client disconnected")
+}
+
+func (b *DaemonBridge) broadcastToBrowsers(eventObj map[string]any) {
+	data, err := json.Marshal(eventObj)
+	if err != nil {
+		return
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	for ws := range b.browserClients {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		_ = ws.Write(ctx, websocket.MessageText, data)
+		cancel()
+	}
+}
+
+func (b *DaemonBridge) handleBrowserMessage(message []byte) {
+	var msg struct {
+		Action  string         `json:"action"`
+		Payload map[string]any `json:"payload"`
+	}
+	if err := json.Unmarshal(message, &msg); err != nil {
+		return
+	}
+
+	switch msg.Action {
+	case "request_pair_code":
+		phone := ""
+		if val, ok := msg.Payload["phoneNumber"].(string); ok {
+			phone = val
+		}
+		b.sendControl(&wsproto.ControlFrame{
+			Type: wsproto.ControlType_CONTROL_TYPE_REQUEST_PAIR_CODE,
+			Id:   reqID("pair"),
+			Payload: &wsproto.ControlFrame_RequestPairCode{
+				RequestPairCode: &wsproto.RequestPairCodePayload{
+					PhoneNumber: phone,
+				},
+			},
+		})
+
+	case "request_pair_qr":
+		b.sendControl(&wsproto.ControlFrame{
+			Type: wsproto.ControlType_CONTROL_TYPE_REQUEST_PAIR_QR,
+			Id:   reqID("qr"),
+			Payload: &wsproto.ControlFrame_RequestPairQr{
+				RequestPairQr: &wsproto.RequestPairQRPayload{},
+			},
+		})
+
+	case "get_status":
+		b.sendControl(&wsproto.ControlFrame{
+			Type: wsproto.ControlType_CONTROL_TYPE_GET_STATUS,
+			Id:   reqID("status"),
+			Payload: &wsproto.ControlFrame_GetStatus{
+				GetStatus: &wsproto.GetStatusPayload{},
+			},
+		})
+
+	case "logout":
+		b.sendControl(&wsproto.ControlFrame{
+			Type: wsproto.ControlType_CONTROL_TYPE_LOGOUT,
+			Id:   reqID("logout"),
+			Payload: &wsproto.ControlFrame_Logout{
+				Logout: &wsproto.LogoutPayload{},
+			},
+		})
+
+	case "disconnect":
+		b.sendControl(&wsproto.ControlFrame{
+			Type: wsproto.ControlType_CONTROL_TYPE_DISCONNECT,
+			Id:   reqID("disconnect"),
+			Payload: &wsproto.ControlFrame_Disconnect{
+				Disconnect: &wsproto.DisconnectPayload{},
+			},
+		})
+	}
+}
+
+func reqID(prefix string) string {
+	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
+}
+
+func main() {
+	daemonURL := os.Getenv("WHATSROOK_WS_URL")
+	if daemonURL == "" {
+		daemonURL = "ws://localhost:8080/ws"
+	}
+
+	preferredPort := 3000
+	if portStr := os.Getenv("PORT"); portStr != "" {
+		if p, err := strconv.Atoi(portStr); err == nil {
+			preferredPort = p
+		}
+	}
+
+	bridge := NewDaemonBridge(daemonURL)
+	bridge.Start(context.Background())
+
+	mux := http.NewServeMux()
+
+	// Serve the interactive Web Dashboard generated by htmlbuilder
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprintln(w, renderDashboardPage())
 	})
 
-	log.Printf("WhatsRook Web Showcase running on http://localhost:%s", port)
-	if err := http.ListenAndServe(addr, nil); err != nil {
-		log.Fatalf("Server error: %v", err)
+	// Serve Browser WebSocket Bridge Endpoint
+	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			InsecureSkipVerify: true,
+		})
+		if err != nil {
+			log.Printf("[browser] websocket accept error: %v", err)
+			return
+		}
+		defer conn.Close(websocket.StatusNormalClosure, "")
+
+		bridge.registerBrowser(conn)
+		defer bridge.unregisterBrowser(conn)
+
+		ctx := r.Context()
+		for {
+			typ, data, err := conn.Read(ctx)
+			if err != nil {
+				break
+			}
+			if typ == websocket.MessageText {
+				bridge.handleBrowserMessage(data)
+			}
+		}
+	})
+
+	// Find an open port starting from preferredPort
+	port := preferredPort
+	var listener net.Listener
+	for {
+		addr := fmt.Sprintf(":%d", port)
+		l, err := net.Listen("tcp", addr)
+		if err == nil {
+			listener = l
+			break
+		}
+		log.Printf("[server] Port %d in use, trying %d...", port, port+1)
+		port++
+	}
+
+	log.Printf("Dashboard server running at http://localhost:%d", port)
+	if err := http.Serve(listener, mux); err != nil {
+		log.Fatalf("Server exit: %v", err)
 	}
 }
 
 func renderDashboardPage() string {
 	doc := htmlbuilder.New().
-		Title("WhatsRook — Next-Gen WhatsApp Automation Bot").
+		Title("WhatsRook — Dashboard").
 		MetaDefault().
 		Link(map[string]string{
 			"rel":  "stylesheet",
@@ -38,474 +418,675 @@ func renderDashboardPage() string {
 		}).
 		Link(map[string]string{
 			"rel":  "stylesheet",
+			"href": "https://cdn-uicons.flaticon.com/2.6.0/uicons-solid-rounded/css/uicons-solid-rounded.css",
+		}).
+		Link(map[string]string{
+			"rel":  "stylesheet",
 			"href": "https://cdn-uicons.flaticon.com/2.6.0/uicons-regular-rounded/css/uicons-regular-rounded.css",
 		}).
 		StyleBlock(`
+			:root {
+				--brand: #25d366;
+				--brand-dark: #128c7e;
+				--brand-soft: #e8f8f0;
+				--bg: #f8fafc;
+				--card-bg: #ffffff;
+				--text: #0f172a;
+				--text-dim: #64748b;
+				--border: #e2e8f0;
+				--danger: #ef4444;
+			}
 			* {
 				box-sizing: border-box;
-			}
-			html {
-				scroll-behavior: smooth;
-			}
-			body {
 				margin: 0;
 				padding: 0;
+			}
+			body {
 				font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-				background: #090d16;
-				color: #f8fafc;
-				overflow-x: hidden;
+				background: var(--bg);
+				color: var(--text);
+				min-height: 100vh;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				padding: 20px;
 			}
-			.glass-card {
-				background: rgba(15, 23, 42, 0.7);
-				backdrop-filter: blur(16px);
-				-webkit-backdrop-filter: blur(16px);
-				border: 1px solid rgba(255, 255, 255, 0.08);
-				box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+			.screen {
+				display: none;
+				width: 100%;
+				max-width: 440px;
 			}
-			.glow-cyan {
-				box-shadow: 0 0 30px rgba(6, 182, 212, 0.25);
+			.screen.active {
+				display: block;
 			}
-			.glow-indigo {
-				box-shadow: 0 0 30px rgba(99, 102, 241, 0.25);
+			.card {
+				background: var(--card-bg);
+				border: 1px solid var(--border);
+				border-radius: 24px;
+				padding: 36px 32px;
+				box-shadow: 0 20px 40px rgba(15, 23, 42, 0.05);
 			}
-			.gradient-text {
-				background: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #c084fc 100%);
-				-webkit-background-clip: text;
-				-webkit-text-fill-color: transparent;
+			.brand {
+				display: flex;
+				align-items: center;
+				gap: 10px;
+				margin-bottom: 24px;
 			}
-			@keyframes pulseGlow {
-				0%, 100% { opacity: 0.4; transform: scale(1); }
-				50% { opacity: 0.8; transform: scale(1.05); }
+			.brand-icon {
+				width: 40px;
+				height: 40px;
+				border-radius: 12px;
+				background: var(--brand-soft);
+				color: var(--brand-dark);
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				font-size: 20px;
 			}
-			.bg-blur-1 {
-				position: absolute;
-				top: -10%;
-				left: 20%;
-				width: 500px;
-				height: 500px;
-				background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, rgba(0,0,0,0) 70%);
-				pointer-events: none;
-				animation: pulseGlow 8s infinite ease-in-out;
+			.brand-name {
+				font-weight: 800;
+				font-size: 18px;
+				color: var(--text);
 			}
-			.bg-blur-2 {
-				position: absolute;
-				top: 40%;
-				right: 10%;
-				width: 600px;
-				height: 600px;
-				background: radial-gradient(circle, rgba(6, 182, 212, 0.2) 0%, rgba(0,0,0,0) 70%);
-				pointer-events: none;
-				animation: pulseGlow 10s infinite ease-in-out;
+			h1 {
+				font-size: 24px;
+				font-weight: 800;
+				letter-spacing: -0.02em;
+				margin-bottom: 8px;
+			}
+			p.sub {
+				color: var(--text-dim);
+				font-size: 14px;
+				line-height: 1.5;
+				margin-bottom: 28px;
+			}
+			.field {
+				margin-bottom: 20px;
+			}
+			label {
+				display: block;
+				font-size: 13px;
+				font-weight: 700;
+				color: var(--text-dim);
+				margin-bottom: 8px;
+			}
+			.phone-input {
+				display: flex;
+				align-items: center;
+				border: 1.5px solid var(--border);
+				border-radius: 12px;
+				padding: 10px 14px;
+				background: #fff;
+				transition: border-color 0.15s;
+			}
+			.phone-input:focus-within {
+				border-color: var(--brand-dark);
+			}
+			.phone-input .prefix {
+				color: var(--text-dim);
+				font-size: 16px;
+				margin-right: 10px;
+			}
+			.phone-input input {
+				border: none;
+				outline: none;
+				font-size: 16px;
+				font-weight: 600;
+				width: 100%;
+				font-family: inherit;
+			}
+			button.primary {
+				width: 100%;
+				background: var(--brand-dark);
+				color: #fff;
+				border: none;
+				border-radius: 12px;
+				padding: 14px;
+				font-size: 15px;
+				font-weight: 700;
+				cursor: pointer;
+				transition: opacity 0.15s, transform 0.1s;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				gap: 8px;
+			}
+			button.primary:hover {
+				opacity: 0.92;
+			}
+			button.primary:active {
+				transform: scale(0.99);
+			}
+			.error-msg {
+				display: none;
+				align-items: center;
+				gap: 8px;
+				color: var(--danger);
+				font-size: 13px;
+				font-weight: 600;
+				margin-top: 14px;
+			}
+			.error-msg.active {
+				display: flex;
+			}
+			.hint {
+				font-size: 12.5px;
+				color: var(--text-dim);
+				margin-top: 20px;
+				text-align: center;
+			}
+			.back-link {
+				display: inline-flex;
+				align-items: center;
+				gap: 6px;
+				font-size: 13.5px;
+				font-weight: 700;
+				color: var(--text-dim);
+				cursor: pointer;
+				margin-bottom: 20px;
+				transition: color 0.15s;
+			}
+			.back-link:hover {
+				color: var(--text);
+			}
+			.choice-grid {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 14px;
+			}
+			.choice-card {
+				border: 1.5px solid var(--border);
+				border-radius: 16px;
+				padding: 20px 16px;
+				text-align: center;
+				cursor: pointer;
+				transition: border-color 0.15s, background 0.15s;
+			}
+			.choice-card:hover {
+				border-color: var(--brand-dark);
+				background: var(--brand-soft);
+			}
+			.choice-card i {
+				font-size: 28px;
+				color: var(--brand-dark);
+				margin-bottom: 10px;
+				display: inline-block;
+			}
+			.choice-card .title {
+				font-weight: 700;
+				font-size: 14px;
+				margin-bottom: 4px;
+			}
+			.choice-card .desc {
+				font-size: 12px;
+				color: var(--text-dim);
+			}
+			.pair-visual {
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				min-height: 220px;
+				margin-bottom: 20px;
+			}
+			.pair-code-display {
+				display: flex;
+				gap: 12px;
+				justify-content: center;
+				flex-wrap: wrap;
+			}
+			.pair-code-display span {
+				font-size: 26px;
+				font-weight: 800;
+				letter-spacing: 0.05em;
+				background: var(--brand-soft);
+				color: var(--brand-dark);
+				padding: 10px 14px;
+				border-radius: 10px;
+				font-variant-numeric: tabular-nums;
+			}
+			.dot-status {
+				display: inline-flex;
+				align-items: center;
+				gap: 6px;
+				font-size: 13px;
+				color: var(--text-dim);
+				font-weight: 600;
+			}
+			.dot {
+				width: 8px;
+				height: 8px;
+				border-radius: 50%;
+				background: #d1d5db;
+			}
+			.dot.online {
+				background: var(--brand);
+			}
+			.dash-wrap {
+				max-width: 520px;
+			}
+			.dash-header {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				margin-bottom: 24px;
+			}
+			.dash-profile {
+				display: flex;
+				align-items: center;
+				gap: 12px;
+			}
+			.avatar {
+				width: 44px;
+				height: 44px;
+				border-radius: 50%;
+				background: var(--brand-soft);
+				color: var(--brand-dark);
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				font-weight: 700;
+				font-size: 16px;
+			}
+			.dash-profile .name {
+				font-weight: 700;
+				font-size: 15px;
+			}
+			.dash-profile .status {
+				font-size: 12.5px;
+				color: var(--text-dim);
+			}
+			.icon-btn {
+				width: 38px;
+				height: 38px;
+				border-radius: 10px;
+				border: 1.5px solid var(--border);
+				background: #fff;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				cursor: pointer;
+				color: var(--text-dim);
+				transition: border-color 0.15s, color 0.15s;
+			}
+			.icon-btn:hover {
+				border-color: var(--danger);
+				color: var(--danger);
+			}
+			.stat-row {
+				display: grid;
+				grid-template-columns: 1fr 1fr;
+				gap: 12px;
+				margin-bottom: 20px;
+			}
+			.stat-box {
+				border: 1.5px solid var(--border);
+				border-radius: 12px;
+				padding: 14px 16px;
+			}
+			.stat-box .label {
+				font-size: 12px;
+				color: var(--text-dim);
+				font-weight: 600;
+				margin-bottom: 4px;
+			}
+			.stat-box .value {
+				font-size: 15.5px;
+				font-weight: 700;
+			}
+			.feed-title {
+				font-size: 13.5px;
+				font-weight: 700;
+				color: var(--text-dim);
+				margin: 6px 0 10px;
+				text-transform: uppercase;
+				letter-spacing: 0.04em;
+			}
+			.feed {
+				display: flex;
+				flex-direction: column;
+				gap: 10px;
+				max-height: 320px;
+				overflow-y: auto;
+			}
+			.feed-item {
+				border: 1.5px solid var(--border);
+				border-radius: 12px;
+				padding: 12px 14px;
+			}
+			.feed-item .top {
+				display: flex;
+				justify-content: space-between;
+				font-size: 12.5px;
+				color: var(--text-dim);
+				margin-bottom: 4px;
+			}
+			.feed-item .body {
+				font-size: 14px;
+			}
+			.feed-empty {
+				text-align: center;
+				color: var(--text-dim);
+				font-size: 13.5px;
+				padding: 24px 0;
 			}
 		`)
 
-	// Navigation Bar
-	navBar := htmlbuilder.El("nav").Child(
-		htmlbuilder.El("div").CSS(htmlbuilder.Style{
-			Display:    "flex",
-			AlignItems: "center",
-			Gap:        "0.75rem",
-		}).Child(
-			htmlbuilder.El("div").CSS(htmlbuilder.Style{
-				Width:        "36px",
-				Height:       "36px",
-				BorderRadius: "10px",
-				Background:   "linear-gradient(135deg, #6366f1, #06b6d4)",
-				Display:      "flex",
-				AlignItems:   "center",
-				JustifyContent: "center",
-				FontWeight:   "800",
-				FontSize:     "1.2rem",
-				Color:        "#ffffff",
-			}).Child(htmlbuilder.Span("R")),
-			htmlbuilder.Span("WhatsRook").CSS(htmlbuilder.Style{
-				FontWeight: "800",
-				FontSize:   "1.5rem",
-				LetterSpacing: "-0.02em",
-				Color:      "#ffffff",
-			}),
-		),
-		htmlbuilder.El("div").CSS(htmlbuilder.Style{
-			Display: "flex",
-			Gap:     "2rem",
-			AlignItems: "center",
-		}).Child(
-			htmlbuilder.A("Features").Attr("href", "#features").CSS(navLinkStyle()),
-			htmlbuilder.A("Commands").Attr("href", "#commands").CSS(navLinkStyle()),
-			htmlbuilder.A("Architecture").Attr("href", "#architecture").CSS(navLinkStyle()),
-			htmlbuilder.A("GitHub").Attr("href", "https://github.com/Thruqe/whatsrook").Attr("target", "_blank").CSS(htmlbuilder.Style{
-				Background:     "linear-gradient(135deg, #6366f1, #4f46e5)",
-				Color:          "#ffffff",
-				Padding:        "0.6rem 1.4rem",
-				BorderRadius:   "10px",
-				FontWeight:     "600",
-				TextDecoration: "none",
-				FontSize:       "0.95rem",
-				Transition:     "all 0.2s ease",
-			}).Hover(htmlbuilder.Style{
-				Transform: "translateY(-2px)",
-				BoxShadow: "0 8px 20px rgba(99, 102, 241, 0.4)",
-			}),
-		),
-	).CSS(htmlbuilder.Style{
-		Display:        "flex",
-		JustifyContent: "space-between",
-		AlignItems:     "center",
-		Padding:        "1.25rem 3rem",
-		MaxWidth:       "1300px",
-		Margin:         "0 auto",
-		Width:          "100%",
-		Position:       "fixed",
-		Top:            "0",
-		Left:           "0",
-		Right:          "0",
-		ZIndex:         "1000",
-		Background:     "rgba(9, 13, 22, 0.85)",
-		BorderBottom:   "1px solid rgba(255, 255, 255, 0.08)",
-	}).SetStyle("backdrop-filter", "blur(16px)").SetStyle("-webkit-backdrop-filter", "blur(16px)")
-
-	// Hero Section
-	heroSection := htmlbuilder.El("section").Child(
-		htmlbuilder.El("div").Class("bg-blur-1"),
-		htmlbuilder.El("div").Class("bg-blur-2"),
-		htmlbuilder.El("div").CSS(htmlbuilder.Style{
-			MaxWidth:  "900px",
-			Margin:    "0 auto",
-			TextAlign: "center",
-			Position:  "relative",
-			ZIndex:    "2",
-		}).Child(
-			htmlbuilder.El("div").CSS(htmlbuilder.Style{
-				Display:       "inline-flex",
-				AlignItems:    "center",
-				Gap:           "0.5rem",
-				Background:    "rgba(99, 102, 241, 0.12)",
-				Border:        "1px solid rgba(99, 102, 241, 0.3)",
-				Padding:       "0.4rem 1.2rem",
-				BorderRadius:  "30px",
-				MarginBottom:  "2rem",
-				FontSize:      "0.9rem",
-				FontWeight:    "600",
-				Color:         "#a5b4fc",
-			}).Child(
-				htmlbuilder.Span("⚡ Pure Go Architecture • High Performance"),
-			),
-			htmlbuilder.H1("Next-Generation WhatsApp Automation Engine").
-				Class("gradient-text").
-				CSS(htmlbuilder.Style{
-					FontSize:      "4.2rem",
-					FontWeight:    "800",
-					LineHeight:    "1.15",
-					LetterSpacing: "-0.03em",
-					Margin:        "0 0 1.5rem",
-				}),
-			htmlbuilder.P("WhatsRook is a high-speed, modular WhatsApp bot daemon built with Go, whatsmeow, SQLite storage, Meta AI integration, and native media processing.").
-				CSS(htmlbuilder.Style{
-					Color:      "#94a3b8",
-					FontSize:   "1.25rem",
-					LineHeight: "1.7",
-					Margin:     "0 auto 3rem",
-					MaxWidth:   "750px",
-					FontWeight: "400",
-				}),
-			htmlbuilder.El("div").CSS(htmlbuilder.Style{
-				Display:        "flex",
-				Gap:            "1.25rem",
-				JustifyContent: "center",
-				AlignItems:     "center",
-			}).Child(
-				htmlbuilder.A("Explore Features").
-					Attr("href", "#features").
-					CSS(htmlbuilder.Style{
-						Background:     "linear-gradient(135deg, #06b6d4, #087ea4)",
-						Color:          "#ffffff",
-						Padding:        "1rem 2.5rem",
-						BorderRadius:   "12px",
-						FontWeight:     "700",
-						FontSize:       "1.05rem",
-						TextDecoration: "none",
-						Transition:     "all 0.2s ease",
-						BoxShadow:      "0 10px 25px rgba(6, 182, 212, 0.3)",
-					}).
-					Hover(htmlbuilder.Style{
-						Transform: "translateY(-3px)",
-						BoxShadow: "0 15px 35px rgba(6, 182, 212, 0.45)",
-					}),
-				htmlbuilder.A("View Source").
-					Attr("href", "https://github.com/Thruqe/whatsrook").
-					Attr("target", "_blank").
-					CSS(htmlbuilder.Style{
-						Background:     "rgba(255, 255, 255, 0.05)",
-						Border:         "1px solid rgba(255, 255, 255, 0.15)",
-						Color:          "#ffffff",
-						Padding:        "1rem 2.5rem",
-						BorderRadius:   "12px",
-						FontWeight:     "600",
-						FontSize:       "1.05rem",
-						TextDecoration: "none",
-						Transition:     "all 0.2s ease",
-					}).
-					Hover(htmlbuilder.Style{
-						Background:  "rgba(255, 255, 255, 0.1)",
-						BorderColor: "rgba(255, 255, 255, 0.3)",
-						Transform:   "translateY(-3px)",
-					}),
-			),
-		),
-	).CSS(htmlbuilder.Style{
-		Position:       "relative",
-		Padding:        "12rem 2rem 8rem",
-		MinHeight:      "90vh",
-		Display:        "flex",
-		AlignItems:     "center",
-		JustifyContent: "center",
-	})
-
-	// Core Features Section
-	featuresList := []struct {
-		icon  string
-		title string
-		desc  string
-	}{
-		{"fi-rr-bolt", "Concurrent Dispatcher", "Handles incoming WhatsApp events concurrently with low-memory footprint and fast SQLite query storage."},
-		{"fi-rr-brain", "Meta AI Deep Context", "Integrates natively with Meta AI bot sessions for automated, context-aware question answering and command invocation."},
-		{"fi-rr-magic-wand", "Media & Sticker Engine", "Custom FFmpeg processing for WebP stickers, MP4 video conversion, circular masks, and crop transformations."},
-		{"fi-rr-shield-check", "Granular Security", "Multi-layered moderation, Sudoer authorization, anti-spam rate limiting, and banned user enforcement."},
-		{"fi-rr-refresh", "Self-Updating Daemon", "Automatic release checks, binary updates from GitHub releases, and seamless zero-downtime process restarts."},
-		{"fi-rr-spinner", "Animated Status Loader", "Live message editing with Braille frame spinners while background tasks execute."},
-	}
-
-	featuresSection := htmlbuilder.El("section").
-		Attr("id", "features").
+	// Screen 1: Phone number entry
+	screenPhone := htmlbuilder.El("div").
+		Class("screen", "active").
+		Attr("id", "screen-phone").
 		Child(
-			htmlbuilder.El("div").CSS(htmlbuilder.Style{
-				MaxWidth: "1200px",
-				Margin:   "0 auto",
-			}).Child(
-				htmlbuilder.El("div").CSS(htmlbuilder.Style{
-					TextAlign:    "center",
-					MarginBottom: "4rem",
-				}).Child(
-					htmlbuilder.H2("Built for Performance & Scale").
-						Class("gradient-text").
-						CSS(htmlbuilder.Style{
-							FontSize:      "2.75rem",
-							FontWeight:    "800",
-							Margin:        "0 0 1rem",
-							LetterSpacing: "-0.02em",
-						}),
-					htmlbuilder.P("Everything you need for an enterprise-grade WhatsApp assistant, built 100% in Go.").
-						CSS(htmlbuilder.Style{
-							Color:    "#94a3b8",
-							FontSize: "1.15rem",
-							Margin:   "0",
-						}),
+			htmlbuilder.El("div").Class("card").Child(
+				htmlbuilder.El("div").Class("brand").Child(
+					htmlbuilder.El("div").Class("brand-icon").Child(htmlbuilder.El("i").Class("fi", "fi-sr-comment-check")),
+					htmlbuilder.El("div").Class("brand-name").Child(htmlbuilder.Span("WhatsRook")),
 				),
-				htmlbuilder.El("div").CSS(htmlbuilder.Style{
-					Display:             "grid",
-					GridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
-					Gap:                 "2rem",
-				}).Child(
-					htmlbuilder.Each(featuresList, func(f struct {
-						icon  string
-						title string
-						desc  string
-					}) *htmlbuilder.Node {
-						return htmlbuilder.El("div").
-							Class("glass-card").
-							CSS(htmlbuilder.Style{
-								Padding:      "2.5rem",
-								BorderRadius: "20px",
-								Transition:   "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-							}).
-							Hover(htmlbuilder.Style{
-								Transform:   "translateY(-6px)",
-								BorderColor: "rgba(99, 102, 241, 0.4)",
-								BoxShadow:   "0 20px 40px rgba(99, 102, 241, 0.2)",
-							}).
-							Child(
-								htmlbuilder.El("div").CSS(htmlbuilder.Style{
-									Width:          "50px",
-									Height:         "50px",
-									BorderRadius:   "14px",
-									Background:     "rgba(99, 102, 241, 0.15)",
-									Border:         "1px solid rgba(99, 102, 241, 0.3)",
-									Display:        "flex",
-									AlignItems:     "center",
-									JustifyContent: "center",
-									MarginBottom:   "1.5rem",
-									Color:          "#818cf8",
-									FontSize:       "1.4rem",
-								}).Child(
-									htmlbuilder.El("i").Class("fi", f.icon),
-								),
-								htmlbuilder.H3(f.title).CSS(htmlbuilder.Style{
-									FontSize:     "1.35rem",
-									FontWeight:   "700",
-									Margin:       "0 0 1rem",
-									Color:        "#ffffff",
-								}),
-								htmlbuilder.P(f.desc).CSS(htmlbuilder.Style{
-									Color:      "#94a3b8",
-									FontSize:   "1rem",
-									LineHeight: "1.6",
-									Margin:     "0",
-								}),
-							)
-					})...,
+				htmlbuilder.H1("Connect your number"),
+				htmlbuilder.P("Enter your WhatsApp phone number to get started.").Class("sub"),
+				htmlbuilder.El("div").Class("field").Child(
+					htmlbuilder.El("label").Attr("for", "phone-number").Child(htmlbuilder.Span("Phone number")),
+					htmlbuilder.El("div").Class("phone-input").Child(
+						htmlbuilder.Span("").Class("prefix").Child(htmlbuilder.El("i").Class("fi", "fi-sr-phone-flip")),
+						htmlbuilder.El("input").
+							Attr("type", "tel").
+							Attr("id", "phone-number").
+							Attr("placeholder", "e.g. 2348012345678").
+							Attr("inputmode", "numeric").
+							Attr("autocomplete", "off"),
+					),
 				),
+				htmlbuilder.El("button").Class("primary").Attr("id", "btn-continue").Child(
+					htmlbuilder.Span("Continue").Attr("id", "btn-continue-text"),
+				),
+				htmlbuilder.El("div").Class("error-msg").Attr("id", "phone-error").Child(
+					htmlbuilder.El("i").Class("fi", "fi-sr-triangle-warning"),
+					htmlbuilder.Span("Something went wrong. Please try again.").Attr("id", "phone-error-text"),
+				),
+				htmlbuilder.P("Use your number in international format, digits only.").Class("hint"),
 			),
-		).CSS(htmlbuilder.Style{
-		Padding: "6rem 2rem",
-	})
+		)
 
-	// Architecture Showcase Section
-	archSection := htmlbuilder.El("section").
-		Attr("id", "architecture").
+	// Screen 2: Choose QR or Pair Code
+	screenChoice := htmlbuilder.El("div").
+		Class("screen").
+		Attr("id", "screen-choice").
 		Child(
-			htmlbuilder.El("div").CSS(htmlbuilder.Style{
-				MaxWidth: "1100px",
-				Margin:   "0 auto",
-			}).Child(
-				htmlbuilder.El("div").Class("glass-card", "glow-indigo").CSS(htmlbuilder.Style{
-					Padding:      "3.5rem",
-					BorderRadius: "28px",
-					Background:   "linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.8))",
-				}).Child(
-					htmlbuilder.El("div").CSS(htmlbuilder.Style{
-						Display:             "grid",
-						GridTemplateColumns: "1fr 1fr",
-						Gap:                 "3rem",
-						AlignItems:          "center",
-					}).Child(
-						htmlbuilder.El("div").Child(
-							htmlbuilder.H2("Constructed with htmlbuilder").
-								Class("gradient-text").
-								CSS(htmlbuilder.Style{
-									FontSize:   "2.25rem",
-									FontWeight: "800",
-									Margin:     "0 0 1.25rem",
-								}),
-							htmlbuilder.P("This entire web showcase is written in pure Go using github.com/Thruqe/htmlbuilder. No raw HTML templates, no Node.js dependencies, no Javascript frameworks — compiled straight into the Go binary.").
-								CSS(htmlbuilder.Style{
-									Color:      "#cbd5e1",
-									FontSize:   "1.1rem",
-									LineHeight: "1.7",
-									Margin:     "0 0 2rem",
-								}),
-							htmlbuilder.El("div").CSS(htmlbuilder.Style{
-								Display: "flex",
-								Gap:     "1rem",
-							}).Child(
-								htmlbuilder.El("div").CSS(htmlbuilder.Style{
-									Background:   "rgba(6, 182, 212, 0.1)",
-									Border:       "1px solid rgba(6, 182, 212, 0.3)",
-									Padding:      "1rem 1.5rem",
-									BorderRadius: "12px",
-									TextAlign:    "center",
-								}).Child(
-									htmlbuilder.Span("100%").CSS(htmlbuilder.Style{
-										Display:    "block",
-										FontSize:   "1.8rem",
-										FontWeight: "800",
-										Color:      "#38bdf8",
-									}),
-									htmlbuilder.Span("Pure Go Code").CSS(htmlbuilder.Style{
-										FontSize: "0.85rem",
-										Color:    "#94a3b8",
-									}),
-								),
-								htmlbuilder.El("div").CSS(htmlbuilder.Style{
-									Background:   "rgba(99, 102, 241, 0.1)",
-									Border:       "1px solid rgba(99, 102, 241, 0.3)",
-									Padding:      "1rem 1.5rem",
-									BorderRadius: "12px",
-									TextAlign:    "center",
-								}).Child(
-									htmlbuilder.Span("0").CSS(htmlbuilder.Style{
-										Display:    "block",
-										FontSize:   "1.8rem",
-										FontWeight: "800",
-										Color:      "#a5b4fc",
-									}),
-									htmlbuilder.Span("External JS/CSS Files").CSS(htmlbuilder.Style{
-										FontSize: "0.85rem",
-										Color:    "#94a3b8",
-									}),
-								),
-							),
-						),
-						htmlbuilder.El("div").CSS(htmlbuilder.Style{
-							Background:   "#020617",
-							Border:       "1px solid rgba(255, 255, 255, 0.1)",
-							BorderRadius: "16px",
-							Padding:      "1.75rem",
-							FontFamily:   "monospace",
-							FontSize:     "0.9rem",
-							Color:        "#38bdf8",
-							LineHeight:   "1.6",
-							OverflowX:    "auto",
-						}).Child(
-							htmlbuilder.Span("// Build UI declaratively in Go\n"),
-							htmlbuilder.Span("doc := htmlbuilder.New()\n"),
-							htmlbuilder.Span("doc.Title(\"WhatsRook Showcase\")\n"),
-							htmlbuilder.Span("doc.Body().Child(\n"),
-							htmlbuilder.Span("    htmlbuilder.H1(\"Pure Go Engine\"),\n"),
-							htmlbuilder.Span("    htmlbuilder.P(\"Type-safe Web UI\"),\n"),
-							htmlbuilder.Span(")\n\n"),
-							htmlbuilder.Span("fmt.Fprintln(w, doc.String())"),
-						),
+			htmlbuilder.El("div").Class("card").Child(
+				htmlbuilder.El("div").Class("back-link").Attr("id", "choice-back").Child(
+					htmlbuilder.El("i").Class("fi", "fi-sr-arrow-small-left"),
+					htmlbuilder.Span(" Back"),
+				),
+				htmlbuilder.H1("Link your device"),
+				htmlbuilder.P("Choose how you'd like to connect WhatsApp.").Class("sub"),
+				htmlbuilder.El("div").Class("choice-grid").Child(
+					htmlbuilder.El("div").Class("choice-card").Attr("id", "choice-qr").Child(
+						htmlbuilder.El("i").Class("fi", "fi-sr-qrcode"),
+						htmlbuilder.El("div").Class("title").Child(htmlbuilder.Span("Scan QR code")),
+						htmlbuilder.El("div").Class("desc").Child(htmlbuilder.Span("Use WhatsApp on your phone to scan")),
+					),
+					htmlbuilder.El("div").Class("choice-card").Attr("id", "choice-pair").Child(
+						htmlbuilder.El("i").Class("fi", "fi-sr-keyboard"),
+						htmlbuilder.El("div").Class("title").Child(htmlbuilder.Span("Enter a code")),
+						htmlbuilder.El("div").Class("desc").Child(htmlbuilder.Span("Get a code to type on your phone")),
 					),
 				),
 			),
-		).CSS(htmlbuilder.Style{
-		Padding: "4rem 2rem 6rem",
-	})
+		)
 
-	// Footer
-	footer := htmlbuilder.El("footer").Child(
-		htmlbuilder.El("div").CSS(htmlbuilder.Style{
-			MaxWidth:       "1200px",
-			Margin:         "0 auto",
-			Display:        "flex",
-			JustifyContent: "space-between",
-			AlignItems:     "center",
-		}).Child(
-			htmlbuilder.P("© 2026 WhatsRook Project. Powered by Go & htmlbuilder.").CSS(htmlbuilder.Style{
-				Color:      "#64748b",
-				FontSize:   "0.95rem",
-				Margin:     "0",
-				FontWeight: "500",
-			}),
-			htmlbuilder.A("GitHub Repository").
-				Attr("href", "https://github.com/Thruqe/whatsrook").
-				Attr("target", "_blank").
-				CSS(htmlbuilder.Style{
-					Color:          "#38bdf8",
-					TextDecoration: "none",
-					FontWeight:     "600",
-					FontSize:       "0.95rem",
-				}),
-		),
-	).CSS(htmlbuilder.Style{
-		Padding:      "3rem 2rem",
-		BorderTop:    "1px solid rgba(255, 255, 255, 0.08)",
-		Background:   "#060911",
-		BoxSizing:    "border-box",
-	})
+	// Screen 3: QR pairing
+	screenQR := htmlbuilder.El("div").
+		Class("screen").
+		Attr("id", "screen-qr").
+		Child(
+			htmlbuilder.El("div").Class("card").Child(
+				htmlbuilder.El("div").Class("back-link").Attr("id", "qr-back").Child(
+					htmlbuilder.El("i").Class("fi", "fi-sr-arrow-small-left"),
+					htmlbuilder.Span(" Back"),
+				),
+				htmlbuilder.H1("Scan with WhatsApp"),
+				htmlbuilder.P("Open WhatsApp → Linked Devices → Link a Device, then scan this code.").Class("sub"),
+				htmlbuilder.El("div").Class("pair-visual").Child(
+					htmlbuilder.El("div").Attr("id", "qr-canvas-wrap").Child(
+						htmlbuilder.El("i").Class("fi", "fi-sr-spinner").SetStyle("font-size", "22px").SetStyle("color", "#c7cad6"),
+					),
+				),
+				htmlbuilder.El("div").SetStyle("display", "flex").SetStyle("justify-content", "center").Child(
+					htmlbuilder.El("span").Class("dot-status").Child(
+						htmlbuilder.El("span").Class("dot").Attr("id", "qr-dot"),
+						htmlbuilder.Span("Waiting for scan…").Attr("id", "qr-status-text"),
+					),
+				),
+			),
+		)
 
-	// Build Full Document Structure
-	doc.Body().Child(navBar, heroSection, featuresSection, archSection, footer)
+	// Screen 4: Pair code
+	screenCode := htmlbuilder.El("div").
+		Class("screen").
+		Attr("id", "screen-code").
+		Child(
+			htmlbuilder.El("div").Class("card").Child(
+				htmlbuilder.El("div").Class("back-link").Attr("id", "code-back").Child(
+					htmlbuilder.El("i").Class("fi", "fi-sr-arrow-small-left"),
+					htmlbuilder.Span(" Back"),
+				),
+				htmlbuilder.H1("Enter this code"),
+				htmlbuilder.P("Open WhatsApp → Linked Devices → Link with phone number, then enter this code.").Class("sub"),
+				htmlbuilder.El("div").Class("pair-visual").Child(
+					htmlbuilder.El("div").Class("pair-code-display").Attr("id", "pair-code-display").Child(
+						htmlbuilder.Span("••••"),
+						htmlbuilder.Span("••••"),
+					),
+				),
+				htmlbuilder.El("div").SetStyle("display", "flex").SetStyle("justify-content", "center").Child(
+					htmlbuilder.El("span").Class("dot-status").Child(
+						htmlbuilder.El("span").Class("dot").Attr("id", "code-dot"),
+						htmlbuilder.Span("Waiting for confirmation…").Attr("id", "code-status-text"),
+					),
+				),
+			),
+		)
+
+	// Screen 5: Dashboard
+	screenDashboard := htmlbuilder.El("div").
+		Class("screen").
+		Attr("id", "screen-dashboard").
+		Child(
+			htmlbuilder.El("div").Class("card", "dash-wrap").Child(
+				htmlbuilder.El("div").Class("dash-header").Child(
+					htmlbuilder.El("div").Class("dash-profile").Child(
+						htmlbuilder.El("div").Class("avatar").Child(htmlbuilder.El("i").Class("fi", "fi-sr-user")),
+						htmlbuilder.El("div").Child(
+							htmlbuilder.El("div").Class("name").Attr("id", "dash-name").Child(htmlbuilder.Span("Connected")),
+							htmlbuilder.El("div").Class("status").Child(
+								htmlbuilder.El("span").Class("dot", "online").SetStyle("display", "inline-block"),
+								htmlbuilder.Span("Online").Attr("id", "dash-status"),
+							),
+						),
+					),
+					htmlbuilder.El("div").Class("icon-btn").Attr("id", "btn-logout").Attr("title", "Log out").Child(
+						htmlbuilder.El("i").Class("fi", "fi-sr-sign-out-alt"),
+					),
+				),
+				htmlbuilder.El("div").Class("stat-row").Child(
+					htmlbuilder.El("div").Class("stat-box").Child(
+						htmlbuilder.El("div").Class("label").Child(htmlbuilder.Span("Number")),
+						htmlbuilder.El("div").Class("value").Attr("id", "dash-number").Child(htmlbuilder.Span("—")),
+					),
+					htmlbuilder.El("div").Class("stat-box").Child(
+						htmlbuilder.El("div").Class("label").Child(htmlbuilder.Span("Status")),
+						htmlbuilder.El("div").Class("value").Attr("id", "dash-conn-status").Child(htmlbuilder.Span("Connected")),
+					),
+				),
+				htmlbuilder.El("div").Class("feed-title").Child(htmlbuilder.Span("Recent activity")),
+				htmlbuilder.El("div").Class("feed").Attr("id", "dash-feed").Child(
+					htmlbuilder.El("div").Class("feed-empty").Child(htmlbuilder.Span("No activity yet. Messages will show up here.")),
+				),
+			),
+		)
+
+	// Interactive JavaScript for WebSocket bridge & UI screen switching
+	scriptBlock := `
+		(function() {
+			let ws = null;
+			let userPhone = '';
+			let currentStatus = null;
+
+			const screens = {
+				phone: document.getElementById('screen-phone'),
+				choice: document.getElementById('screen-choice'),
+				qr: document.getElementById('screen-qr'),
+				code: document.getElementById('screen-code'),
+				dashboard: document.getElementById('screen-dashboard'),
+			};
+
+			function showScreen(name) {
+				Object.keys(screens).forEach(k => {
+					if (screens[k]) screens[k].classList.toggle('active', k === name);
+				});
+			}
+
+			function initWS() {
+				const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+				ws = new WebSocket(protocol + '//' + location.host + '/ws');
+
+				ws.onopen = () => {
+					console.log('[ws] connected');
+					sendAction('get_status');
+				};
+
+				ws.onmessage = (evt) => {
+					try {
+						const event = JSON.parse(evt.data);
+						handleEvent(event);
+					} catch(err) {
+						console.error('[ws] error parsing json:', err);
+					}
+				};
+
+				ws.onclose = () => {
+					console.log('[ws] closed, retrying in 3s...');
+					setTimeout(initWS, 3000);
+				};
+			}
+
+			function sendAction(action, payload = {}) {
+				if (ws && ws.readyState === WebSocket.OPEN) {
+					ws.send(JSON.stringify({ action, payload }));
+				}
+			}
+
+			function handleEvent(event) {
+				switch (event.type) {
+					case 'status':
+						currentStatus = event.data;
+						if (currentStatus.loggedIn) {
+							document.getElementById('dash-name').textContent = currentStatus.pushName || 'WhatsApp User';
+							document.getElementById('dash-number').textContent = currentStatus.jid || 'Connected';
+							document.getElementById('dash-conn-status').textContent = 'Online';
+							showScreen('dashboard');
+						} else if (!screens.choice.classList.contains('active') && 
+								   !screens.qr.classList.contains('active') && 
+								   !screens.code.classList.contains('active')) {
+							showScreen('phone');
+						}
+						break;
+
+					case 'pair_qr':
+						if (event.data && event.data.code) {
+							const wrap = document.getElementById('qr-canvas-wrap');
+							wrap.innerHTML = '';
+							QRCode.toCanvas(event.data.code, { width: 220, margin: 1 }, (err, canvas) => {
+								if (!err) wrap.appendChild(canvas);
+							});
+							document.getElementById('qr-status-text').textContent = 'Waiting for scan…';
+							document.getElementById('qr-dot').classList.add('online');
+						}
+						break;
+
+					case 'pair_code':
+						if (event.data && event.data.code) {
+							const code = event.data.code.replace(/-/g, '');
+							const display = document.getElementById('pair-code-display');
+							display.innerHTML = '<span>' + code.slice(0, 4) + '</span><span>' + code.slice(4) + '</span>';
+							document.getElementById('code-status-text').textContent = 'Waiting for confirmation…';
+							document.getElementById('code-dot').classList.add('online');
+						}
+						break;
+
+					case 'pair_error':
+						const errEl = document.getElementById('phone-error');
+						const errText = document.getElementById('phone-error-text');
+						errText.textContent = (event.data && event.data.reason) || 'Pairing error occurred.';
+						errEl.classList.add('active');
+						showScreen('phone');
+						break;
+
+					case 'message':
+						addFeedItem(event.data);
+						break;
+				}
+			}
+
+			function addFeedItem(m) {
+				const feed = document.getElementById('dash-feed');
+				const empty = feed.querySelector('.feed-empty');
+				if (empty) empty.remove();
+
+				const item = document.createElement('div');
+				item.className = 'feed-item';
+				const dateStr = new Date(m.timestamp * 1000).toLocaleTimeString();
+				item.innerHTML = '<div class="top"><span>' + (m.pushName || m.sender || m.from) + '</span><span>' + dateStr + '</span></div>' +
+								 '<div class="body">' + (m.text || '[Media message]') + '</div>';
+				feed.prepend(item);
+			}
+
+			// Handlers
+			document.getElementById('btn-continue').onclick = () => {
+				const phoneInput = document.getElementById('phone-number');
+				const val = phoneInput.value.replace(/\D/g, '');
+				if (!val) {
+					document.getElementById('phone-error-text').textContent = 'Please enter a valid phone number.';
+					document.getElementById('phone-error').classList.add('active');
+					return;
+				}
+				userPhone = val;
+				document.getElementById('phone-error').classList.remove('active');
+				showScreen('choice');
+			};
+
+			document.getElementById('choice-qr').onclick = () => {
+				showScreen('qr');
+				sendAction('request_pair_qr');
+			};
+
+			document.getElementById('choice-pair').onclick = () => {
+				showScreen('code');
+				sendAction('request_pair_code', { phoneNumber: userPhone });
+			};
+
+			document.getElementById('choice-back').onclick = () => showScreen('phone');
+			document.getElementById('qr-back').onclick = () => showScreen('choice');
+			document.getElementById('code-back').onclick = () => showScreen('choice');
+
+			document.getElementById('btn-logout').onclick = () => {
+				sendAction('logout');
+				showScreen('phone');
+			};
+
+			initWS();
+		})();
+	`
+
+	// Build Page
+	doc.Body().Child(
+		htmlbuilder.El("script").Attr("src", "https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"),
+		screenPhone,
+		screenChoice,
+		screenQR,
+		screenCode,
+		screenDashboard,
+	)
+	doc.Script(scriptBlock)
 
 	return doc.String()
-}
-
-func navLinkStyle() htmlbuilder.Style {
-	return htmlbuilder.Style{
-		Color:          "#94a3b8",
-		TextDecoration: "none",
-		FontWeight:     "600",
-		FontSize:       "0.95rem",
-		Transition:     "color 0.2s ease",
-	}
 }

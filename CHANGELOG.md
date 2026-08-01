@@ -7,10 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Pure Go Web Showcase (`example/web/main.go`, `example/web/README.md`):
-  - Completely converted `example/web` from Bun.js/TypeScript to a pure Go web application.
-  - Utilizes `github.com/Thruqe/htmlbuilder` for constructing HTML5 markup and inline CSS styling directly in Go code with zero external JS/HTML/CSS files.
-  - Implemented responsive glassmorphic dashboard showcasing WhatsRook features and architecture.
+- Go Web Client & Daemon Bridge (`example/web/main.go`, `example/web/README.md`):
+  - Converted `example/web` from Bun.js/TypeScript to a pure Go web client application.
+  - Implements the exact 5-screen interactive dashboard (phone input, QR code scan, 8-character pair code, live status dashboard, activity feed, logout).
+  - Built using `github.com/Thruqe/htmlbuilder` for UI construction and `github.com/coder/websocket` to bridge browser WebSockets with the WhatsRook daemon's Protobuf WebSocket interface.
 
 ### Removed
 
