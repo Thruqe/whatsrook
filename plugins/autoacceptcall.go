@@ -278,8 +278,7 @@ func startVideoMedia(call *meowcaller.Call, videoPath string) {
 		endTime := time.Now().Add(duration + 2*time.Second)
 
 		for time.Now().Before(endTime) {
-			select {
-			case <-ticker.C:
+			for range ticker.C {
 				if call.State() == meowcaller.CallPhaseEnded {
 					return
 				}

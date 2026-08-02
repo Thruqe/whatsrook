@@ -1,4 +1,3 @@
-// YouTube downloader extractor derived from embers engine & downr/cobalt APIs.
 package downloader
 
 import (
@@ -10,14 +9,14 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"os/exec"
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 )
 
-var (
-	ytIDRegex = regexp.MustCompile(`(?:v=|/v/|embed/|shorts/|youtu\.be/)([a-zA-Z0-9_-]{11})`)
-)
+var ytIDRegex = regexp.MustCompile(`(?:v=|/v/|embed/|shorts/|youtu\.be/)([a-zA-Z0-9_-]{11})`)
 
 type embersCache struct {
 	mu     sync.Mutex
@@ -43,7 +42,8 @@ func (ec *embersCache) getClient() (*http.Client, error) {
 
 	ec.jar = jar
 	ec.client = &http.Client{
-		Jar: jar,
+		Jar:     jar,
+		Timeout: 30 * time.Second,
 	}
 	ec.ready = false
 	return ec.client, nil
@@ -59,7 +59,7 @@ func (ec *embersCache) initSession(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:152.0) Gecko/20100101 Firefox/152.0")
+	req.Header.Set("User-Agent", DefaultUserAgent)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -79,6 +79,142 @@ func (ec *embersCache) invalidate() {
 	ec.mu.Unlock()
 }
 
+type MediaInfo struct {
+	ID         string  `json:"id"`
+	Title      string  `json:"title"`
+	Uploader   string  `json:"uploader"`
+	Duration   float64 `json:"duration"`
+	Thumbnail  string  `json:"thumbnail"`
+	WebpageURL string  `json:"webpage_url"`
+}
+
+type SearchResult struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	URL   string `json:"webpage_url"`
+}
+
+func (c *Client) runYtDlp(ctx context.Context, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("yt-dlp error: %w (stderr: %s)", err, strings.TrimSpace(stderr.String()))
+	}
+
+	return stdout.Bytes(), nil
+}
+
+func (c *Client) Search(ctx context.Context, query string, limit int, provider string) ([]SearchResult, error) {
+	if limit <= 0 {
+		limit = 5
+	}
+	if provider == "" {
+		provider = "ytsearch"
+	}
+
+	searchTerm := fmt.Sprintf("%s%d:%s", provider, limit, query)
+
+	out, err := c.runYtDlp(ctx, "-J", "--flat-playlist", "--no-warnings", searchTerm)
+	if err != nil {
+		return nil, err
+	}
+
+	var payload struct {
+		Entries []SearchResult `json:"entries"`
+	}
+	if err := json.Unmarshal(out, &payload); err != nil {
+		return nil, fmt.Errorf("failed to parse search results: %w", err)
+	}
+
+	return payload.Entries, nil
+}
+
+func (c *Client) Info(ctx context.Context, mediaURL string) (*MediaInfo, error) {
+	out, err := c.runYtDlp(ctx, "-J", "--no-warnings", "--no-playlist", mediaURL)
+	if err != nil {
+		return nil, err
+	}
+
+	var info MediaInfo
+	if err := json.Unmarshal(out, &info); err != nil {
+		return nil, fmt.Errorf("failed to parse media info: %w", err)
+	}
+
+	return &info, nil
+}
+
+func (c *Client) DownloadYouTube(ctx context.Context, rawURL string) (*Result, error) {
+	return c.DownloadYouTubeMedia(ctx, rawURL, false)
+}
+
+func (c *Client) DownloadYouTubeMedia(ctx context.Context, rawURL string, isAudioOnly bool) (*Result, error) {
+	videoID := extractYouTubeID(rawURL)
+
+	if res, err := c.fetchYtDlpURL(ctx, rawURL, videoID, isAudioOnly); err == nil && res != nil && len(res.Items) > 0 {
+		return res, nil
+	}
+
+	if res, err := c.fetchEmbersDownr(ctx, rawURL, videoID, 0); err == nil && res != nil && len(res.Items) > 0 {
+		return res, nil
+	}
+
+	if res, err := c.fetchVKRYouTube(ctx, rawURL, videoID); err == nil && res != nil && len(res.Items) > 0 {
+		return res, nil
+	}
+
+	if res, err := c.fetchCobaltYouTube(ctx, rawURL, videoID); err == nil && res != nil && len(res.Items) > 0 {
+		return res, nil
+	}
+
+	return nil, fmt.Errorf("failed to extract YouTube media for video ID %s", videoID)
+}
+
+func (c *Client) fetchYtDlpURL(ctx context.Context, rawURL, videoID string, isAudioOnly bool) (*Result, error) {
+	formatSpec := "best[ext=mp4]/18/best"
+	mediaType := "video"
+	ext := "mp4"
+
+	if isAudioOnly {
+		formatSpec = "bestaudio[ext=m4a]/bestaudio/best"
+		mediaType = "audio"
+		ext = "m4a"
+	}
+
+	outURLBytes, err := c.runYtDlp(ctx, "-g", "--no-warnings", "-f", formatSpec, rawURL)
+	if err != nil || len(outURLBytes) == 0 {
+		return nil, fmt.Errorf("yt-dlp -g error: %v", err)
+	}
+
+	directURL := strings.TrimSpace(string(outURLBytes))
+	lines := strings.Split(directURL, "\n")
+	if len(lines) > 0 {
+		directURL = strings.TrimSpace(lines[0])
+	}
+
+	if directURL == "" {
+		return nil, fmt.Errorf("empty stream URL from yt-dlp")
+	}
+
+	title := fmt.Sprintf("YouTube %s (%s)", mediaType, videoID)
+
+	return &Result{
+		Service: "youtube",
+		ID:      videoID,
+		Title:   title,
+		Items: []MediaItem{
+			{
+				URL:      directURL,
+				Type:     mediaType,
+				Filename: fmt.Sprintf("youtube_%s.%s", videoID, ext),
+			},
+		},
+	}, nil
+}
+
 type embersDownrResponse struct {
 	Status   string `json:"status"`
 	URL      string `json:"url"`
@@ -88,28 +224,6 @@ type embersDownrResponse struct {
 		URL  string `json:"url"`
 		Type string `json:"type"`
 	} `json:"picker"`
-}
-
-// DownloadYouTube extracts media items from a YouTube video URL.
-func (c *Client) DownloadYouTube(ctx context.Context, rawURL string) (*Result, error) {
-	videoID := extractYouTubeID(rawURL)
-
-	// Strategy 1: Embers Downr engine
-	if res, err := c.fetchEmbersDownr(ctx, rawURL, videoID, 0); err == nil && res != nil && len(res.Items) > 0 {
-		return res, nil
-	}
-
-	// Strategy 2: VKR YouTube API fallback
-	if res, err := c.fetchVKRYouTube(ctx, rawURL, videoID); err == nil && res != nil && len(res.Items) > 0 {
-		return res, nil
-	}
-
-	// Strategy 3: Cobalt fallback API
-	if res, err := c.fetchCobaltYouTube(ctx, rawURL, videoID); err == nil && res != nil && len(res.Items) > 0 {
-		return res, nil
-	}
-
-	return nil, fmt.Errorf("failed to extract YouTube media for video ID %s", videoID)
 }
 
 func (c *Client) fetchEmbersDownr(ctx context.Context, mediaURL, videoID string, attempt int) (*Result, error) {
@@ -127,12 +241,12 @@ func (c *Client) fetchEmbersDownr(ctx context.Context, mediaURL, videoID string,
 	}
 
 	payload, _ := json.Marshal(map[string]string{"url": mediaURL})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://downr.org/.netlify/functions/nyt", bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://downr.org/.netlify/functions/bbc", bytes.NewReader(payload))
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:152.0) Gecko/20100101 Firefox/152.0")
+	req.Header.Set("User-Agent", DefaultUserAgent)
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Accept-Language", "en-US")
 	req.Header.Set("Content-Type", "application/json")
@@ -236,7 +350,9 @@ func (c *Client) fetchVKRYouTube(ctx context.Context, mediaURL, videoID string) 
 	}
 
 	req.Header.Set("User-Agent", DefaultUserAgent)
-	resp, err := c.HTTPClient.Do(req)
+
+	client := c.getHTTPClient()
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -308,7 +424,8 @@ func (c *Client) fetchCobaltYouTube(ctx context.Context, mediaURL, videoID strin
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.HTTPClient.Do(req)
+	client := c.getHTTPClient()
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -347,6 +464,13 @@ func (c *Client) fetchCobaltYouTube(ctx context.Context, mediaURL, videoID strin
 		Title:   res.Text,
 		Items:   items,
 	}, nil
+}
+
+func (c *Client) getHTTPClient() *http.Client {
+	if c.HTTPClient != nil {
+		return c.HTTPClient
+	}
+	return http.DefaultClient
 }
 
 func extractYouTubeID(rawURL string) string {

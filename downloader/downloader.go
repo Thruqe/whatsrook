@@ -19,6 +19,7 @@ type MediaItem struct {
 	Type     string `json:"type"` // "video", "photo", "audio", "gif"
 	Filename string `json:"filename,omitempty"`
 	ThumbURL string `json:"thumb_url,omitempty"`
+	Buffer   []byte `json:"-"`
 }
 
 // Result contains the output of a successful media extraction.

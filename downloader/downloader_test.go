@@ -30,6 +30,31 @@ func TestURLRouting(t *testing.T) {
 	}
 }
 
+func TestYouTubeExtractor(t *testing.T) {
+	client := downloader.NewClient()
+
+	testURLs := []string{
+		"https://www.youtube.com/watch?v=Uh9643c2P6k",
+		"https://youtu.be/Uh9643c2P6k",
+	}
+
+	for _, u := range testURLs {
+		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		res, err := client.Download(ctx, u)
+		cancel()
+
+		if err != nil {
+			t.Fatalf("DownloadYouTube(%q) failed: %v", u, err)
+		}
+		if res.Service != "youtube" {
+			t.Errorf("expected service 'youtube', got %q", res.Service)
+		}
+		if len(res.Items) == 0 {
+			t.Errorf("expected media items for %q, got 0", u)
+		}
+	}
+}
+
 func TestFacebookExtractor(t *testing.T) {
 	client := downloader.NewClient()
 

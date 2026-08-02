@@ -1,4 +1,3 @@
-// YouTube commands – .ytv (YouTube Video) and .yta (YouTube Audio with ffmpeg encoding).
 package commands
 
 import (
@@ -48,7 +47,8 @@ func handleYTV(ctx *Context) error {
 	loader := ctx.StartLoader("Fetching YouTube video...")
 	defer loader.Delete()
 
-	res, err := downloader.Download(ctx.Ctx, targetURL)
+	dl := downloader.NewClient()
+	res, err := dl.DownloadYouTubeMedia(ctx.Ctx, targetURL, false)
 	if err != nil {
 		return ctx.Reply("YouTube video download failed: " + err.Error())
 	}
@@ -57,23 +57,31 @@ func handleYTV(ctx *Context) error {
 		return ctx.Reply("No downloadable video stream found.")
 	}
 
-	httpClient := &http.Client{Timeout: 60 * time.Second}
 	item := res.Items[0]
+	var data []byte
 
-	req, err := http.NewRequestWithContext(ctx.Ctx, http.MethodGet, item.URL, nil)
-	if err != nil {
-		return ctx.Reply("Failed to request video stream: " + err.Error())
+	if len(item.Buffer) > 0 {
+		data = item.Buffer
+	} else if item.URL != "" {
+		httpClient := &http.Client{Timeout: 60 * time.Second}
+		req, err := http.NewRequestWithContext(ctx.Ctx, http.MethodGet, item.URL, nil)
+		if err != nil {
+			return ctx.Reply("Failed to request video stream: " + err.Error())
+		}
+		req.Header.Set("User-Agent", downloader.DefaultUserAgent)
+
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			return ctx.Reply("Failed to fetch video stream: " + err.Error())
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
+			data, _ = io.ReadAll(resp.Body)
+		}
 	}
-	req.Header.Set("User-Agent", downloader.DefaultUserAgent)
 
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return ctx.Reply("Failed to fetch video stream: " + err.Error())
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil || len(data) == 0 {
+	if len(data) == 0 {
 		return ctx.Reply("Downloaded video data was empty.")
 	}
 
@@ -99,7 +107,8 @@ func handleYTA(ctx *Context) error {
 	loader := ctx.StartLoader("Fetching and encoding YouTube audio...")
 	defer loader.Delete()
 
-	res, err := downloader.Download(ctx.Ctx, targetURL)
+	dl := downloader.NewClient()
+	res, err := dl.DownloadYouTubeMedia(ctx.Ctx, targetURL, true)
 	if err != nil {
 		return ctx.Reply("YouTube audio download failed: " + err.Error())
 	}
@@ -108,27 +117,34 @@ func handleYTA(ctx *Context) error {
 		return ctx.Reply("No downloadable audio/video stream found.")
 	}
 
-	httpClient := &http.Client{Timeout: 60 * time.Second}
 	item := res.Items[0]
+	var data []byte
 
-	req, err := http.NewRequestWithContext(ctx.Ctx, http.MethodGet, item.URL, nil)
-	if err != nil {
-		return ctx.Reply("Failed to request media stream: " + err.Error())
+	if len(item.Buffer) > 0 {
+		data = item.Buffer
+	} else if item.URL != "" {
+		httpClient := &http.Client{Timeout: 60 * time.Second}
+		req, err := http.NewRequestWithContext(ctx.Ctx, http.MethodGet, item.URL, nil)
+		if err != nil {
+			return ctx.Reply("Failed to request media stream: " + err.Error())
+		}
+		req.Header.Set("User-Agent", downloader.DefaultUserAgent)
+
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			return ctx.Reply("Failed to fetch media stream: " + err.Error())
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
+			data, _ = io.ReadAll(resp.Body)
+		}
 	}
-	req.Header.Set("User-Agent", downloader.DefaultUserAgent)
 
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return ctx.Reply("Failed to fetch media stream: " + err.Error())
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil || len(data) == 0 {
+	if len(data) == 0 {
 		return ctx.Reply("Downloaded media data was empty.")
 	}
 
-	// Save raw data to temp file for ffmpeg conversion
 	tmpIn := fmt.Sprintf("/tmp/yt_in_%d.bin", time.Now().UnixNano())
 	tmpOut := fmt.Sprintf("/tmp/yt_out_%d.m4a", time.Now().UnixNano())
 
@@ -138,10 +154,8 @@ func handleYTA(ctx *Context) error {
 	defer os.Remove(tmpIn)
 	defer os.Remove(tmpOut)
 
-	// Use ffmpeg to convert to a WhatsApp compatible AAC audio track (.m4a / audio/mp4)
 	cmd := exec.CommandContext(ctx.Ctx, "ffmpeg", "-y", "-i", tmpIn, "-vn", "-c:a", "aac", "-b:a", "128k", tmpOut)
 	if err := cmd.Run(); err != nil {
-		// Fallback: send raw downloaded data as audio if ffmpeg fails
 		return ctx.ReplyWithAudio(data, "audio/mp4")
 	}
 
@@ -158,7 +172,7 @@ func extractTargetURL(ctx *Context) string {
 	if targetURL == "" && ctx.Evt != nil && ctx.Evt.Message != nil {
 		quotedText := utils.GetDirectMessageText(ctx.Evt.Message)
 		if quotedText != "" {
-			for _, field := range strings.Fields(quotedText) {
+			for field := range strings.FieldsSeq(quotedText) {
 				if strings.HasPrefix(field, "http://") || strings.HasPrefix(field, "https://") {
 					targetURL = field
 					break

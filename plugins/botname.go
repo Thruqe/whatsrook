@@ -378,19 +378,20 @@ func sendSetBotPage(ctx *Context, pageNum int) error {
 
 	var buttons []struct{ ID, Text string }
 
-	if pageNum == 1 {
+	switch pageNum {
+	case 1:
 		buttons = []struct{ ID, Text string }{
 			{ID: p + "setbot wizard", Text: "Wizard"},
 			{ID: p + "setbot prompt_name", Text: "Bot Name"},
 			{ID: p + "setbot page 2", Text: "Next ▶️"},
 		}
-	} else if pageNum == 2 {
+	case 2:
 		buttons = []struct{ ID, Text string }{
 			{ID: p + "setbot prompt_thumb", Text: "Thumbnail"},
 			{ID: p + "setbot prompt_prefix", Text: "Prefix"},
 			{ID: p + "setbot page 3", Text: "Next ▶️"},
 		}
-	} else {
+	default:
 		buttons = []struct{ ID, Text string }{
 			{ID: p + "setbot prompt_bio", Text: "Bio"},
 			{ID: p + "setbot reset", Text: "Reset All"},
@@ -419,7 +420,7 @@ func sendWizardSummaryCard(ctx *Context) error {
 	}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "*Bot Customization Completed!*\n\n")
+	fmt.Fprintf(&sb, "Bot Customization Completed!\n\n")
 	fmt.Fprintf(&sb, "╭━━━〔 BOT CONFIGURATION 〕━━━\n")
 	fmt.Fprintf(&sb, "│ Name      : %s\n", botName)
 	fmt.Fprintf(&sb, "│ Thumbnail : %s\n", thumbStatus)

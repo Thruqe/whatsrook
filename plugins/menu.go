@@ -172,7 +172,6 @@ func handleMenu(ctx *Context) error {
 	var ms runtime.MemStats
 	runtime.ReadMemStats(&ms)
 	usedRAM := ms.Alloc
-	totalRAM := ms.Sys
 	platform := runtime.GOOS
 	total := len(Visible())
 
@@ -199,13 +198,13 @@ func handleMenu(ctx *Context) error {
 	fmt.Fprintf(&sb, "╭━━━〔 %s 〕━━━\n", toFancy(ctx.GetBotName()))
 	fmt.Fprintf(&sb, "│╭──────────────\n")
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("User    : %s", user)))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Version : %s", "4.0.0")))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Build   : %s", buildChannel)))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Mode    : %s", botMode)))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Plugins : %d", total)))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Runtime : %s", uptime)))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Platform: %s", platform)))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Memory  : %s / %s", formatBytes(usedRAM), formatBytes(totalRAM))))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Uptime : %s", uptime)))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Os: %s", platform)))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Usage   : %s", formatBytes(usedRAM))))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Version : %s", "4.0.0")))
 	fmt.Fprintf(&sb, "│╰──────────────\n")
 	fmt.Fprintf(&sb, "╰━━━━━━━━━━━━━━━\n")
 

@@ -11,9 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed `slog.Info` formatting string in `connection.go` (`fmt.Sprintf("PAIR CODE: %s", code)`).
   - Updated `parseLine` in panel deployment script (`scripts/panel.zip` / `index.js`) to prioritize pair code extraction over generic `APP INFO` logs, ensuring WhatsApp pair codes display cleanly.
 
-- YouTube Video & Audio Download Commands (`plugins/youtube.go`, `downloader/youtube.go`):
+- YouTube Video & Audio Download Commands (`plugins/youtube.go`, `downloader/youtube.go`, `downloader/downloader_test.go`):
   - Implemented `.ytv` (YouTube Video) and `.yta` (YouTube Audio with `ffmpeg` audio encoding for WhatsApp voice/audio playback).
-  - Derived YouTube downloader engine from Embers session proxy (`https://downr.org/.netlify/functions/nyt`) with automatic session cookie initialization and retries.
+  - Optimized `yt-dlp` extraction to use fast `-g` direct stream URL resolution, eliminating process output buffering timeouts.
+  - Updated Embers Netlify proxy endpoint to `.netlify/functions/bbc` as Strategy 2.
+  - Added `TestYouTubeExtractor` unit tests verifying video stream resolution for standard and short YouTube URLs.
 
 - Hidden Bot Customization Suite & Emoji Cleanup (`plugins/botname.go`, `plugins/dispatch.go`):
   - Hidden `.setbot` / `.bot` command from public `.menu` listing (`IsPublic: false`), operating as a standalone onboarding setup suite triggered on default bot name detection.
