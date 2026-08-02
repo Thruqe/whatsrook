@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Menu Custom Thumbnail Upload & Interactive Button (`plugins/menu.go`, `events.go`):
+  - Added interactive `Customize` button below `.menu` output allowing users to set a custom image or video thumbnail.
+  - Implemented `.menu customize` prompt session handler (`HandlePendingMenuMediaReply`) that downloads attached image or video media and converts/saves it to `resources/songs/custom_menu_thumbnail.mp4`.
+  - Added `.menu reset` to restore default `whatsrook.mp4` thumbnail.
+
+- TikTok Extractor Upgrade (`downloader/tiktok.go`):
+  - Integrated high-speed TikWM API as Strategy 1 to bypass TikTok HTML rehydration changes and anti-bot challenges, resolving extraction errors for TikTok video posts (e.g. ID `7453503456137973000`).
+
+- Interactive Media Downloader & URL Validation (`plugins/downloader.go`, `downloader/downloader.go`, `events.go`):
+  - Created a 5-page interactive `.dl` menu showing 3 social media services per page with `◀️ Prev` and `Next ▶️` pagination buttons.
+  - Implemented interactive service selection (`.dl prompt <service>`) that prompts users to drop a URL, then listens and automatically downloads the media upon link receipt.
+  - Added strict URL validation helpers (`downloader.ValidateURL` / `downloader.IsValidURL`) to prevent malformed or unsupported URL processing.
+
+- Menu Video GIF Playback Fix (`resources/songs/whatsrook.mp4`, `plugins/menu.go`, `sender/abstract.go`):
+  - Converted `resources/songs/whatsrook.gif` to `resources/songs/whatsrook.mp4` using `ffmpeg` (H.264 / yuv420p video container required by WhatsApp for inline GIF playback).
+  - Updated `.menu` command to load `whatsrook.mp4` and dispatch via `ReplyWithVideoGif`.
+  - Standardized all Protobuf field pointers to Go `new(...)` pointer initializer syntax.
+
+- Downloader Command Update (`plugins/downloader.go`):
+  - Updated `.dl` / `.downloader` command usage response to list all 13 supported media services (Facebook, Instagram, Twitter/X, TikTok, Snapchat, Reddit, Pinterest, SoundCloud, Threads, Bluesky, VK, Tumblr, Twitch).
+
 - Bot Bio Command (`plugins/bio.go`):
   - Added `.bio` / `.setbio` command for bot owner and sudoers to update WhatsApp status bio on demand.
 

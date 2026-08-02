@@ -239,8 +239,7 @@ func (ctx *Context) SendVideoGif(data []byte, mimetype, caption string) error {
 }
 
 func (ctx *Context) sendVideoInternal(data []byte, mimetype, caption string, gifPlayback bool) error {
-	if mimetype == "" {
-		slog.Warn("SendVideo: mimetype is empty, defaulting to video/mp4")
+	if mimetype == "" || gifPlayback {
 		mimetype = "video/mp4"
 	}
 	slog.Debug("Building SendVideo", "data_len", len(data), "mimetype", mimetype, "caption", caption, "gif_playback", gifPlayback)
@@ -257,14 +256,13 @@ func (ctx *Context) sendVideoInternal(data []byte, mimetype, caption string, gif
 			Mimetype:      &mimetype,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    new(uint64),
+			FileLength:    new(uint64(len(data))),
 			Caption:       &caption,
 		},
 	}
 	if gifPlayback {
 		msg.VideoMessage.GifPlayback = new(true)
 	}
-	*msg.VideoMessage.FileLength = uint64(len(data))
 	slog.Debug("Sending SendVideo", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
 	if err != nil {
@@ -277,15 +275,23 @@ func (ctx *Context) sendVideoInternal(data []byte, mimetype, caption string, gif
 
 // ReplyWithVideo uploads and sends a video as a reply.
 func (ctx *Context) ReplyWithVideo(data []byte, mimetype, caption string) error {
-	if mimetype == "" {
-		slog.Warn("ReplyWithVideo: mimetype is empty, defaulting to video/mp4")
+	return ctx.replyVideoInternal(data, mimetype, caption, false)
+}
+
+// ReplyWithVideoGif uploads and sends a video with GifPlayback enabled as a reply so it plays as an inline looping GIF.
+func (ctx *Context) ReplyWithVideoGif(data []byte, mimetype, caption string) error {
+	return ctx.replyVideoInternal(data, mimetype, caption, true)
+}
+
+func (ctx *Context) replyVideoInternal(data []byte, mimetype, caption string, gifPlayback bool) error {
+	if mimetype == "" || gifPlayback {
 		mimetype = "video/mp4"
 	}
 	cinfo := ctx.replyContextInfo()
-	slog.Debug("Building ReplyWithVideo", "data_len", len(data), "mimetype", mimetype, "caption", caption, "context_info", cinfo)
+	slog.Debug("Building replyVideoInternal", "data_len", len(data), "mimetype", mimetype, "caption", caption, "gif_playback", gifPlayback)
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaVideo)
 	if err != nil {
-		slog.Error("ReplyWithVideo: upload failed", "err", err)
+		slog.Error("replyVideoInternal: upload failed", "err", err)
 		return fmt.Errorf("video upload failed: %w", err)
 	}
 	msg := &waE2E.Message{
@@ -296,18 +302,20 @@ func (ctx *Context) ReplyWithVideo(data []byte, mimetype, caption string) error 
 			Mimetype:      &mimetype,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    new(uint64),
+			FileLength:    new(uint64(len(data))),
 			Caption:       &caption,
 			ContextInfo:   cinfo,
 		},
 	}
-	*msg.VideoMessage.FileLength = uint64(len(data))
-	slog.Debug("Sending ReplyWithVideo", "chat", ctx.Chat.String(), "url", uploaded.URL)
+	if gifPlayback {
+		msg.VideoMessage.GifPlayback = new(true)
+	}
+	slog.Debug("Sending replyVideoInternal", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
 	if err != nil {
-		slog.Error("ReplyWithVideo failed", "err", err)
+		slog.Error("replyVideoInternal failed", "err", err)
 	} else {
-		slog.Debug("ReplyWithVideo sent successfully")
+		slog.Debug("replyVideoInternal sent successfully")
 	}
 	return err
 }

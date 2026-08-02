@@ -55,8 +55,102 @@ type tiktokRehydrationData struct {
 	} `json:"__DEFAULT_SCOPE__"`
 }
 
+type tikWMResponse struct {
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
+	Data struct {
+		ID     string   `json:"id"`
+		Title  string   `json:"title"`
+		Play   string   `json:"play"`
+		WmPlay string   `json:"wmplay"`
+		Music  string   `json:"music"`
+		Images []string `json:"images"`
+		Author struct {
+			UniqueID string `json:"unique_id"`
+			Nickname string `json:"nickname"`
+		} `json:"author"`
+	} `json:"data"`
+}
+
+func (c *Client) fetchTikTokTikWM(ctx context.Context, rawURL string) (*Result, error) {
+	apiURL := "https://www.tikwm.com/api/?url=" + url.QueryEscape(rawURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", DefaultUserAgent)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("tikwm API status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var res tikWMResponse
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, err
+	}
+
+	if res.Code != 0 || (res.Data.Play == "" && len(res.Data.Images) == 0) {
+		return nil, fmt.Errorf("tikwm returned code %d: %s", res.Code, res.Msg)
+	}
+
+	var items []MediaItem
+	author := res.Data.Author.UniqueID
+	if author == "" {
+		author = res.Data.Author.Nickname
+	}
+
+	if len(res.Data.Images) > 0 {
+		for i, imgURL := range res.Data.Images {
+			items = append(items, MediaItem{
+				URL:      imgURL,
+				Type:     "photo",
+				Filename: fmt.Sprintf("tiktok_%s_%s_%d.jpg", author, res.Data.ID, i+1),
+			})
+		}
+	} else if res.Data.Play != "" {
+		videoURL := res.Data.Play
+		if !strings.HasPrefix(videoURL, "http://") && !strings.HasPrefix(videoURL, "https://") {
+			videoURL = "https://www.tikwm.com" + videoURL
+		}
+		items = append(items, MediaItem{
+			URL:      videoURL,
+			Type:     "video",
+			Filename: fmt.Sprintf("tiktok_%s_%s.mp4", author, res.Data.ID),
+		})
+	}
+
+	if len(items) == 0 {
+		return nil, fmt.Errorf("no media items returned by TikWM")
+	}
+
+	return &Result{
+		Service: "tiktok",
+		ID:      res.Data.ID,
+		Author:  author,
+		Title:   res.Data.Title,
+		Items:   items,
+		IsPhoto: len(res.Data.Images) > 0,
+	}, nil
+}
+
 // DownloadTikTok extracts video, photo slides, or audio from a TikTok link.
 func (c *Client) DownloadTikTok(ctx context.Context, rawURL string) (*Result, error) {
+	// Strategy 1: High-performance TikWM API
+	if tikResult, errTik := c.fetchTikTokTikWM(ctx, rawURL); errTik == nil && tikResult != nil && len(tikResult.Items) > 0 {
+		return tikResult, nil
+	}
+
 	postID, err := c.resolveTikTokID(ctx, rawURL)
 	if err != nil || postID == "" {
 		postID = extractTikTokID(rawURL)
@@ -65,7 +159,7 @@ func (c *Client) DownloadTikTok(ctx context.Context, rawURL string) (*Result, er
 		return nil, fmt.Errorf("could not resolve TikTok post ID from URL: %s", rawURL)
 	}
 
-	// Strategy 1: Main web page extraction
+	// Strategy 2: Main web page extraction
 	targetURL := fmt.Sprintf("https://www.tiktok.com/@i/video/%s", postID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err == nil {
@@ -79,7 +173,7 @@ func (c *Client) DownloadTikTok(ctx context.Context, rawURL string) (*Result, er
 			if errRead == nil {
 				html := string(body)
 
-				// Strategy 1A: __UNIVERSAL_DATA_FOR_REHYDRATION__
+				// Strategy 2A: __UNIVERSAL_DATA_FOR_REHYDRATION__
 				m := tiktokScriptRegex.FindStringSubmatch(html)
 				if len(m) >= 2 {
 					var rehydrated tiktokRehydrationData
@@ -91,7 +185,7 @@ func (c *Client) DownloadTikTok(ctx context.Context, rawURL string) (*Result, er
 					}
 				}
 
-				// Strategy 1B: SIGI_STATE
+				// Strategy 2B: SIGI_STATE
 				if sigiMatch := tiktokSIGIRegex.FindStringSubmatch(html); len(sigiMatch) >= 2 {
 					var sigi map[string]interface{}
 					if json.Unmarshal([]byte(sigiMatch[1]), &sigi) == nil {
@@ -120,7 +214,7 @@ func (c *Client) DownloadTikTok(ctx context.Context, rawURL string) (*Result, er
 		}
 	}
 
-	// Strategy 2: TikTok Embed API fallback (www.tiktok.com/embed/v2/postID)
+	// Strategy 3: TikTok Embed API fallback (www.tiktok.com/embed/v2/postID)
 	embedResult, errEmbed := c.fetchTikTokEmbed(ctx, postID)
 	if errEmbed == nil && embedResult != nil && len(embedResult.Items) > 0 {
 		return embedResult, nil

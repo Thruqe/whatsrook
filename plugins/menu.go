@@ -2,15 +2,26 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"os"
+	"os/exec"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"whatsrook/store/sqlstore"
 	"whatsrook/utils"
+
+	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/types/events"
+)
+
+var (
+	menuThumbPromptsMu      sync.RWMutex
+	pendingMenuThumbPrompts = make(map[string]bool) // key: "chatJID:senderJID" -> active
 )
 
 func init() {
@@ -23,7 +34,123 @@ func init() {
 	})
 }
 
+// HandlePendingMenuMediaReply checks if the sender has an active menu thumbnail prompt and converts/saves their uploaded media.
+func HandlePendingMenuMediaReply(ctx context.Context, client *whatsmeow.Client, evt *events.Message) bool {
+	if evt == nil || evt.Message == nil {
+		return false
+	}
+
+	key := fmt.Sprintf("%s:%s", evt.Info.Chat.String(), evt.Info.Sender.String())
+	menuThumbPromptsMu.RLock()
+	active := pendingMenuThumbPrompts[key]
+	menuThumbPromptsMu.RUnlock()
+
+	if !active {
+		return false
+	}
+
+	imgMsg := evt.Message.GetImageMessage()
+	vidMsg := evt.Message.GetVideoMessage()
+
+	// Check if quoted message contains image or video
+	if imgMsg == nil && vidMsg == nil && evt.Message.ExtendedTextMessage != nil && evt.Message.ExtendedTextMessage.ContextInfo != nil {
+		quoted := evt.Message.ExtendedTextMessage.ContextInfo.QuotedMessage
+		if quoted != nil {
+			imgMsg = quoted.GetImageMessage()
+			vidMsg = quoted.GetVideoMessage()
+		}
+	}
+
+	if imgMsg == nil && vidMsg == nil {
+		return false
+	}
+
+	// Delete pending prompt
+	menuThumbPromptsMu.Lock()
+	delete(pendingMenuThumbPrompts, key)
+	menuThumbPromptsMu.Unlock()
+
+	fakeCtx := &Context{
+		Ctx:    ctx,
+		Client: client,
+		Chat:   evt.Info.Chat,
+		Sender: evt.Info.Sender,
+		Evt:    evt,
+	}
+
+	loader := fakeCtx.StartLoader("Processing custom thumbnail...")
+	defer loader.Delete()
+
+	var data []byte
+	var err error
+	isVideo := false
+
+	if vidMsg != nil {
+		data, err = client.Download(ctx, vidMsg)
+		isVideo = true
+	} else if imgMsg != nil {
+		data, err = client.Download(ctx, imgMsg)
+	}
+
+	if err != nil || len(data) == 0 {
+		_ = fakeCtx.Reply("Failed to download media for menu thumbnail.")
+		return true
+	}
+
+	_ = os.MkdirAll("resources/songs", 0755)
+	targetPath := "resources/songs/custom_menu_thumbnail.mp4"
+
+	if isVideo {
+		if err := os.WriteFile(targetPath, data, 0644); err != nil {
+			_ = fakeCtx.Reply("Failed to save video thumbnail: " + err.Error())
+			return true
+		}
+	} else {
+		tmpImg := fmt.Sprintf("/tmp/thumb_%d.jpg", time.Now().UnixNano())
+		_ = os.WriteFile(tmpImg, data, 0644)
+		defer os.Remove(tmpImg)
+
+		cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-loop", "1", "-i", tmpImg, "-c:v", "libx264", "-t", "2", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", targetPath)
+		if err := cmd.Run(); err != nil {
+			targetPath = "resources/songs/custom_menu_thumbnail.jpg"
+			_ = os.WriteFile(targetPath, data, 0644)
+		}
+	}
+
+	if s, ok := client.Store.Identities.(*sqlstore.SQLStore); ok {
+		_ = s.PutSetting(ctx, "menu_thumbnail_path", targetPath)
+	}
+
+	_ = fakeCtx.Reply("Bot menu thumbnail updated successfully! Type .menu to view your custom thumbnail.")
+	return true
+}
+
 func handleMenu(ctx *Context) error {
+	args := strings.Fields(ctx.RawArgs)
+	if len(args) > 0 {
+		sub := strings.ToLower(args[0])
+		if sub == "customize" || sub == "custom" {
+			key := fmt.Sprintf("%s:%s", ctx.Chat.String(), ctx.Sender.String())
+			menuThumbPromptsMu.Lock()
+			pendingMenuThumbPrompts[key] = true
+			menuThumbPromptsMu.Unlock()
+			return ctx.Reply("Upload or reply with an image (.jpg/.png) or video (.mp4) to set it as the custom bot menu thumbnail.\n\nTo restore default: " + ctx.GetPrefix() + "menu reset")
+		}
+		if sub == "reset" {
+			key := fmt.Sprintf("%s:%s", ctx.Chat.String(), ctx.Sender.String())
+			menuThumbPromptsMu.Lock()
+			delete(pendingMenuThumbPrompts, key)
+			menuThumbPromptsMu.Unlock()
+
+			if s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore); ok {
+				_ = s.PutSetting(ctx.Ctx, "menu_thumbnail_path", "")
+			}
+			_ = os.Remove("resources/songs/custom_menu_thumbnail.mp4")
+			_ = os.Remove("resources/songs/custom_menu_thumbnail.jpg")
+			return ctx.Reply("Bot menu thumbnail reset to default (whatsrook.mp4).")
+		}
+	}
+
 	type entry struct{ name, desc string }
 	categoryOrder := []string{}
 	categories := map[string][]entry{}
@@ -113,16 +240,38 @@ func handleMenu(ctx *Context) error {
 		_ = s.PutSetting(ctx.Ctx, "menu_style", menuStyle)
 	}
 
+	p := ctx.GetPrefix()
+	buttons := []struct{ ID, Text string }{
+		{ID: fmt.Sprintf("%smenu customize", p), Text: "Customize"},
+	}
+
 	if menuStyle == "video" {
-		videoPath := "resources/songs/whatsrook.gif"
-		if videoData, err := os.ReadFile(videoPath); err == nil && len(videoData) > 0 {
-			if err := ctx.SendVideoGif(videoData, "video/mp4", menuText); err == nil {
-				return nil
+		videoPath := "resources/songs/custom_menu_thumbnail.mp4"
+		if ok {
+			if custom, err := s.GetSetting(ctx.Ctx, "menu_thumbnail_path"); err == nil && custom != "" {
+				videoPath = custom
 			}
+		}
+		if _, err := os.Stat(videoPath); err != nil {
+			videoPath = "resources/songs/whatsrook.mp4"
+			if _, err := os.Stat(videoPath); err != nil {
+				videoPath = "resources/songs/intro.mp4"
+			}
+		}
+
+		if videoData, err := os.ReadFile(videoPath); err == nil && len(videoData) > 0 {
+			mType := "video/mp4"
+			if strings.HasSuffix(videoPath, ".jpg") || strings.HasSuffix(videoPath, ".jpeg") {
+				_ = ctx.ReplyWithImage(videoData, "image/jpeg", menuText)
+			} else {
+				_ = ctx.ReplyWithVideoGif(videoData, mType, menuText)
+			}
+			return sendInteractiveButtons(ctx, "Customize bot menu thumbnail:", fmt.Sprintf("%s Menu", ctx.GetBotName()), buttons)
 		}
 	}
 
-	return sendText(ctx, menuText)
+	_ = sendText(ctx, menuText)
+	return sendInteractiveButtons(ctx, "Customize bot menu thumbnail:", fmt.Sprintf("%s Menu", ctx.GetBotName()), buttons)
 }
 
 // menuRuntime formats a duration in seconds as "Xd Xh Xm Xs".

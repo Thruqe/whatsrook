@@ -55,16 +55,12 @@ func Download(ctx context.Context, rawURL string) (*Result, error) {
 
 // Download detects the service type and invokes appropriate extractor.
 func (c *Client) Download(ctx context.Context, rawURL string) (*Result, error) {
+	if err := ValidateURL(rawURL); err != nil {
+		return nil, err
+	}
+
 	cleanURL := strings.TrimSpace(rawURL)
-	if cleanURL == "" {
-		return nil, fmt.Errorf("empty URL provided")
-	}
-
-	u, err := url.Parse(cleanURL)
-	if err != nil {
-		return nil, fmt.Errorf("invalid URL: %w", err)
-	}
-
+	u, _ := url.Parse(cleanURL)
 	host := strings.ToLower(u.Host)
 
 	switch {
@@ -109,5 +105,51 @@ func (c *Client) Download(ctx context.Context, rawURL string) (*Result, error) {
 
 	default:
 		return nil, fmt.Errorf("unsupported URL or domain: %s", host)
+	}
+}
+
+// IsValidURL checks if rawURL is a valid HTTP/HTTPS URL belonging to a supported social media service.
+func IsValidURL(rawURL string) bool {
+	return ValidateURL(rawURL) == nil
+}
+
+// ValidateURL validates scheme, hostname, and domain support for rawURL.
+func ValidateURL(rawURL string) error {
+	clean := strings.TrimSpace(rawURL)
+	if clean == "" {
+		return fmt.Errorf("empty URL provided")
+	}
+	if !strings.HasPrefix(clean, "http://") && !strings.HasPrefix(clean, "https://") {
+		return fmt.Errorf("URL must start with http:// or https://")
+	}
+	u, err := url.ParseRequestURI(clean)
+	if err != nil || u.Host == "" {
+		return fmt.Errorf("invalid URL structure: %v", err)
+	}
+	host := strings.ToLower(u.Host)
+	if !isSupportedHost(host) {
+		return fmt.Errorf("unsupported social media domain: %s", host)
+	}
+	return nil
+}
+
+func isSupportedHost(host string) bool {
+	switch {
+	case strings.Contains(host, "facebook.com"), strings.Contains(host, "fb.watch"), strings.Contains(host, "fb.gg"), strings.Contains(host, "fb.com"),
+		strings.Contains(host, "instagram.com"), strings.Contains(host, "instagr.am"),
+		strings.Contains(host, "twitter.com"), strings.Contains(host, "x.com"), strings.Contains(host, "twimg.com"), strings.Contains(host, "t.co"),
+		strings.Contains(host, "tiktok.com"), strings.Contains(host, "vt.tiktok.com"), strings.Contains(host, "vm.tiktok.com"),
+		strings.Contains(host, "snapchat.com"), strings.Contains(host, "t.snapchat.com"),
+		strings.Contains(host, "reddit.com"), strings.Contains(host, "v.redd.it"),
+		strings.Contains(host, "pinterest.com"), strings.Contains(host, "pinterest.ca"), strings.Contains(host, "pin.it"),
+		strings.Contains(host, "soundcloud.com"), strings.Contains(host, "on.soundcloud.com"),
+		strings.Contains(host, "threads.net"), strings.Contains(host, "threads.com"),
+		strings.Contains(host, "bsky.app"), strings.Contains(host, "bsky.social"),
+		strings.Contains(host, "vk.com"), strings.Contains(host, "vk.ru"), strings.Contains(host, "vkvideo.ru"),
+		strings.Contains(host, "tumblr.com"),
+		strings.Contains(host, "twitch.tv"), strings.Contains(host, "clips.twitch.tv"):
+		return true
+	default:
+		return false
 	}
 }

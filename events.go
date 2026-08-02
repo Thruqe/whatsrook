@@ -18,8 +18,6 @@ import (
 	"whatsrook/updater"
 	"whatsrook/utils"
 
-	"google.golang.org/protobuf/proto"
-
 	"go.mau.fi/whatsmeow/proto/waCommon"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
@@ -77,6 +75,12 @@ func (b *Bot) handleWAEvent(evt any) {
 			}
 		}
 		if commands.HandlePendingAudioReply(context.Background(), b.client, v) {
+			return
+		}
+		if commands.HandlePendingDLReply(context.Background(), b.client, v) {
+			return
+		}
+		if commands.HandlePendingMenuMediaReply(context.Background(), b.client, v) {
 			return
 		}
 
@@ -619,13 +623,13 @@ func (b *Bot) handleLikeStatus(ctx context.Context, v *events.Message) {
 	reaction := &waE2E.Message{
 		ReactionMessage: &waE2E.ReactionMessage{
 			Key: &waCommon.MessageKey{
-				RemoteJID:   proto.String(v.Info.Chat.String()),
-				FromMe:      proto.Bool(v.Info.IsFromMe),
-				ID:          proto.String(v.Info.ID),
-				Participant: proto.String(senderJID.String()),
+				RemoteJID:   new(v.Info.Chat.String()),
+				FromMe:      new(v.Info.IsFromMe),
+				ID:          new(v.Info.ID),
+				Participant: new(senderJID.String()),
 			},
-			Text:              proto.String(emoji),
-			SenderTimestampMS: proto.Int64(time.Now().UnixMilli()),
+			Text:              new(emoji),
+			SenderTimestampMS: new(time.Now().UnixMilli()),
 		},
 	}
 
