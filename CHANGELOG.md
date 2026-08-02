@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Security Fix for Archive Extraction (`updater/updater.go`):
+  - Fixed a Zip/Tar Slip vulnerability during release archive extraction by enforcing strict path sanitization (`filepath.Clean`) and verifying extracted file paths remain strictly inside the destination directory.
+
 - Pterodactyl Deployment Panel Script (`scripts/panel.zip`, `scripts/Whatsrook panel deployment.zip/index.js`):
   - Extracted and updated `index.js` parsing logic to support the new `log/slog` PAIR CODE output format from `connection.go` (`slog.Info("PAIR CODE: %s\n", "", code)`).
   - Handles multi-line log output splitting, strips ANSI color codes, and maintains backward compatibility with legacy log formats.
