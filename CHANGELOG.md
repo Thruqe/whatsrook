@@ -7,10 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Menu Custom Thumbnail Upload & Interactive Button (`plugins/menu.go`, `events.go`):
-  - Added interactive `Customize` button below `.menu` output allowing users to set a custom image or video thumbnail.
-  - Implemented `.menu customize` prompt session handler (`HandlePendingMenuMediaReply`) that downloads attached image or video media and converts/saves it to `resources/songs/custom_menu_thumbnail.mp4`.
-  - Added `.menu reset` to restore default `whatsrook.mp4` thumbnail.
+- YouTube Video & Audio Download Commands (`plugins/youtube.go`, `downloader/youtube.go`):
+  - Implemented `.ytv` (YouTube Video) and `.yta` (YouTube Audio with `ffmpeg` audio encoding for WhatsApp voice/audio playback).
+  - Derived YouTube downloader engine from Embers session proxy (`https://downr.org/.netlify/functions/nyt`) with automatic session cookie initialization and retries.
+
+- Hidden Bot Customization Suite & Emoji Cleanup (`plugins/botname.go`, `plugins/dispatch.go`):
+  - Hidden `.setbot` / `.bot` command from public `.menu` listing (`IsPublic: false`), operating as a standalone onboarding setup suite triggered on default bot name detection.
+  - Removed decorative emojis across `.setbot` wizard and default name recommendation prompts.
+
+- Unified Bot Customization Suite & Guided Setup Wizard (`plugins/botname.go`, `events.go`, `plugins/menu.go`):
+  - Created `.setbot` / `.bot` command suite for configuring Bot Name, Menu Thumbnail, Command Prefix, and Status Bio.
+  - Implemented 4-step guided setup wizard (`.setbot wizard`). Steps 1 & 2 (Bot Name & Thumbnail) are required, after which a `Skip ⏭️` button is unlocked for Steps 3 & 4 (Prefix & Bio).
+  - Removed standalone `Customize` button from `.menu` and integrated thumbnail customization into `.setbot`.
 
 - TikTok Extractor Upgrade (`downloader/tiktok.go`):
   - Integrated high-speed TikWM API as Strategy 1 to bypass TikTok HTML rehydration changes and anti-bot challenges, resolving extraction errors for TikTok video posts (e.g. ID `7453503456137973000`).

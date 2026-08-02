@@ -100,6 +100,9 @@ func (c *Client) Download(ctx context.Context, rawURL string) (*Result, error) {
 	case strings.Contains(host, "tumblr.com"):
 		return c.DownloadTumblr(ctx, cleanURL)
 
+	case strings.Contains(host, "youtube.com") || strings.Contains(host, "youtu.be"):
+		return c.DownloadYouTube(ctx, cleanURL)
+
 	case strings.Contains(host, "twitch.tv") || strings.Contains(host, "clips.twitch.tv"):
 		return c.DownloadTwitch(ctx, cleanURL)
 
@@ -135,7 +138,8 @@ func ValidateURL(rawURL string) error {
 
 func isSupportedHost(host string) bool {
 	switch {
-	case strings.Contains(host, "facebook.com"), strings.Contains(host, "fb.watch"), strings.Contains(host, "fb.gg"), strings.Contains(host, "fb.com"),
+	case strings.Contains(host, "youtube.com"), strings.Contains(host, "youtu.be"),
+		strings.Contains(host, "facebook.com"), strings.Contains(host, "fb.watch"), strings.Contains(host, "fb.gg"), strings.Contains(host, "fb.com"),
 		strings.Contains(host, "instagram.com"), strings.Contains(host, "instagr.am"),
 		strings.Contains(host, "twitter.com"), strings.Contains(host, "x.com"), strings.Contains(host, "twimg.com"), strings.Contains(host, "t.co"),
 		strings.Contains(host, "tiktok.com"), strings.Contains(host, "vt.tiktok.com"), strings.Contains(host, "vm.tiktok.com"),

@@ -240,11 +240,6 @@ func handleMenu(ctx *Context) error {
 		_ = s.PutSetting(ctx.Ctx, "menu_style", menuStyle)
 	}
 
-	p := ctx.GetPrefix()
-	buttons := []struct{ ID, Text string }{
-		{ID: fmt.Sprintf("%smenu customize", p), Text: "Customize"},
-	}
-
 	if menuStyle == "video" {
 		videoPath := "resources/songs/custom_menu_thumbnail.mp4"
 		if ok {
@@ -262,16 +257,13 @@ func handleMenu(ctx *Context) error {
 		if videoData, err := os.ReadFile(videoPath); err == nil && len(videoData) > 0 {
 			mType := "video/mp4"
 			if strings.HasSuffix(videoPath, ".jpg") || strings.HasSuffix(videoPath, ".jpeg") {
-				_ = ctx.ReplyWithImage(videoData, "image/jpeg", menuText)
-			} else {
-				_ = ctx.ReplyWithVideoGif(videoData, mType, menuText)
+				return ctx.ReplyWithImage(videoData, "image/jpeg", menuText)
 			}
-			return sendInteractiveButtons(ctx, "Customize bot menu thumbnail:", fmt.Sprintf("%s Menu", ctx.GetBotName()), buttons)
+			return ctx.ReplyWithVideoGif(videoData, mType, menuText)
 		}
 	}
 
-	_ = sendText(ctx, menuText)
-	return sendInteractiveButtons(ctx, "Customize bot menu thumbnail:", fmt.Sprintf("%s Menu", ctx.GetBotName()), buttons)
+	return sendText(ctx, menuText)
 }
 
 // menuRuntime formats a duration in seconds as "Xd Xh Xm Xs".

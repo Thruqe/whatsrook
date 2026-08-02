@@ -83,6 +83,9 @@ func (b *Bot) handleWAEvent(evt any) {
 		if commands.HandlePendingMenuMediaReply(context.Background(), b.client, v) {
 			return
 		}
+		if commands.HandlePendingBotCustomizationReply(context.Background(), b.client, v) {
+			return
+		}
 
 		if commands.Dispatch(context.Background(), b.client, v) {
 			return

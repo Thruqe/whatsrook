@@ -482,7 +482,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 					if p == "" {
 						p = DefaultPrefix
 					}
-					bodyText := "⚠️ *BOT NAME CUSTOMIZATION RECOMMENDED*\n\nIt's highly recommended to give your own copy of WhatsRook its own name!\nFor example, you can name it something like *Fuzzy* or *Meow*."
+					bodyText := "*BOT NAME CUSTOMIZATION RECOMMENDED*\n\nIt's highly recommended to give your own copy of WhatsRook its own name!\nFor example, you can name it something like *Fuzzy* or *Meow*."
 					buttons := []struct{ ID, Text string }{
 						{ID: p + "botname setup_customize", Text: "Customize Bot"},
 						{ID: p + "botname setup_continue", Text: "Continue"},
