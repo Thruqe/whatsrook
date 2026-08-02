@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Panel Pair Code Display Fix (`connection.go`, `scripts/panel.zip`):
+  - Fixed `slog.Info` formatting string in `connection.go` (`fmt.Sprintf("PAIR CODE: %s", code)`).
+  - Updated `parseLine` in panel deployment script (`scripts/panel.zip` / `index.js`) to prioritize pair code extraction over generic `APP INFO` logs, ensuring WhatsApp pair codes display cleanly.
+
 - YouTube Video & Audio Download Commands (`plugins/youtube.go`, `downloader/youtube.go`):
   - Implemented `.ytv` (YouTube Video) and `.yta` (YouTube Audio with `ffmpeg` audio encoding for WhatsApp voice/audio playback).
   - Derived YouTube downloader engine from Embers session proxy (`https://downr.org/.netlify/functions/nyt`) with automatic session cookie initialization and retries.

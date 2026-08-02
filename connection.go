@@ -53,7 +53,7 @@ func (b *Bot) runPairCode(ctx context.Context) error {
 		return fmt.Errorf("pair code failed: %w", err)
 	}
 	slog.Debug("pair code issued", "code", code)
-	slog.Info("PAIR CODE: %s\n", "", code)
+	slog.Info(fmt.Sprintf("PAIR CODE: %s", code))
 	b.hub.Broadcast(EventMessage{
 		Kind:    EventPairCode,
 		Payload: PairCodePayload{Code: code},
