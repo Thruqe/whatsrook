@@ -133,8 +133,8 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 			return true
 		}
 
-		_ = os.MkdirAll("resources/songs", 0755)
-		targetPath := "resources/songs/custom_menu_thumbnail.mp4"
+		_ = os.MkdirAll("tmp/songs", 0755)
+		targetPath := "tmp/songs/custom_menu_thumbnail.mp4"
 
 		if isVideo {
 			_ = os.WriteFile(targetPath, data, 0644)
@@ -145,7 +145,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 
 			cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-loop", "1", "-i", tmpImg, "-c:v", "libx264", "-t", "2", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", targetPath)
 			if err := cmd.Run(); err != nil {
-				targetPath = "resources/songs/custom_menu_thumbnail.jpg"
+				targetPath = "tmp/songs/custom_menu_thumbnail.jpg"
 				_ = os.WriteFile(targetPath, data, 0644)
 			}
 		}
@@ -323,8 +323,8 @@ func handleSetBot(ctx *Context) error {
 			_ = s.PutSetting(ctx.Ctx, BotNamePromptDismissedKey, "")
 			_ = s.PutSetting(ctx.Ctx, PrefixSettingKey, "")
 			_ = s.PutSetting(ctx.Ctx, "menu_thumbnail_path", "")
-			_ = os.Remove("resources/songs/custom_menu_thumbnail.mp4")
-			_ = os.Remove("resources/songs/custom_menu_thumbnail.jpg")
+			_ = os.Remove("tmp/songs/custom_menu_thumbnail.mp4")
+			_ = os.Remove("tmp/songs/custom_menu_thumbnail.jpg")
 			meta.ClearInstructionCache()
 			return ctx.Reply("All bot settings (Name, Thumbnail, Prefix) reset to default values.")
 

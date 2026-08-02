@@ -97,8 +97,8 @@ func HandlePendingMenuMediaReply(ctx context.Context, client *whatsmeow.Client, 
 		return true
 	}
 
-	_ = os.MkdirAll("resources/songs", 0755)
-	targetPath := "resources/songs/custom_menu_thumbnail.mp4"
+	_ = os.MkdirAll("tmp/songs", 0755)
+	targetPath := "tmp/songs/custom_menu_thumbnail.mp4"
 
 	if isVideo {
 		if err := os.WriteFile(targetPath, data, 0644); err != nil {
@@ -112,7 +112,7 @@ func HandlePendingMenuMediaReply(ctx context.Context, client *whatsmeow.Client, 
 
 		cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-loop", "1", "-i", tmpImg, "-c:v", "libx264", "-t", "2", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", targetPath)
 		if err := cmd.Run(); err != nil {
-			targetPath = "resources/songs/custom_menu_thumbnail.jpg"
+			targetPath = "tmp/songs/custom_menu_thumbnail.jpg"
 			_ = os.WriteFile(targetPath, data, 0644)
 		}
 	}
@@ -145,8 +145,8 @@ func handleMenu(ctx *Context) error {
 			if s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore); ok {
 				_ = s.PutSetting(ctx.Ctx, "menu_thumbnail_path", "")
 			}
-			_ = os.Remove("resources/songs/custom_menu_thumbnail.mp4")
-			_ = os.Remove("resources/songs/custom_menu_thumbnail.jpg")
+			_ = os.Remove("tmp/songs/custom_menu_thumbnail.mp4")
+			_ = os.Remove("tmp/songs/custom_menu_thumbnail.jpg")
 			return ctx.Reply("Bot menu thumbnail reset to default (whatsrook.mp4).")
 		}
 	}
@@ -198,12 +198,12 @@ func handleMenu(ctx *Context) error {
 	fmt.Fprintf(&sb, "╭━━━〔 %s 〕━━━\n", toFancy(ctx.GetBotName()))
 	fmt.Fprintf(&sb, "│╭──────────────\n")
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("User    : %s", user)))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Build   : %s", buildChannel)))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Mode    : %s", botMode)))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Plugins : %d", total)))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Uptime : %s", uptime)))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Os: %s", platform)))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Usage   : %s", formatBytes(usedRAM))))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Plugins : %d", total)))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Build   : %s", buildChannel)))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Mode    : %s", botMode)))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Uptime : %s", uptime)))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Version : %s", "4.0.0")))
 	fmt.Fprintf(&sb, "│╰──────────────\n")
 	fmt.Fprintf(&sb, "╰━━━━━━━━━━━━━━━\n")
@@ -240,7 +240,7 @@ func handleMenu(ctx *Context) error {
 	}
 
 	if menuStyle == "video" {
-		videoPath := "resources/songs/custom_menu_thumbnail.mp4"
+		videoPath := "tmp/songs/custom_menu_thumbnail.mp4"
 		if ok {
 			if custom, err := s.GetSetting(ctx.Ctx, "menu_thumbnail_path"); err == nil && custom != "" {
 				videoPath = custom

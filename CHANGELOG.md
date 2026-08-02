@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- fix
 - Panel Pair Code Display Fix (`connection.go`, `scripts/panel.zip`):
   - Fixed `slog.Info` formatting string in `connection.go` (`fmt.Sprintf("PAIR CODE: %s", code)`).
   - Updated `parseLine` in panel deployment script (`scripts/panel.zip` / `index.js`) to prioritize pair code extraction over generic `APP INFO` logs, ensuring WhatsApp pair codes display cleanly.
