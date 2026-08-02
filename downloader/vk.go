@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	vkVideoRegex = regexp.MustCompile(`video(-?\d+)_(\d+)`)
+	vkVideoRegex  = regexp.MustCompile(`video(-?\d+)_(\d+)`)
 	vkResolutions = []string{"2160", "1440", "1080", "720", "480", "360", "240", "144"}
 )
 

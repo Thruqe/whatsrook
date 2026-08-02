@@ -18,11 +18,11 @@ type tumblrResponse struct {
 		Timeline struct {
 			Elements []struct {
 				Content []struct {
-					Type    string `json:"type"`
+					Type     string `json:"type"`
 					Provider string `json:"provider"`
-					Title   string `json:"title"`
-					Artist  string `json:"artist"`
-					Media   *struct {
+					Title    string `json:"title"`
+					Artist   string `json:"artist"`
+					Media    *struct {
 						URL string `json:"url"`
 					} `json:"media"`
 				} `json:"content"`

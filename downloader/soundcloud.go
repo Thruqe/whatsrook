@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	scClientIDRegex = regexp.MustCompile(`client_id:"([A-Za-z0-9]{32})"`)
+	scClientIDRegex  = regexp.MustCompile(`client_id:"([A-Za-z0-9]{32})"`)
 	scScriptSrcRegex = regexp.MustCompile(`<script[^>]+src="([^"]+)"`)
 )
 
