@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Pterodactyl Deployment Panel Script (`scripts/panel.zip`, `scripts/Whatsrook panel deployment.zip/index.js`):
+  - Extracted and updated `index.js` parsing logic to support the new `log/slog` PAIR CODE output format from `connection.go` (`slog.Info("PAIR CODE: %s\n", "", code)`).
+  - Handles multi-line log output splitting, strips ANSI color codes, and maintains backward compatibility with legacy log formats.
+  - Re-packaged updated files into `scripts/panel.zip`.
+
 - Go Web Client & Daemon Bridge (`example/web/main.go`, `example/web/README.md`):
   - Converted `example/web` from Bun.js/TypeScript to a pure Go web client application.
   - Implements the exact 5-screen interactive dashboard (phone input, QR code scan, 8-character pair code, live status dashboard, activity feed, logout).
