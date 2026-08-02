@@ -17,7 +17,7 @@ func init() {
 		Name:        "savecontact",
 		Aliases:     []string{"addcontact", "savec", "contactsave"},
 		Description: "Save a user to your WhatsApp contact list via AppState sync and send a native vCard",
-		Category:    "user",
+		Category:    "tools",
 		IsPublic:    true,
 		Handler:     handleSaveContact,
 	})

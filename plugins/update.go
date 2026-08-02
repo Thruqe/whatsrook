@@ -14,14 +14,14 @@ func init() {
 	Register(&Command{
 		Name:        "update",
 		Description: "Check for updates and manage update configuration",
-		Category:    "updater",
+		Category:    "owner",
 		IsPublic:    false,
 		Handler:     handleUpdateCommand,
 	})
 	Register(&Command{
 		Name:        "upgrade",
 		Description: "Upgrade the bot to the latest system binary build",
-		Category:    "updater",
+		Category:    "owner",
 		IsPublic:    false,
 		Handler:     handleUpgradeCommand,
 	})

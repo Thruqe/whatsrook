@@ -8,10 +8,6 @@ import (
 	"strings"
 
 	"whatsrook/store/sqlstore"
-
-	"go.mau.fi/whatsmeow"
-	waBinary "go.mau.fi/whatsmeow/binary"
-	"go.mau.fi/whatsmeow/proto/waE2E"
 )
 
 func init() {
@@ -54,6 +50,9 @@ func handleAntiCall(ctx *Context) error {
 		}
 		_ = s.PutSetting(ctx.Ctx, "anticall_status", "on")
 		return ctx.Reply("AntiCall enabled.")
+
+	case "customize", "custom", "help":
+		return sendAntiCallCustomizeGuide(ctx)
 
 	case "contacts":
 		if len(args) < 2 {
@@ -142,7 +141,7 @@ func handleAntiCall(ctx *Context) error {
 		return ctx.Reply("Call warning threshold set to " + strconv.Itoa(num))
 
 	default:
-		return ctx.Reply("Usage: .anticall [on|off|toggle|contacts|cc|warn]")
+		return ctx.Reply("Usage: .anticall [on|off|toggle|customize|contacts|cc|warn]")
 	}
 }
 
@@ -151,92 +150,40 @@ func sendAntiCallMenu(ctx *Context, s *sqlstore.SQLStore) error {
 	if status == "" {
 		status = "off"
 	}
-	contactsOnly, _ := s.GetSetting(ctx.Ctx, "anticall_contacts_only")
-	if contactsOnly == "" {
-		contactsOnly = "false"
-	}
-	allowedCC, _ := s.GetSetting(ctx.Ctx, "anticall_allowed_cc")
-	if allowedCC == "" {
-		allowedCC = "all"
-	}
-	maxWarn, _ := s.GetSetting(ctx.Ctx, "anticall_max_warn")
-	if maxWarn == "" {
-		maxWarn = "3"
+
+	p := ctx.GetPrefix()
+	bodyText := fmt.Sprintf("╭━━━〔 ANTICALL CONFIGURATION 〕━━━\n│ Status : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose an option below to change status or view customization options.", strings.ToUpper(status))
+
+	var actionButton struct{ ID, Text string }
+	if status == "on" {
+		actionButton = struct{ ID, Text string }{ID: p + "anticall off", Text: "Deactivate"}
+	} else {
+		actionButton = struct{ ID, Text string }{ID: p + "anticall on", Text: "Activate"}
 	}
 
-	bodyText := fmt.Sprintf(`ANTICALL SETTINGS MENU
-
-Status: %s
-Contacts Only: %s
-Allowed Country Codes: %s
-Max Warnings Before Block: %s
-
-Select an option below to change settings.`, strings.ToUpper(status), strings.ToUpper(contactsOnly), allowedCC, maxWarn)
-
-	msg := &waE2E.Message{
-		DocumentWithCaptionMessage: &waE2E.FutureProofMessage{
-			Message: &waE2E.Message{
-				ButtonsMessage: &waE2E.ButtonsMessage{
-					ContentText: new(bodyText),
-					FooterText:  new(fmt.Sprintf("%s AntiCall Settings", ctx.GetBotName())),
-					HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
-					Buttons: []*waE2E.ButtonsMessage_Button{
-						{
-							ButtonID: new(".anticall toggle"),
-							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
-								DisplayText: new("TOGGLE STATUS"),
-							},
-							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
-						},
-						{
-							ButtonID: new(".anticall contacts toggle"),
-							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
-								DisplayText: new("TOGGLE CONTACTS ONLY"),
-							},
-							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
-						},
-						{
-							ButtonID: new(".anticall warn 3"),
-							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
-								DisplayText: new("RESET WARN THRESHOLD"),
-							},
-							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
-						},
-					},
-				},
-			},
-		},
+	buttons := []struct{ ID, Text string }{
+		actionButton,
+		{ID: p + "anticall customize", Text: "Customize"},
 	}
 
-	bizNode := waBinary.Node{
-		Tag:   "biz",
-		Attrs: waBinary.Attrs{},
-		Content: []waBinary.Node{
-			{
-				Tag: "interactive",
-				Attrs: waBinary.Attrs{
-					"type": "native_flow",
-					"v":    "1",
-				},
-				Content: []waBinary.Node{
-					{
-						Tag: "native_flow",
-						Attrs: waBinary.Attrs{
-							"v":    "9",
-							"name": "mixed",
-						},
-					},
-				},
-			},
-		},
-	}
+	return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s AntiCall Rejection", ctx.GetBotName()), buttons)
+}
 
-	extra := whatsmeow.SendRequestExtra{
-		AdditionalNodes: &[]waBinary.Node{bizNode},
-	}
+func sendAntiCallCustomizeGuide(ctx *Context) error {
+	p := ctx.GetPrefix()
+	var sb strings.Builder
+	sb.WriteString("╭━━━〔 ANTICALL CUSTOMIZATION GUIDE 〕━━━\n\n")
+	sb.WriteString("Available Customizations:\n")
+	fmt.Fprintf(&sb, "• Contacts Only Restriction : `%santicall contacts on | off`\n", p)
+	fmt.Fprintf(&sb, "• Country Code Whitelist    : `%santicall cc add | del | clear <code >`\n", p)
+	fmt.Fprintf(&sb, "• Max Warning Threshold     : `%santicall warn <number>`\n\n", p)
 
-	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
-	return err
+	sb.WriteString("Examples:\n")
+	fmt.Fprintf(&sb, "1. `%santicall contacts on` (Reject calls from non-contacts)\n", p)
+	fmt.Fprintf(&sb, "2. `%santicall cc add 234` (Allow calls from country code +234)\n", p)
+	fmt.Fprintf(&sb, "3. `%santicall warn 3` (Set warning limit before auto-block to 3)\n", p)
+
+	return ctx.Reply(strings.TrimSpace(sb.String()))
 }
 
 func splitCSV(s string) []string {

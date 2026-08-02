@@ -493,9 +493,27 @@ func handleReport(ctx *Context) error {
 }
 
 func handleVV(ctx *Context) error {
+	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
+
+	args := strings.Fields(ctx.RawArgs)
+	if len(args) > 0 {
+		sub := strings.ToLower(args[0])
+		if sub == "customize" || sub == "custom" || sub == "help" {
+			return sendVVCustomizeGuide(ctx, s)
+		}
+		if sub == "dest" || sub == "destination" || sub == "mode" || sub == "set" {
+			if ok && len(args) > 1 {
+				val := strings.TrimSpace(args[1])
+				_ = s.PutSetting(ctx.Ctx, "vv_destination", val)
+				return ctx.Reply(fmt.Sprintf("ViewOnce media destination updated to: %s", val))
+			}
+			return ctx.Reply("Usage: .vv dest chat | owner | <phone_number> | <group_jid>")
+		}
+	}
+
 	quoted := ctx.GetQuotedMessage()
 	if quoted == nil {
-		return ctx.Reply("Please reply to a ViewOnce message.")
+		return sendVVMenu(ctx, s)
 	}
 
 	isViewOnce := false
@@ -533,7 +551,6 @@ func handleVV(ctx *Context) error {
 	if quotedStanzaID != "" && quotedParticipant != "" {
 		quotedClone := proto.Clone(quoted).(*waE2E.Message)
 
-		// Clear any context info inside the cloned quoted message to break circular references completely!
 		if quotedClone.ImageMessage != nil {
 			quotedClone.ImageMessage.ContextInfo = nil
 		}
@@ -550,7 +567,6 @@ func handleVV(ctx *Context) error {
 			QuotedMessage: quotedClone,
 		}
 
-		// Also clone unwrapped.ImageMessage / VideoMessage / AudioMessage to prevent modifying the original quoted message!
 		if unwrapped.ImageMessage != nil {
 			newImg := proto.Clone(unwrapped.ImageMessage).(*waE2E.ImageMessage)
 			newImg.ContextInfo = ci
@@ -566,6 +582,71 @@ func handleVV(ctx *Context) error {
 		}
 	}
 
-	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, unwrapped)
+	targetJID := ctx.Chat
+	if ok {
+		dest, _ := s.GetSetting(ctx.Ctx, "vv_destination")
+		dest = strings.TrimSpace(strings.ToLower(dest))
+		switch {
+		case dest == "" || dest == "chat":
+			targetJID = ctx.Chat
+		case dest == "owner" || dest == "me" || dest == "pm":
+			if ctx.Client.Store.ID != nil {
+				targetJID = ctx.Client.Store.ID.ToNonAD()
+			}
+		default:
+			if parsed, err := types.ParseJID(dest); err == nil && !parsed.IsEmpty() {
+				targetJID = parsed
+			} else if !strings.Contains(dest, "@") {
+				targetJID = types.NewJID(dest, types.DefaultUserServer)
+			}
+		}
+	}
+
+	_, err := ctx.Client.SendMessage(ctx.Ctx, targetJID, unwrapped)
 	return err
+}
+
+func sendVVMenu(ctx *Context, s *sqlstore.SQLStore) error {
+	dest := "chat"
+	if s != nil {
+		if val, err := s.GetSetting(ctx.Ctx, "vv_destination"); err == nil && val != "" {
+			dest = val
+		}
+	}
+
+	p := ctx.GetPrefix()
+	bodyText := fmt.Sprintf("╭━━━〔 VIEWONCE UNWRAPPER 〕━━━\n│ Destination : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nReply to any ViewOnce image, video, or audio message with %svv to unwrap it.", dest, p)
+
+	buttons := []struct{ ID, Text string }{
+		{ID: p + "vv dest owner", Text: "Set Owner DM"},
+		{ID: p + "vv customize", Text: "Customize"},
+	}
+
+	return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s VV Unwrapper", ctx.GetBotName()), buttons)
+}
+
+func sendVVCustomizeGuide(ctx *Context, s *sqlstore.SQLStore) error {
+	p := ctx.GetPrefix()
+	dest := "chat"
+	if s != nil {
+		if val, err := s.GetSetting(ctx.Ctx, "vv_destination"); err == nil && val != "" {
+			dest = val
+		}
+	}
+
+	var sb strings.Builder
+	sb.WriteString("╭━━━〔 VIEWONCE CUSTOMIZATION GUIDE 〕━━━\n\n")
+	sb.WriteString("Choose where unwrapped ViewOnce media is sent:\n")
+	fmt.Fprintf(&sb, "• Current Chat  : `%svv dest chat`\n", p)
+	fmt.Fprintf(&sb, "• Bot Owner DM  : `%svv dest owner`\n", p)
+	fmt.Fprintf(&sb, "• Specific JID  : `%svv dest 1234567890` or `%svv dest <group_jid>`\n\n", p, p)
+
+	sb.WriteString("Examples:\n")
+	fmt.Fprintf(&sb, "1. `%svv dest chat` (Resends media in the active chat)\n", p)
+	fmt.Fprintf(&sb, "2. `%svv dest owner` (Sends unwrapped media directly to owner DM)\n", p)
+	fmt.Fprintf(&sb, "3. `%svv dest 1234567890` (Sends to specified phone number)\n\n", p)
+
+	fmt.Fprintf(&sb, "Current Destination: `%s`", dest)
+
+	return ctx.Reply(strings.TrimSpace(sb.String()))
 }

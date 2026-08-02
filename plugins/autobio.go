@@ -83,7 +83,6 @@ func handleAutoBio(ctx *Context) error {
 		return ctx.Reply("Settings store unavailable.")
 	}
 
-	p := ctx.GetPrefix()
 	arg0 := ""
 	if len(ctx.Args) > 0 {
 		arg0 = strings.ToLower(ctx.Args[0])
@@ -95,7 +94,7 @@ func handleAutoBio(ctx *Context) error {
 			return ctx.Reply("Failed to enable AutoBio.")
 		}
 		_, _ = updateAutoBio(ctx.Ctx, ctx.Client)
-		return ctx.Reply("AutoBio ENABLED! Your WhatsApp status bio will now update every minute with local time and quotes.")
+		return ctx.Reply("AutoBio ENABLED! Status bio will update every minute with local time and quotes.")
 
 	case "off", "disable", "false", "stop":
 		if err := s.PutSetting(ctx.Ctx, "autobio_enabled", "false"); err != nil {
@@ -113,7 +112,11 @@ func handleAutoBio(ctx *Context) error {
 		_, _ = updateAutoBio(ctx.Ctx, ctx.Client)
 		return ctx.Reply("AutoBio ENABLED!")
 
+	case "customize", "custom", "help":
+		return sendAutoBioCustomizeGuide(ctx, s)
+
 	case "tz", "timezone":
+		p := ctx.GetPrefix()
 		if len(ctx.Args) < 2 {
 			tz := getAutoBioTimezone(ctx.Ctx, s)
 			return ctx.Reply(fmt.Sprintf("Current AutoBio timezone: %s\n\nTo change timezone:\n- %sautobio tz Africa/Lagos\n- %sautobio tz America/New_York\n- %sautobio tz UTC", tz, p, p, p))
@@ -146,33 +149,54 @@ func handleAutoBio(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("AutoBio Status: %s\nTimezone: %s\n\nLive Preview:\n\"%s\"", statusStr, tzStr, previewBio))
 	}
 
+	return sendAutoBioMenu(ctx, s)
+}
+
+func sendAutoBioMenu(ctx *Context, s *sqlstore.SQLStore) error {
 	enabled, _ := s.GetSetting(ctx.Ctx, "autobio_enabled")
 	statusStr := "DISABLED"
 	if enabled == "true" {
 		statusStr = "ENABLED"
 	}
 	tzStr := getAutoBioTimezone(ctx.Ctx, s)
+
+	p := ctx.GetPrefix()
+	bodyText := fmt.Sprintf("╭━━━〔 AUTOBIO CONFIGURATION 〕━━━\n│ Status   : %s\n│ Timezone : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose an option below to change status or view customization options.", statusStr, tzStr)
+
+	var actionButton struct{ ID, Text string }
+	if enabled == "true" {
+		actionButton = struct{ ID, Text string }{ID: p + "autobio off", Text: "Deactivate"}
+	} else {
+		actionButton = struct{ ID, Text string }{ID: p + "autobio on", Text: "Activate"}
+	}
+
+	buttons := []struct{ ID, Text string }{
+		actionButton,
+		{ID: p + "autobio customize", Text: "Customize"},
+	}
+
+	return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s AutoBio Updater", ctx.GetBotName()), buttons)
+}
+
+func sendAutoBioCustomizeGuide(ctx *Context, s *sqlstore.SQLStore) error {
+	p := ctx.GetPrefix()
+	tzStr := getAutoBioTimezone(ctx.Ctx, s)
 	previewBio := generateBioText(tzStr)
 
 	var sb strings.Builder
-	sb.WriteString("╭━━━〔 AUTOBIO SETTINGS 〕━━━\n")
-	fmt.Fprintf(&sb, "│ Status   : %s\n", statusStr)
-	fmt.Fprintf(&sb, "│ Timezone : %s\n", tzStr)
-	sb.WriteString("│\n")
-	sb.WriteString("│ Preview  :\n")
-	fmt.Fprintf(&sb, "│ %s\n", previewBio)
-	sb.WriteString("╰━━━━━━━━━━━━━━━━━━━━━━━\n\n")
-	sb.WriteString("Controls:\n")
-	fmt.Fprintf(&sb, "- `%sautobio on` / `%sautobio off`\n", p, p)
-	fmt.Fprintf(&sb, "- `%sautobio tz <Timezone>` (e.g. `%sautobio tz Africa/Lagos`)\n", p, p)
-	fmt.Fprintf(&sb, "- `%sautobio now` (force immediate update)", p)
+	sb.WriteString("╭━━━〔 AUTOBIO CUSTOMIZATION GUIDE 〕━━━\n\n")
+	sb.WriteString("Available Customizations:\n")
+	fmt.Fprintf(&sb, "• Set Timezone : `%sautobio tz <IANA Timezone>`\n", p)
+	fmt.Fprintf(&sb, "• Force Update : `%sautobio now`\n\n", p)
 
-	buttons := []struct{ ID, Text string }{
-		{ID: p + "autobio toggle", Text: "Toggle Status"},
-		{ID: p + "autobio now", Text: "Force Update"},
-	}
+	sb.WriteString("Examples:\n")
+	fmt.Fprintf(&sb, "1. `%sautobio tz Africa/Lagos`\n", p)
+	fmt.Fprintf(&sb, "2. `%sautobio tz America/New_York`\n", p)
+	fmt.Fprintf(&sb, "3. `%sautobio now` (Force status bio refresh right now)\n\n", p)
 
-	return sendInteractiveButtons(ctx, sb.String(), fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
+	fmt.Fprintf(&sb, "Current Live Bio Preview:\n\"%s\"", previewBio)
+
+	return ctx.Reply(strings.TrimSpace(sb.String()))
 }
 
 func getAutoBioTimezone(ctx context.Context, s *sqlstore.SQLStore) string {

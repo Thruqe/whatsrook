@@ -34,16 +34,7 @@ func handleAntiMsg(ctx *Context) error {
 
 	args := strings.Fields(ctx.RawArgs)
 	if len(args) == 0 {
-		status, _ := s.GetSetting(ctx.Ctx, statusKey)
-		if status == "" {
-			status = "off"
-		}
-		rawUsers, _ := s.GetSetting(ctx.Ctx, usersKey)
-		users := splitCSV(rawUsers)
-		userCount := len(users)
-
-		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("AntiMsg Status: %s\nTargeted Participants: %d\n\nUsage:\n- %santimsg on\n- %santimsg off\n- %santimsg add @user\n- %santimsg del @user\n- %santimsg list", strings.ToUpper(status), userCount, p, p, p, p, p))
+		return sendAntiMsgMenu(ctx, s)
 	}
 
 	sub := strings.ToLower(args[0])
@@ -64,6 +55,9 @@ func handleAntiMsg(ctx *Context) error {
 		}
 		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
 		return ctx.Reply("AntiMsg feature enabled for this group.")
+
+	case "customize", "custom", "help":
+		return sendAntiMsgCustomizeGuide(ctx)
 
 	case "add":
 		targetJID := extractTargetParticipant(ctx, args)
@@ -126,8 +120,51 @@ func handleAntiMsg(ctx *Context) error {
 		return ctx.Reply("Cleared AntiMsg target list for this group.")
 
 	default:
-		return ctx.Reply("Usage: .antimsg [on|off|add|del|list|clear]")
+		return ctx.Reply("Usage: .antimsg [on|off|toggle|customize|add|del|list|clear]")
 	}
+}
+
+func sendAntiMsgMenu(ctx *Context, s *sqlstore.SQLStore) error {
+	chatKey := ctx.Chat.String()
+	status, _ := s.GetSetting(ctx.Ctx, "antimsg_status:"+chatKey)
+	if status == "" {
+		status = "off"
+	}
+
+	p := ctx.GetPrefix()
+	bodyText := fmt.Sprintf("╭━━━〔 ANTIMSG CONFIGURATION 〕━━━\n│ Group  : %s\n│ Status : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose an option below to change status or view customization options.", chatKey, strings.ToUpper(status))
+
+	var actionButton struct{ ID, Text string }
+	if status == "on" {
+		actionButton = struct{ ID, Text string }{ID: p + "antimsg off", Text: "Deactivate"}
+	} else {
+		actionButton = struct{ ID, Text string }{ID: p + "antimsg on", Text: "Activate"}
+	}
+
+	buttons := []struct{ ID, Text string }{
+		actionButton,
+		{ID: p + "antimsg customize", Text: "Customize"},
+	}
+
+	return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s AntiMsg Moderation", ctx.GetBotName()), buttons)
+}
+
+func sendAntiMsgCustomizeGuide(ctx *Context) error {
+	p := ctx.GetPrefix()
+	var sb strings.Builder
+	sb.WriteString("╭━━━〔 ANTIMSG CUSTOMIZATION GUIDE 〕━━━\n\n")
+	sb.WriteString("Available Customizations:\n")
+	fmt.Fprintf(&sb, "• Target User   : `%santimsg add @user` (or reply to user's message)\n", p)
+	fmt.Fprintf(&sb, "• Remove User   : `%santimsg del @user`\n", p)
+	fmt.Fprintf(&sb, "• View Targets  : `%santimsg list`\n", p)
+	fmt.Fprintf(&sb, "• Clear Targets : `%santimsg clear`\n\n", p)
+
+	sb.WriteString("Examples:\n")
+	fmt.Fprintf(&sb, "1. `%santimsg add @user` (Auto-delete messages from mentioned user)\n", p)
+	fmt.Fprintf(&sb, "2. `%santimsg del @user` (Remove user from auto-deletion list)\n", p)
+	fmt.Fprintf(&sb, "3. `%santimsg list` (View all targeted users)\n", p)
+
+	return ctx.Reply(strings.TrimSpace(sb.String()))
 }
 
 func extractTargetParticipant(ctx *Context, args []string) types.JID {

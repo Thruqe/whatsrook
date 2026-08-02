@@ -15,7 +15,7 @@ func init() {
 	Register(&Command{
 		Name:         "send",
 		Description:  "Send raw text message to the current chat",
-		Category:     "whatsrook_ai_bot_tools",
+		Category:     "ai",
 		HideFromMenu: true,
 		IsPublic:     true,
 		Handler:      handleSend,
@@ -23,7 +23,7 @@ func init() {
 	Register(&Command{
 		Name:         "edit",
 		Description:  "Edit a message by message ID or replied message",
-		Category:     "whatsrook_ai_bot_tools",
+		Category:     "ai",
 		HideFromMenu: true,
 		IsPublic:     true,
 		Handler:      handleEditMsg,
@@ -31,7 +31,7 @@ func init() {
 	Register(&Command{
 		Name:         "ffmpeg",
 		Description:  "Run raw ffmpeg media command",
-		Category:     "whatsrook_ai_bot_tools",
+		Category:     "ai",
 		HideFromMenu: true,
 		IsPublic:     false,
 		Handler:      handleFFmpeg,
@@ -40,7 +40,7 @@ func init() {
 		Name:         "downloadMessage",
 		Aliases:      []string{"download", "dl"},
 		Description:  "Download media from a message by ID or quoted message",
-		Category:     "whatsrook_ai_bot_tools",
+		Category:     "ai",
 		HideFromMenu: true,
 		IsPublic:     true,
 		Handler:      handleDownloadMessage,

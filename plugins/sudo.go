@@ -15,19 +15,19 @@ func init() {
 	Register(&Command{
 		Name:        "setsudo",
 		Description: "Add a user to the sudo list (replied user or numbers)",
-		Category:    "user",
+		Category:    "owner",
 		Handler:     handleSetSudo,
 	})
 	Register(&Command{
 		Name:        "delsudo",
 		Description: "Remove a user from the sudo list (replied user or numbers)",
-		Category:    "user",
+		Category:    "owner",
 		Handler:     handleDelSudo,
 	})
 	Register(&Command{
 		Name:        "listsudo",
 		Description: "List all sudo users",
-		Category:    "user",
+		Category:    "owner",
 		Handler:     handleListSudo,
 	})
 	Register(&Command{
@@ -44,32 +44,34 @@ func init() {
 	})
 	Register(&Command{
 		Name:        "autovv",
-		Description: "Toggle automatic ViewOnce message forwarding to DM (on/off)",
+		Aliases:     []string{"vvauto"},
+		Description: "Toggle automatic ViewOnce message forwarding to DM",
 		Category:    "settings",
 		Handler:     handleAutoVV,
 	})
 	Register(&Command{
-		Name:        "autostatussave",
-		Description: "Toggle automatic status updates saving to DM (on/off)",
+		Name:        "autostatus",
+		Aliases:     []string{"statussave", "statusauto", "autostatussave"},
+		Description: "Toggle automatic status updates saving to DM",
 		Category:    "settings",
 		Handler:     handleAutoStatusSave,
 	})
 	Register(&Command{
 		Name:        "ban",
 		Description: "Block a user from using the bot commands (replied user or numbers)",
-		Category:    "user",
+		Category:    "owner",
 		Handler:     handleBan,
 	})
 	Register(&Command{
 		Name:        "unban",
 		Description: "Unblock a user (replied user or numbers)",
-		Category:    "user",
+		Category:    "owner",
 		Handler:     handleUnban,
 	})
 	Register(&Command{
 		Name:        "mode",
 		Description: "Toggle bot mode (public/private)",
-		Category:    "settings",
+		Category:    "owner",
 		Handler:     handleMode,
 	})
 }
@@ -314,31 +316,54 @@ func handleAutoVV(ctx *Context) error {
 		return ctx.Reply("You are not authorized to use this command.")
 	}
 
-	if len(ctx.Args) == 0 {
-		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage:\n- %sautovv on\n- %sautovv off", p, p))
-	}
-
-	state := strings.ToLower(ctx.Args[0])
-	if state != "on" && state != "off" {
-		return ctx.Reply("Invalid state. Usage: autovv [on/off]")
-	}
-
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
 
-	err := s.PutSetting(ctx.Ctx, "autovv", state)
-	if err != nil {
-		return err
+	args := strings.Fields(ctx.RawArgs)
+	if len(args) == 0 {
+		curr, _ := s.GetSetting(ctx.Ctx, "autovv")
+		if curr == "" {
+			curr = "off"
+		}
+		p := ctx.GetPrefix()
+		bodyText := fmt.Sprintf("╭━━━〔 AUTO-VIEWONCE FORWARDING 〕━━━\n│ Status : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAutomatically forwards unwrapped ViewOnce media to your DM.", strings.ToUpper(curr))
+		var actionButton struct{ ID, Text string }
+		if curr == "on" {
+			actionButton = struct{ ID, Text string }{ID: p + "autovv off", Text: "Deactivate"}
+		} else {
+			actionButton = struct{ ID, Text string }{ID: p + "autovv on", Text: "Activate"}
+		}
+		buttons := []struct{ ID, Text string }{
+			actionButton,
+			{ID: p + "autovv customize", Text: "Customize"},
+		}
+		return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s AutoVV", ctx.GetBotName()), buttons)
 	}
 
-	if state == "on" {
-		return ctx.Reply("Auto ViewOnce forwarding enabled.\n\n Note: This feature only works if the client connection type is set to Android or iOS (web clients do not receive ViewOnce media).")
+	sub := strings.ToLower(args[0])
+	switch sub {
+	case "on", "enable":
+		_ = s.PutSetting(ctx.Ctx, "autovv", "on")
+		return ctx.Reply("Auto ViewOnce forwarding ENABLED.\n\nNote: This feature requires Android or iOS client mode.")
+	case "off", "disable":
+		_ = s.PutSetting(ctx.Ctx, "autovv", "off")
+		return ctx.Reply("Auto ViewOnce forwarding DISABLED.")
+	case "toggle":
+		curr, _ := s.GetSetting(ctx.Ctx, "autovv")
+		if curr == "on" {
+			_ = s.PutSetting(ctx.Ctx, "autovv", "off")
+			return ctx.Reply("Auto ViewOnce forwarding DISABLED.")
+		}
+		_ = s.PutSetting(ctx.Ctx, "autovv", "on")
+		return ctx.Reply("Auto ViewOnce forwarding ENABLED.")
+	case "customize", "custom", "help":
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("╭━━━〔 AUTOVV GUIDE 〕━━━\n\nCommands:\n• %sautovv on\n• %sautovv off\n• %sautovv toggle\n\nAutomatically intercepts ViewOnce media sent in chats and forwards unwrapped media to your DM.", p, p, p))
+	default:
+		return ctx.Reply("Usage: .autovv [on|off|toggle|customize]")
 	}
-
-	return ctx.Reply("Auto ViewOnce forwarding disabled.")
 }
 
 func handleAutoStatusSave(ctx *Context) error {
@@ -346,31 +371,54 @@ func handleAutoStatusSave(ctx *Context) error {
 		return ctx.Reply("You are not authorized to use this command.")
 	}
 
-	if len(ctx.Args) == 0 {
-		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage:\n- %sautostatussave on\n- %sautostatussave off", p, p))
-	}
-
-	state := strings.ToLower(ctx.Args[0])
-	if state != "on" && state != "off" {
-		return ctx.Reply("Invalid state. Usage: autostatussave [on/off]")
-	}
-
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
 
-	err := s.PutSetting(ctx.Ctx, "autostatussave", state)
-	if err != nil {
-		return err
+	args := strings.Fields(ctx.RawArgs)
+	if len(args) == 0 {
+		curr, _ := s.GetSetting(ctx.Ctx, "autostatussave")
+		if curr == "" {
+			curr = "off"
+		}
+		p := ctx.GetPrefix()
+		bodyText := fmt.Sprintf("╭━━━〔 AUTO-STATUS SAVER 〕━━━\n│ Status : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAutomatically saves incoming WhatsApp status broadcasts to your DM.", strings.ToUpper(curr))
+		var actionButton struct{ ID, Text string }
+		if curr == "on" {
+			actionButton = struct{ ID, Text string }{ID: p + "autostatus off", Text: "Deactivate"}
+		} else {
+			actionButton = struct{ ID, Text string }{ID: p + "autostatus on", Text: "Activate"}
+		}
+		buttons := []struct{ ID, Text string }{
+			actionButton,
+			{ID: p + "autostatus customize", Text: "Customize"},
+		}
+		return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s AutoStatus", ctx.GetBotName()), buttons)
 	}
 
-	if state == "on" {
-		return ctx.Reply("Auto Status saving enabled. Status updates will now be automatically sent to your DM.")
+	sub := strings.ToLower(args[0])
+	switch sub {
+	case "on", "enable":
+		_ = s.PutSetting(ctx.Ctx, "autostatussave", "on")
+		return ctx.Reply("Auto Status saving ENABLED. incoming status updates will be sent to your DM.")
+	case "off", "disable":
+		_ = s.PutSetting(ctx.Ctx, "autostatussave", "off")
+		return ctx.Reply("Auto Status saving DISABLED.")
+	case "toggle":
+		curr, _ := s.GetSetting(ctx.Ctx, "autostatussave")
+		if curr == "on" {
+			_ = s.PutSetting(ctx.Ctx, "autostatussave", "off")
+			return ctx.Reply("Auto Status saving DISABLED.")
+		}
+		_ = s.PutSetting(ctx.Ctx, "autostatussave", "on")
+		return ctx.Reply("Auto Status saving ENABLED.")
+	case "customize", "custom", "help":
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("╭━━━〔 AUTOSTATUS GUIDE 〕━━━\n\nCommands:\n• %sautostatus on\n• %sautostatus off\n• %sautostatus toggle\n\nAutomatically intercepts contacts' status broadcasts and forwards them to your DM.", p, p, p))
+	default:
+		return ctx.Reply("Usage: .autostatus [on|off|toggle|customize]")
 	}
-
-	return ctx.Reply("Auto Status saving disabled.")
 }
 
 func handleBan(ctx *Context) error {

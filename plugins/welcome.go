@@ -8,9 +8,6 @@ import (
 
 	"whatsrook/store/sqlstore"
 
-	"go.mau.fi/whatsmeow"
-	waBinary "go.mau.fi/whatsmeow/binary"
-	"go.mau.fi/whatsmeow/proto/waE2E"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -81,6 +78,9 @@ func handleGroupGreetingConfig(ctx *Context, kind string) error {
 	case "toggle":
 		return applyToggle(ctx, s, statusKey, "toggle", label+" message")
 
+	case "customize", "custom", "help":
+		return sendGreetingCustomizeGuide(ctx, kind)
+
 	case "tag":
 		if len(args) < 2 {
 			curr, _ := s.GetSetting(ctx.Ctx, tagKey)
@@ -138,12 +138,11 @@ func handleGroupGreetingConfig(ctx *Context, kind string) error {
 		return ctx.Reply(label + " media URL saved.")
 
 	default:
-		return ctx.Reply("Usage: ." + kind + " [on|off|toggle|tag|desc|msg|media]")
+		return ctx.Reply("Usage: ." + kind + " [on|off|toggle|customize|tag|desc|msg|media]")
 	}
 }
 
 // applyToggle sets key to on/off, or flips its current value when mode is "toggle".
-// mode must be one of: "on", "true", "off", "false", "toggle".
 func applyToggle(ctx *Context, s *sqlstore.SQLStore, key, mode, label string) error {
 	next := "on"
 	switch mode {
@@ -170,9 +169,6 @@ func applyToggle(ctx *Context, s *sqlstore.SQLStore, key, mode, label string) er
 	return ctx.Reply(label + " " + verb + ".")
 }
 
-// titleCase upper-cases the first rune of s. Suitable for known,
-// controlled ASCII words (e.g. "welcome", "goodbye") — avoids pulling in
-// golang.org/x/text/cases for a single-word capitalization.
 func titleCase(s string) string {
 	if s == "" {
 		return s
@@ -181,6 +177,7 @@ func titleCase(s string) string {
 	r[0] = unicode.ToUpper(r[0])
 	return string(r)
 }
+
 func sendGreetingMenu(ctx *Context, s *sqlstore.SQLStore, kind string) error {
 	chatKey := ctx.Chat.String()
 	groupName := chatKey
@@ -192,97 +189,59 @@ func sendGreetingMenu(ctx *Context, s *sqlstore.SQLStore, kind string) error {
 	if status == "" {
 		status = "off"
 	}
-	tag, _ := s.GetSetting(ctx.Ctx, kind+"_tag:"+chatKey)
-	if tag == "" {
-		tag = "on"
-	}
-	desc, _ := s.GetSetting(ctx.Ctx, kind+"_desc:"+chatKey)
-	if desc == "" {
-		desc = "off"
-	}
-	msgText, _ := s.GetSetting(ctx.Ctx, kind+"_msg:"+chatKey)
-	if msgText == "" {
-		msgText = "Default greeting text"
-	}
-	media, _ := s.GetSetting(ctx.Ctx, kind+"_media:"+chatKey)
-	if media == "" {
-		media = "None"
+
+	p := ctx.GetPrefix()
+	bodyText := fmt.Sprintf("╭━━━〔 %s CONFIGURATION 〕━━━\n│ Group  : %s\n│ Status : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose an option below to change status or view customization options.", strings.ToUpper(kind), groupName, strings.ToUpper(status))
+
+	var actionButton struct{ ID, Text string }
+	if status == "on" {
+		actionButton = struct{ ID, Text string }{ID: p + kind + " off", Text: "Deactivate"}
+	} else {
+		actionButton = struct{ ID, Text string }{ID: p + kind + " on", Text: "Activate"}
 	}
 
-	bodyText := fmt.Sprintf(`%s CONFIGURATION MENU
-
-Group: %s
-Status: %s
-Tag Participant: %s
-Include Group Description: %s
-Media URL: %s
-Custom Message: %s
-
-Select an action below to toggle settings.`, strings.ToUpper(kind), groupName, strings.ToUpper(status), strings.ToUpper(tag), strings.ToUpper(desc), media, msgText)
-
-	cmdPrefix := "." + kind
-	msg := &waE2E.Message{
-		DocumentWithCaptionMessage: &waE2E.FutureProofMessage{
-			Message: &waE2E.Message{
-				ButtonsMessage: &waE2E.ButtonsMessage{
-					ContentText: new(bodyText),
-					FooterText:  new("WhatsRook Group Greetings"),
-					HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
-					Buttons: []*waE2E.ButtonsMessage_Button{
-						{
-							ButtonID: new(cmdPrefix + " toggle"),
-							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
-								DisplayText: new("TOGGLE STATUS"),
-							},
-							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
-						},
-						{
-							ButtonID: new(cmdPrefix + " tag toggle"),
-							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
-								DisplayText: new("TOGGLE TAG"),
-							},
-							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
-						},
-						{
-							ButtonID: new(cmdPrefix + " desc toggle"),
-							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
-								DisplayText: new("TOGGLE DESC"),
-							},
-							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
-						},
-					},
-				},
-			},
-		},
+	buttons := []struct{ ID, Text string }{
+		actionButton,
+		{ID: p + kind + " customize", Text: "Customize"},
 	}
 
-	bizNode := waBinary.Node{
-		Tag:   "biz",
-		Attrs: waBinary.Attrs{},
-		Content: []waBinary.Node{
-			{
-				Tag: "interactive",
-				Attrs: waBinary.Attrs{
-					"type": "native_flow",
-					"v":    "1",
-				},
-				Content: []waBinary.Node{
-					{
-						Tag: "native_flow",
-						Attrs: waBinary.Attrs{
-							"v":    "9",
-							"name": "mixed",
-						},
-					},
-				},
-			},
-		},
+	return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s %s Moderation", ctx.GetBotName(), titleCase(kind)), buttons)
+}
+
+func sendGreetingCustomizeGuide(ctx *Context, kind string) error {
+	p := ctx.GetPrefix()
+	kUpper := strings.ToUpper(kind)
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "╭━━━〔 %s CUSTOMIZATION GUIDE 〕━━━\n\n", kUpper)
+	sb.WriteString("Available Customizations:\n")
+	fmt.Fprintf(&sb, "• Custom Message : `%s%s msg <your message text>`\n", p, kind)
+	fmt.Fprintf(&sb, "• Participant Tagging : `%s%s tag on | off`\n", p, kind)
+	fmt.Fprintf(&sb, "• Group Description   : `%s%s desc on | off`\n", p, kind)
+	fmt.Fprintf(&sb, "• Greeting Media URL  : `%s%s media <url | clear>`\n\n", p, kind)
+
+	sb.WriteString("Available GroupInfo Placeholders:\n")
+	sb.WriteString("- `{user}`       : Participant mention tag (@username)\n")
+	sb.WriteString("- `{user_id}`    : Participant's phone number / user ID\n")
+	sb.WriteString("- `{user_jid}`   : Participant's full WhatsApp JID\n")
+	sb.WriteString("- `{group}`      : Group Name\n")
+	sb.WriteString("- `{group_jid}`  : Group JID\n")
+	sb.WriteString("- `{desc}`       : Group Description / Topic\n")
+	sb.WriteString("- `{members}`    : Total group participant count\n")
+	sb.WriteString("- `{admins}`     : Total group admin count\n")
+	sb.WriteString("- `{owner}`      : Mentions group creator / owner\n")
+	sb.WriteString("- `{created_at}` : Group creation date\n\n")
+
+	sb.WriteString("Examples:\n")
+	if kind == "welcome" {
+		fmt.Fprintf(&sb, "1. `%swelcome msg Welcome {user} to {group}! We now have {members} members (Admins: {admins}). Created by {owner} on {created_at}.`\n", p)
+		fmt.Fprintf(&sb, "2. `%swelcome tag on`\n", p)
+		fmt.Fprintf(&sb, "3. `%swelcome media https://example.com/welcome.mp4`\n", p)
+	} else {
+		fmt.Fprintf(&sb, "1. `%sgoodbye msg Goodbye {user}! {group} now has {members} members remaining.`\n", p)
+		fmt.Fprintf(&sb, "2. `%sgoodbye tag off`\n", p)
+		fmt.Fprintf(&sb, "3. `%sgoodbye media https://example.com/goodbye.gif`\n", p)
 	}
 
-	extra := whatsmeow.SendRequestExtra{
-		AdditionalNodes: &[]waBinary.Node{bizNode},
-	}
-
-	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
-	return err
+	return ctx.Reply(strings.TrimSpace(sb.String()))
 }

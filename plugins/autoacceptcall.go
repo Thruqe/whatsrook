@@ -25,7 +25,7 @@ func init() {
 		Name:        "autoacceptcall",
 		Aliases:     []string{"autoaccept", "acceptcall"},
 		Description: "Automatically answer incoming voice and video calls using saved call media",
-		Category:    "tools",
+		Category:    "calls",
 		IsPublic:    false,
 		Handler:     handleAutoAcceptCallCmd,
 	})

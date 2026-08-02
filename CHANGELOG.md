@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Bot Bio Command (`plugins/bio.go`):
+  - Added `.bio` / `.setbio` command for bot owner and sudoers to update WhatsApp status bio on demand.
+
+- ViewOnce Customization & Destination Routing (`plugins/chats.go`):
+  - Added `.vv customize` guide and destination selector (`.vv dest chat | owner | <phone_number> | <group_jid>`) allowing users to configure where unwrapped ViewOnce media is delivered.
+
+- Status Reaction Feature (`plugins/likestatus.go`, `events.go`):
+  - Added `.likestatus` command with 2-button interactive flow.
+  - Automatically reacts to incoming WhatsApp status broadcasts with a random love emoji.
+
+- Command Renaming & Cleanups (`plugins/sudo.go`, `plugins/events_cmd.go`, `events.go`):
+  - Renamed `autostatussave` command to `autostatus` (with `statussave`, `statusauto`, `autostatussave` aliases).
+  - Updated `autovv` and `autostatus` to use 2-button interactive control flow.
+  - Removed decorative emojis from `.events` group event notification messages for cleaner formatting.
+
+- Warning System & Automated Enforcement (`plugins/warn.go`):
+  - Implemented `.warn`, `.unwarn`, `.warns`, and `.setwarn` commands with configurable warning thresholds.
+  - Enforces automated blocking & group kicking upon reaching warning limit (respects admin immunity rules unless bot is group owner, blocks sender in DMs).
+
+- Real-Time Group Events Listener & Command (`plugins/events_cmd.go`, `events.go`):
+  - Implemented `.events` command with interactive 2-button control flow.
+  - Listens to `whatsmeow` `*events.GroupInfo` updates and broadcasts real-time group event alerts (Subject changes, Description updates, Settings lock/unlock, Announce mute/unmute, Admin promotions/demotions).
+
+- Events Helper Refactoring (`utils/events_helper.go`, `events.go`):
+  - Moved message text extraction and media type identification routines (`ExtractMessageText`, `GetMediaType`, `ExtractTextFromProto`) to `utils/events_helper.go`.
+
+- Command Category Cleanup & Simplified Interactive Settings (`plugins/`):
+  - Normalized command categories across all plugins (`ai`, `calls`, `chats`, `downloader`, `filters`, `games`, `group`, `info`, `media`, `misc`, `owner`, `settings`, `tools`).
+  - Simplified `welcome`, `goodbye`, `antispam`, `antimsg`, `anticall`, and `autobio` to present 2 interactive buttons upon invocation: a dynamic `Activate`/`Deactivate` toggle button based on current state, and a `Customize` button.
+  - Implemented `.customize` sub-command guides for all toggleable settings that output available options, placeholders (`{user}`, `{group}`, `{desc}`), and concrete usage examples.
+
 - Multi-Service Media Downloader (`downloader/`, `plugins/downloader.go`):
   - Created package `downloader` with extractors for Facebook, Instagram, Twitter/X, TikTok, Snapchat, Reddit, Pinterest, and SoundCloud inspired by Cobalt engine patterns.
   - Implemented `.dl`, `.facebook` (`.fb`), `.instagram` (`.ig`), `.twitter` (`.x`/`.twt`), `.tiktok` (`.tt`), `.snapchat` (`.snap`), `.reddit` (`.rd`), `.pinterest` (`.pin`), and `.soundcloud` (`.sc`) commands.

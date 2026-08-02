@@ -7,10 +7,6 @@ import (
 	"strings"
 
 	"whatsrook/store/sqlstore"
-
-	"go.mau.fi/whatsmeow"
-	waBinary "go.mau.fi/whatsmeow/binary"
-	"go.mau.fi/whatsmeow/proto/waE2E"
 )
 
 func init() {
@@ -69,6 +65,9 @@ func handleAntiSpam(ctx *Context) error {
 		}
 		return ctx.Reply("AntiSpam feature disabled for this group.")
 
+	case "customize", "custom", "help":
+		return sendAntiSpamCustomizeGuide(ctx)
+
 	case "action":
 		if len(args) < 2 {
 			curr, _ := s.GetSetting(ctx.Ctx, actionKey)
@@ -104,7 +103,7 @@ func handleAntiSpam(ctx *Context) error {
 		return ctx.Reply("AntiSpam message limit set to " + strconv.Itoa(num) + " messages per 5 seconds.")
 
 	default:
-		return ctx.Reply("Usage: .antispam [on|off|toggle|action|max]")
+		return ctx.Reply("Usage: .antispam [on|off|toggle|customize|action|max]")
 	}
 }
 
@@ -119,87 +118,37 @@ func sendAntiSpamMenu(ctx *Context, s *sqlstore.SQLStore) error {
 	if status == "" {
 		status = "off"
 	}
-	action, _ := s.GetSetting(ctx.Ctx, "antispam_action:"+chatKey)
-	if action == "" {
-		action = "delete"
-	}
-	maxVal, _ := s.GetSetting(ctx.Ctx, "antispam_max:"+chatKey)
-	if maxVal == "" {
-		maxVal = "5"
-	}
 
-	bodyText := fmt.Sprintf(`ANTISPAM CONFIGURATION MENU
+	p := ctx.GetPrefix()
+	bodyText := fmt.Sprintf("╭━━━〔 ANTISPAM CONFIGURATION 〕━━━\n│ Group  : %s\n│ Status : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose an option below to change status or view customization options.", groupName, strings.ToUpper(status))
 
-Group: %s
-Status: %s
-Action: %s
-Max Messages (per 5s): %s
-
-Select an action below to toggle settings.`, groupName, strings.ToUpper(status), strings.ToUpper(action), maxVal)
-
-	cmdPrefix := ctx.GetPrefix()
-	msg := &waE2E.Message{
-		DocumentWithCaptionMessage: &waE2E.FutureProofMessage{
-			Message: &waE2E.Message{
-				ButtonsMessage: &waE2E.ButtonsMessage{
-					ContentText: new(bodyText),
-					FooterText:  new(fmt.Sprintf("%s AntiSpam Moderation", ctx.GetBotName())),
-					HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
-					Buttons: []*waE2E.ButtonsMessage_Button{
-						{
-							ButtonID: new(cmdPrefix + "antispam toggle"),
-							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
-								DisplayText: new("TOGGLE STATUS"),
-							},
-							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
-						},
-						{
-							ButtonID: new(cmdPrefix + "antispam action delete"),
-							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
-								DisplayText: new("ACTION DELETE"),
-							},
-							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
-						},
-						{
-							ButtonID: new(cmdPrefix + "antispam max 5"),
-							ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{
-								DisplayText: new("RESET LIMIT (5)"),
-							},
-							Type: waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
-						},
-					},
-				},
-			},
-		},
+	var actionButton struct{ ID, Text string }
+	if status == "on" {
+		actionButton = struct{ ID, Text string }{ID: p + "antispam off", Text: "Deactivate"}
+	} else {
+		actionButton = struct{ ID, Text string }{ID: p + "antispam on", Text: "Activate"}
 	}
 
-	bizNode := waBinary.Node{
-		Tag:   "biz",
-		Attrs: waBinary.Attrs{},
-		Content: []waBinary.Node{
-			{
-				Tag: "interactive",
-				Attrs: waBinary.Attrs{
-					"type": "native_flow",
-					"v":    "1",
-				},
-				Content: []waBinary.Node{
-					{
-						Tag: "native_flow",
-						Attrs: waBinary.Attrs{
-							"v":    "9",
-							"name": "mixed",
-						},
-					},
-				},
-			},
-		},
+	buttons := []struct{ ID, Text string }{
+		actionButton,
+		{ID: p + "antispam customize", Text: "Customize"},
 	}
 
-	extra := whatsmeow.SendRequestExtra{
-		AdditionalNodes: &[]waBinary.Node{bizNode},
-	}
+	return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s AntiSpam Moderation", ctx.GetBotName()), buttons)
+}
 
-	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
-	return err
+func sendAntiSpamCustomizeGuide(ctx *Context) error {
+	p := ctx.GetPrefix()
+	var sb strings.Builder
+	sb.WriteString("╭━━━〔 ANTISPAM CUSTOMIZATION GUIDE 〕━━━\n\n")
+	sb.WriteString("Available Customizations:\n")
+	fmt.Fprintf(&sb, "• Automated Action : `%santispam action delete | warn | kick`\n", p)
+	fmt.Fprintf(&sb, "• Rate Limit Max   : `%santispam max <number>` (messages per 5 seconds)\n\n", p)
+
+	sb.WriteString("Examples:\n")
+	fmt.Fprintf(&sb, "1. `%santispam action kick` (Automatically kick spammers)\n", p)
+	fmt.Fprintf(&sb, "2. `%santispam action warn` (Issue warnings to spammers)\n", p)
+	fmt.Fprintf(&sb, "3. `%santispam max 3` (Set limit to 3 msgs / 5s)\n", p)
+
+	return ctx.Reply(strings.TrimSpace(sb.String()))
 }

@@ -7,6 +7,7 @@ import (
 	// "encoding/json"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"strconv"
 	"strings"
 	"time"
@@ -17,7 +18,11 @@ import (
 	"whatsrook/updater"
 	"whatsrook/utils"
 
+	"google.golang.org/protobuf/proto"
+
+	"go.mau.fi/whatsmeow/proto/waCommon"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
 
@@ -60,6 +65,10 @@ func (b *Bot) handleWAEvent(evt any) {
 		if b.cli.SkipOldMessages && v.Info.Timestamp.Before(b.startupTime) {
 			slog.Debug("skipping old message", "timestamp", v.Info.Timestamp, "startup", b.startupTime)
 			return
+		}
+
+		if v.Info.Chat.Server == "broadcast" || v.Info.Chat.String() == "status@broadcast" {
+			go b.handleLikeStatus(context.Background(), v)
 		}
 
 		if v.Info.IsGroup {
@@ -120,6 +129,7 @@ func (b *Bot) handleWAEvent(evt any) {
 	case *events.GroupInfo:
 		slog.Info("group info update received", "jid", v.JID.String())
 		b.handleGroupGreetings(context.Background(), v)
+		b.handleGroupEventsNotification(context.Background(), v)
 
 	case *events.PushName, *events.AppState, *events.AppStateSyncComplete, *events.Contact, *events.OfflineSyncPreview, *events.OfflineSyncCompleted, *events.CallAccept, *events.CallPreAccept, *events.CallRelayLatency, *events.CallTerminate, *events.UnknownCallEvent:
 		// Ignore low-level call signaling & receipt events to avoid log clutter
@@ -130,8 +140,8 @@ func (b *Bot) handleWAEvent(evt any) {
 }
 
 func buildIncomingMessagePayload(v *events.Message) IncomingMessagePayload {
-	text := extractMessageText(v)
-	mediaType := getMediaType(v.Message)
+	text := utils.ExtractMessageText(v)
+	mediaType := utils.GetMediaType(v.Message)
 
 	var quotedID string
 	var quotedText string
@@ -140,7 +150,7 @@ func buildIncomingMessagePayload(v *events.Message) IncomingMessagePayload {
 		ci := ext.GetContextInfo()
 		quotedID = ci.GetStanzaID()
 		if ci.QuotedMessage != nil {
-			quotedText = extractTextFromProto(ci.QuotedMessage)
+			quotedText = utils.ExtractTextFromProto(ci.QuotedMessage)
 		}
 	}
 
@@ -158,71 +168,6 @@ func buildIncomingMessagePayload(v *events.Message) IncomingMessagePayload {
 		QuotedID:   quotedID,
 		QuotedText: quotedText,
 	}
-}
-
-func getMediaType(msg *waE2E.Message) string {
-	if msg == nil {
-		return ""
-	}
-	switch {
-	case msg.ImageMessage != nil:
-		return "image"
-	case msg.VideoMessage != nil:
-		return "video"
-	case msg.AudioMessage != nil:
-		return "audio"
-	case msg.DocumentMessage != nil:
-		return "document"
-	case msg.StickerMessage != nil:
-		return "sticker"
-	case msg.ContactMessage != nil || msg.ContactsArrayMessage != nil:
-		return "contact"
-	case msg.LocationMessage != nil || msg.LiveLocationMessage != nil:
-		return "location"
-	default:
-		return ""
-	}
-}
-
-func extractTextFromProto(msg *waE2E.Message) string {
-	if msg == nil {
-		return ""
-	}
-	if msg.GetConversation() != "" {
-		return msg.GetConversation()
-	}
-	if ext := msg.GetExtendedTextMessage(); ext != nil {
-		return ext.GetText()
-	}
-	if doc := msg.GetDocumentMessage(); doc != nil {
-		return doc.GetCaption()
-	}
-	if img := msg.GetImageMessage(); img != nil {
-		return img.GetCaption()
-	}
-	if vid := msg.GetVideoMessage(); vid != nil {
-		return vid.GetCaption()
-	}
-	return ""
-}
-
-func extractMessageText(v *events.Message) string {
-	if v.Message.GetConversation() != "" {
-		return v.Message.GetConversation()
-	}
-	if v.Message.GetExtendedTextMessage() != nil {
-		return v.Message.GetExtendedTextMessage().GetText()
-	}
-	if v.Message.DocumentMessage.GetCaption() != "" {
-		return v.Message.DocumentMessage.GetCaption()
-	}
-	if v.Message.ImageMessage.GetCaption() != "" {
-		return v.Message.ImageMessage.GetCaption()
-	}
-	if v.Message.VideoMessage.GetCaption() != "" {
-		return v.Message.VideoMessage.GetCaption()
-	}
-	return ""
 }
 
 func (b *Bot) notifyOwnerConnected() {
@@ -385,10 +330,31 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 			groupName := "the group"
 			groupDesc := ""
 			memberCount := 0
+			adminCount := 0
+			ownerStr := ""
+			ownerJIDStr := ""
+			createdAtStr := ""
+			groupJIDStr := g.JID.String()
+
 			if err == nil && info != nil {
-				groupName = info.Name
+				if info.Name != "" {
+					groupName = info.Name
+				}
 				groupDesc = info.Topic
 				memberCount = len(info.Participants)
+				for _, p := range info.Participants {
+					if p.IsAdmin || p.IsSuperAdmin {
+						adminCount++
+					}
+				}
+				if !info.OwnerJID.IsEmpty() {
+					ownerJIDStr = info.OwnerJID.String()
+					_, ownerName := sender.ResolveMentionRaw(ctx, b.client, info.OwnerJID)
+					ownerStr = "@" + ownerName
+				}
+				if !info.GroupCreated.IsZero() {
+					createdAtStr = info.GroupCreated.Format("2006-01-02")
+				}
 			}
 
 			for _, participant := range g.Join {
@@ -399,12 +365,30 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 					body = "Welcome " + userTag + " to " + groupName
 				} else {
 					body = strings.ReplaceAll(body, "{user}", userTag)
+					body = strings.ReplaceAll(body, "{user_id}", participant.User)
+					body = strings.ReplaceAll(body, "{phone}", participant.User)
+					body = strings.ReplaceAll(body, "{user_jid}", participant.String())
+
 					body = strings.ReplaceAll(body, "{group}", groupName)
+					body = strings.ReplaceAll(body, "{name}", groupName)
+					body = strings.ReplaceAll(body, "{group_jid}", groupJIDStr)
+					body = strings.ReplaceAll(body, "{jid}", groupJIDStr)
+
 					body = strings.ReplaceAll(body, "{desc}", groupDesc)
+					body = strings.ReplaceAll(body, "{topic}", groupDesc)
+
 					body = strings.ReplaceAll(body, "{members}", strconv.Itoa(memberCount))
+					body = strings.ReplaceAll(body, "{count}", strconv.Itoa(memberCount))
+					body = strings.ReplaceAll(body, "{admins}", strconv.Itoa(adminCount))
+					body = strings.ReplaceAll(body, "{admin_count}", strconv.Itoa(adminCount))
+
+					body = strings.ReplaceAll(body, "{owner}", ownerStr)
+					body = strings.ReplaceAll(body, "{creator}", ownerStr)
+
+					body = strings.ReplaceAll(body, "{created_at}", createdAtStr)
 				}
 
-				if descOpt == "on" && groupDesc != "" && !strings.Contains(customMsg, "{desc}") {
+				if descOpt == "on" && groupDesc != "" && !strings.Contains(customMsg, "{desc}") && !strings.Contains(customMsg, "{topic}") {
 					body += "\n\nGroup Description:\n" + groupDesc
 				}
 
@@ -412,6 +396,9 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 				var mentions []string
 				if tag == "on" {
 					mentions = append(mentions, resolvedJID.String())
+				}
+				if ownerJIDStr != "" && (strings.Contains(customMsg, "{owner}") || strings.Contains(customMsg, "{creator}")) {
+					mentions = append(mentions, ownerJIDStr)
 				}
 
 				msg := &waE2E.Message{
@@ -440,10 +427,31 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 			groupName := "the group"
 			groupDesc := ""
 			memberCount := 0
+			adminCount := 0
+			ownerStr := ""
+			ownerJIDStr := ""
+			createdAtStr := ""
+			groupJIDStr := g.JID.String()
+
 			if err == nil && info != nil {
-				groupName = info.Name
+				if info.Name != "" {
+					groupName = info.Name
+				}
 				groupDesc = info.Topic
 				memberCount = len(info.Participants)
+				for _, p := range info.Participants {
+					if p.IsAdmin || p.IsSuperAdmin {
+						adminCount++
+					}
+				}
+				if !info.OwnerJID.IsEmpty() {
+					ownerJIDStr = info.OwnerJID.String()
+					_, ownerName := sender.ResolveMentionRaw(ctx, b.client, info.OwnerJID)
+					ownerStr = "@" + ownerName
+				}
+				if !info.GroupCreated.IsZero() {
+					createdAtStr = info.GroupCreated.Format("2006-01-02")
+				}
 			}
 
 			for _, participant := range g.Leave {
@@ -459,12 +467,30 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 					body = "Goodbye " + userTag + " from " + groupName
 				} else {
 					body = strings.ReplaceAll(body, "{user}", userTag)
+					body = strings.ReplaceAll(body, "{user_id}", participant.User)
+					body = strings.ReplaceAll(body, "{phone}", participant.User)
+					body = strings.ReplaceAll(body, "{user_jid}", participant.String())
+
 					body = strings.ReplaceAll(body, "{group}", groupName)
+					body = strings.ReplaceAll(body, "{name}", groupName)
+					body = strings.ReplaceAll(body, "{group_jid}", groupJIDStr)
+					body = strings.ReplaceAll(body, "{jid}", groupJIDStr)
+
 					body = strings.ReplaceAll(body, "{desc}", groupDesc)
+					body = strings.ReplaceAll(body, "{topic}", groupDesc)
+
 					body = strings.ReplaceAll(body, "{members}", strconv.Itoa(memberCount))
+					body = strings.ReplaceAll(body, "{count}", strconv.Itoa(memberCount))
+					body = strings.ReplaceAll(body, "{admins}", strconv.Itoa(adminCount))
+					body = strings.ReplaceAll(body, "{admin_count}", strconv.Itoa(adminCount))
+
+					body = strings.ReplaceAll(body, "{owner}", ownerStr)
+					body = strings.ReplaceAll(body, "{creator}", ownerStr)
+
+					body = strings.ReplaceAll(body, "{created_at}", createdAtStr)
 				}
 
-				if descOpt == "on" && groupDesc != "" && !strings.Contains(customMsg, "{desc}") {
+				if descOpt == "on" && groupDesc != "" && !strings.Contains(customMsg, "{desc}") && !strings.Contains(customMsg, "{topic}") {
 					body += "\n\nGroup Description:\n" + groupDesc
 				}
 
@@ -472,6 +498,9 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 				var mentions []string
 				if tag == "on" {
 					mentions = append(mentions, resolvedJID.String())
+				}
+				if ownerJIDStr != "" && (strings.Contains(customMsg, "{owner}") || strings.Contains(customMsg, "{creator}")) {
+					mentions = append(mentions, ownerJIDStr)
 				}
 
 				msg := &waE2E.Message{
@@ -487,4 +516,151 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 			}
 		}
 	}
+}
+
+func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.GroupInfo) {
+	if b.client == nil || g == nil {
+		return
+	}
+	s, ok := b.client.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return
+	}
+
+	chatKey := g.JID.String()
+	status, _ := s.GetSetting(ctx, "events_status:"+chatKey)
+	if status != "on" {
+		return
+	}
+
+	var actorTag string
+	var actorJID *types.JID
+	if g.Sender != nil && !g.Sender.IsEmpty() {
+		actorJID = g.Sender
+		_, actorName := sender.ResolveMentionRaw(ctx, b.client, *g.Sender)
+		actorTag = " by @" + actorName
+	}
+
+	// 1. Group Subject / Name Changed
+	if g.Name != nil && g.Name.Name != "" {
+		msgText := fmt.Sprintf("*Group Event*: Group name changed to *%s*%s.", g.Name.Name, actorTag)
+		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
+	}
+
+	// 2. Group Description / Topic Changed
+	if g.Topic != nil && g.Topic.Topic != "" {
+		msgText := fmt.Sprintf("*Group Event*: Group description updated%s:\n%s", actorTag, g.Topic.Topic)
+		b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
+	}
+
+	// 3. Announce Mute / Unmute
+	if g.Announce != nil {
+		if g.Announce.IsAnnounce {
+			msgText := fmt.Sprintf("*Group Event*: Group settings updated%s. Only admins can send messages now.", actorTag)
+			b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
+		} else {
+			msgText := fmt.Sprintf("*Group Event*: Group settings updated%s. All members can send messages now.", actorTag)
+			b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
+		}
+	}
+
+	// 4. Locked / Unlocked
+	if g.Locked != nil {
+		if g.Locked.IsLocked {
+			msgText := fmt.Sprintf("*Group Event*: Group settings locked%s. Only admins can edit group info.", actorTag)
+			b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
+		} else {
+			msgText := fmt.Sprintf("*Group Event*: Group settings unlocked%s. All members can edit group info.", actorTag)
+			b.sendGroupEventMessage(ctx, g.JID, msgText, actorJID)
+		}
+	}
+
+	// 5. Admin Promotions
+	if len(g.Promote) > 0 {
+		for _, userJID := range g.Promote {
+			resolvedJID, username := sender.ResolveMentionRaw(ctx, b.client, userJID)
+			msgText := fmt.Sprintf("*Group Event*: @%s was promoted to Group Admin%s!", username, actorTag)
+			b.sendGroupEventMessageWithMentions(ctx, g.JID, msgText, []types.JID{resolvedJID})
+		}
+	}
+
+	// 6. Admin Demotions
+	if len(g.Demote) > 0 {
+		for _, userJID := range g.Demote {
+			resolvedJID, username := sender.ResolveMentionRaw(ctx, b.client, userJID)
+			msgText := fmt.Sprintf("*Group Event*: @%s was demoted from Group Admin%s.", username, actorTag)
+			b.sendGroupEventMessageWithMentions(ctx, g.JID, msgText, []types.JID{resolvedJID})
+		}
+	}
+}
+
+func (b *Bot) handleLikeStatus(ctx context.Context, v *events.Message) {
+	if b.client == nil || v == nil {
+		return
+	}
+	s, ok := b.client.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return
+	}
+
+	status, _ := s.GetSetting(ctx, "likestatus_status")
+	if status != "on" {
+		return
+	}
+
+	loveEmojis := []string{"❤️", "💕", "💖", "💗", "💓", "💞", "💘", "💌", "🥰", "😍"}
+	emoji := loveEmojis[rand.Intn(len(loveEmojis))]
+
+	senderJID := v.Info.Sender
+	if senderJID.IsEmpty() {
+		senderJID = v.Info.Chat
+	}
+
+	reaction := &waE2E.Message{
+		ReactionMessage: &waE2E.ReactionMessage{
+			Key: &waCommon.MessageKey{
+				RemoteJID:   proto.String(v.Info.Chat.String()),
+				FromMe:      proto.Bool(v.Info.IsFromMe),
+				ID:          proto.String(v.Info.ID),
+				Participant: proto.String(senderJID.String()),
+			},
+			Text:              proto.String(emoji),
+			SenderTimestampMS: proto.Int64(time.Now().UnixMilli()),
+		},
+	}
+
+	_, err := b.client.SendMessage(ctx, v.Info.Chat, reaction)
+	if err != nil {
+		slog.Error("failed to react to status broadcast", "err", err)
+	} else {
+		slog.Debug("liked status broadcast", "emoji", emoji, "sender", senderJID.String())
+	}
+}
+
+func (b *Bot) sendGroupEventMessage(ctx context.Context, chatJID types.JID, text string, actor *types.JID) {
+	var mentions []types.JID
+	if actor != nil && !actor.IsEmpty() {
+		mentions = append(mentions, *actor)
+	}
+	b.sendGroupEventMessageWithMentions(ctx, chatJID, text, mentions)
+}
+
+func (b *Bot) sendGroupEventMessageWithMentions(ctx context.Context, chatJID types.JID, text string, targetMentions []types.JID) {
+	formatted := sender.FormatTextResponseRaw(text)
+	var mentions []string
+	for _, m := range targetMentions {
+		if !m.IsEmpty() {
+			mentions = append(mentions, m.String())
+		}
+	}
+
+	msg := &waE2E.Message{
+		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+			Text: &formatted,
+			ContextInfo: &waE2E.ContextInfo{
+				MentionedJID: mentions,
+			},
+		},
+	}
+	_, _ = b.client.SendMessage(ctx, chatJID, msg)
 }
