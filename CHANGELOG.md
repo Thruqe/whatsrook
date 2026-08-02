@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Multi-Service Media Downloader (`downloader/`, `plugins/downloader.go`):
+  - Created package `downloader` with extractors for Facebook, Instagram, Twitter/X, TikTok, Snapchat, Reddit, Pinterest, and SoundCloud inspired by Cobalt engine patterns.
+  - Implemented `.dl`, `.facebook` (`.fb`), `.instagram` (`.ig`), `.twitter` (`.x`/`.twt`), `.tiktok` (`.tt`), `.snapchat` (`.snap`), `.reddit` (`.rd`), `.pinterest` (`.pin`), and `.soundcloud` (`.sc`) commands.
+
 - Security Fix for Archive Extraction (`updater/updater.go`):
   - Fixed a Zip/Tar Slip vulnerability during release archive extraction by enforcing strict path sanitization (`filepath.Clean`) and verifying extracted file paths remain strictly inside the destination directory.
 
