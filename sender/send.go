@@ -8,8 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-
-	"go.mau.fi/whatsmeow/types"
 )
 
 func transcodeVideo(ctx context.Context, inputData []byte) ([]byte, error) {
@@ -86,9 +84,4 @@ func transcodeAudio(ctx context.Context, inputData []byte) ([]byte, error) {
 
 	slog.Debug("transcodeAudio: completed", "orig_size", len(inputData), "new_size", len(convertedData))
 	return convertedData, nil
-}
-
-// Dummy type to avoid compiler errors if referenced elsewhere
-type MediaContext struct {
-	Chat types.JID
 }

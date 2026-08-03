@@ -160,7 +160,10 @@ func main() {
 // can wipe + retry, or nil on clean shutdown.
 func runSession(ctx context.Context, cli Arguments, sessionDir, dbPath, waLevel string, hub *Hub) error {
 	dbLog := logger.WhatsmeowStyle("Database", waLevel, true)
-	container, err := sqlstore.New(ctx, "sqlite", fmt.Sprintf("file:%s?_foreign_keys=on&_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=5000&_pragma=cache_size(-2000)", dbPath), dbLog)
+	container, err := sqlstore.New(ctx, "sqlite", fmt.Sprintf(
+		"file:%s?_pragma=busy_timeout=5000&_pragma=journal_mode=WAL&_pragma=synchronous=NORMAL&_pragma=foreign_keys=on&_pragma=cache_size=-2000",
+		dbPath,
+	), dbLog)
 	if err != nil {
 		return fmt.Errorf("failed to open db: %w", err)
 	}

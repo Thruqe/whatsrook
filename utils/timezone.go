@@ -17,9 +17,9 @@ type WindowsTZEntry struct {
 }
 
 var (
-	tzEntries     []WindowsTZEntry
-	tzLoadOnce    sync.Once
-	tzAliasIndex  map[string]string // lowercased alias -> canonical IANA name
+	tzEntries    []WindowsTZEntry
+	tzLoadOnce   sync.Once
+	tzAliasIndex map[string]string // lowercased alias -> canonical IANA name
 )
 
 //go:embed resources/timezones/timezones.json

@@ -79,8 +79,9 @@ func New(ctx context.Context, dialect, address string, log waLog.Logger) (*Conta
 //	err := container.Upgrade()
 func NewWithDB(db *sql.DB, dialect string, log waLog.Logger) *Container {
 	if dialect == "sqlite3" || dialect == "sqlite" {
-		db.SetMaxOpenConns(1)
-		db.SetMaxIdleConns(1)
+		db.SetMaxOpenConns(16) // or higher, WAL supports concurrent readers + 1 writer
+		db.SetMaxIdleConns(16)
+		db.SetConnMaxLifetime(0) // no forced recycling
 	}
 	wrapped, err := dbutil.NewWithDB(db, dialect)
 	if err != nil {
