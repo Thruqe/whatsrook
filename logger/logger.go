@@ -1,6 +1,3 @@
-// Initialisation of slog and zerolog loggers with configurable verbosity,
-// plus a waLog.Logger-compatible adapter that mirrors whatsmeow's own
-// stdout formatting while also writing to debug.log.
 package logger
 
 import (
@@ -9,80 +6,67 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/rs/zerolog"
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-// LogFile is the open file handle for debug.log, used as an error-only log sink.
-var LogFile *os.File
+var levelFiles = make(map[string]*os.File)
 
-type errorLevelWriter struct {
-	w io.Writer
-}
-
-func (e *errorLevelWriter) Write(p []byte) (int, error) {
-	if LogFile == nil {
-		return len(p), nil
+// InitLogger initializes logging for the specified session directory, routing each
+// log level into its own level.log file inside sessionDir/logs/
+func InitLogger(sessionDir string, verbose bool) error {
+	logDir := filepath.Join(sessionDir, "logs")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return fmt.Errorf("failed to create logs directory: %w", err)
 	}
-	return e.w.Write(p)
-}
 
-func (e *errorLevelWriter) WriteLevel(level zerolog.Level, p []byte) (int, error) {
-	if level >= zerolog.ErrorLevel && LogFile != nil {
-		return e.w.Write(p)
+	levels := []string{"debug", "info", "warn", "error"}
+	for _, lvl := range levels {
+		f, err := os.OpenFile(filepath.Join(logDir, lvl+".log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			Close()
+			return err
+		}
+		levelFiles[lvl] = f
 	}
-	return len(p), nil
-}
 
-// InitLogger initializes both slog and zerolog loggers to write to stdout,
-// while restricting "debug.log" to error-level logs only.
-func InitLogger(verbose bool) error {
-	logLevel := slog.LevelInfo
-	zerologLevel := zerolog.InfoLevel
-
+	minLevel := slog.LevelInfo
 	if verbose {
-		logLevel = slog.LevelDebug
-		zerologLevel = zerolog.DebugLevel
+		minLevel = slog.LevelDebug
 	}
 
-	// Open or create the debug.log file
-	var err error
-	LogFile, err = os.OpenFile("debug.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		return err
-	}
-
-	// Configure slog with the whatsmeow-style handler writing to stdout (errors also mirror to debug.log)
-	slog.SetDefault(slog.New(newWMSlogHandler(os.Stdout, logLevel, "App", true)))
-
-	// Configure zerolog: stdout gets all logs per zerologLevel, debug.log gets only ErrorLevel+
-	zerolog.SetGlobalLevel(zerologLevel)
-	zerologWriter := zerolog.MultiLevelWriter(os.Stdout, &errorLevelWriter{w: LogFile})
-	zLogger := zerolog.New(zerologWriter).With().Timestamp().Logger()
-	zerolog.DefaultContextLogger = &zLogger
-
+	slog.SetDefault(slog.New(newWMSlogHandler(os.Stdout, minLevel, "App", true)))
 	return nil
 }
 
-// Close closes the open log file
+// Close closes all open per-level log files.
 func Close() {
-	if LogFile != nil {
-		_ = LogFile.Close()
+	for lvl, f := range levelFiles {
+		if f != nil {
+			_ = f.Close()
+		}
+		delete(levelFiles, lvl)
+	}
+}
+
+func writeToLevelLog(level, line string) {
+	if f, ok := levelFiles[strings.ToLower(level)]; ok && f != nil {
+		_, _ = fmt.Fprint(f, line)
 	}
 }
 
 // ─────────────────────────────────────────────────────────────
-// whatsmeow-style formatting shared by both slog and waLog paths
+// whatsmeow-style formatting
 // ─────────────────────────────────────────────────────────────
 
 var wmColors = map[string]string{
-	"DEBUG": "\033[90m", // gray
-	"INFO":  "\033[34m", // blue
-	"WARN":  "\033[33m", // yellow
-	"ERROR": "\033[31m", // red
+	"DEBUG": "\033[90m",
+	"INFO":  "\033[34m",
+	"WARN":  "\033[33m",
+	"ERROR": "\033[31m",
 }
 
 var wmLevelToInt = map[string]int{
@@ -104,12 +88,9 @@ func wmFormat(mod, level, msg string, color bool) string {
 }
 
 // ─────────────────────────────────────────────────────────────
-// waLog.Logger adapter (used for whatsmeow's Database/Client loggers)
+// waLog.Logger adapter
 // ─────────────────────────────────────────────────────────────
 
-// WhatsmeowStyle returns a waLog.Logger-compatible logger that reproduces
-// whatsmeow's own Stdout() formatting (timestamp, "[mod LEVEL]" bracket,
-// ANSI colors), writing all logs to stdout and errors to debug.log.
 func WhatsmeowStyle(module string, minLevel string, color bool) *wmLogger {
 	return &wmLogger{
 		mod:   module,
@@ -129,11 +110,8 @@ func (w *wmLogger) outputf(level, msg string, args ...any) {
 		return
 	}
 	line := wmFormat(w.mod, level, fmt.Sprintf(msg, args...), w.color)
-
 	fmt.Fprint(os.Stdout, line)
-	if strings.ToUpper(level) == "ERROR" && LogFile != nil {
-		fmt.Fprint(LogFile, line)
-	}
+	writeToLevelLog(level, line)
 }
 
 func (w *wmLogger) Errorf(msg string, args ...any) { w.outputf("ERROR", msg, args...) }
@@ -146,11 +124,9 @@ func (w *wmLogger) Sub(mod string) waLog.Logger {
 }
 
 // ─────────────────────────────────────────────────────────────
-// slog.Handler adapter (used for your own app's slog.Info/Debug/etc calls)
+// slog.Handler adapter
 // ─────────────────────────────────────────────────────────────
 
-// wmSlogHandler implements slog.Handler using the same bracketed,
-// colorized whatsmeow-style format as wmLogger.
 type wmSlogHandler struct {
 	w     io.Writer
 	level slog.Level
@@ -181,10 +157,7 @@ func (h *wmSlogHandler) Handle(_ context.Context, r slog.Record) error {
 
 	line := wmFormat(h.mod, levelStr, msg, h.color)
 	_, err := fmt.Fprint(h.w, line)
-
-	if r.Level >= slog.LevelError && LogFile != nil {
-		fmt.Fprint(LogFile, line)
-	}
+	writeToLevelLog(levelStr, line)
 
 	return err
 }
@@ -194,7 +167,7 @@ func (h *wmSlogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 }
 
 func (h *wmSlogHandler) WithGroup(_ string) slog.Handler {
-	return h // groups not supported; flatten
+	return h
 }
 
 func slogLevelToWM(l slog.Level) string {

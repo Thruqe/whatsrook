@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -21,20 +20,20 @@ import (
 	"whatsrook/updater"
 	"whatsrook/utils"
 
-	_ "github.com/mattn/go-sqlite3"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
+	_ "modernc.org/sqlite"
 )
 
-// initateClient executes the WhatsRook lifecycle.
-func initateClient() {
+// main executes the WhatsRook lifecycle.
+func main() {
 	cli := parseArgs()
 
 	if cli.Update {
 		fmt.Println("Checking for application update...")
 		res, err := updater.PerformUpdate(false)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Update failed: %v\n", err)
+			slog.Error("update failed", "err", err)
 			os.Exit(1)
 		}
 
@@ -42,29 +41,26 @@ func initateClient() {
 		if res.Updated {
 			fmt.Println("Restarting process...")
 			if err := updater.RestartProcess(); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to restart process: %v\n", err)
+				slog.Error("failed to restart process", "err", err)
 				os.Exit(1)
 			}
 		}
 		return
 	}
 
-	if err := logger.InitLogger(cli.Verbose); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
+	sessionDir := filepath.Join("auth", cli.Session)
+	if err := os.MkdirAll(sessionDir, 0755); err != nil {
+		slog.Error("failed to create session dir", "path", sessionDir, "err", err)
+		os.Exit(1)
+	}
+
+	if err := logger.InitLogger(sessionDir, cli.Verbose); err != nil {
+		slog.Error("failed to initialize logger", "err", err)
 		os.Exit(1)
 	}
 	defer logger.Close()
 
-	if cli.Dev {
-		slog.Warn("dev mode enabled — WebSocket CORS origin check disabled")
-	}
-
-	if err := os.MkdirAll(cli.AuthDir, 0755); err != nil {
-		slog.Error("failed to create auth dir", "err", err)
-		os.Exit(1)
-	}
-
-	dbPath := filepath.Join(cli.AuthDir, cli.Session+".db")
+	dbPath := filepath.Join(sessionDir, cli.Session+".db")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -77,7 +73,7 @@ func initateClient() {
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sigCh
-		fmt.Println("\nShutting down...")
+		slog.Info("shutting down process")
 		cancel()
 	}()
 
@@ -89,13 +85,9 @@ func initateClient() {
 	// WebSocket hub + HTTP server (shared across retries).
 	hub := newHub()
 	mux := http.NewServeMux()
-	mux.HandleFunc("/ws", hub.ServeWS(cli.Dev))
+	mux.HandleFunc("/ws", hub.ServeWS(false))
 
-	startPort, _ := strconv.Atoi(cli.Port)
-	if startPort <= 0 {
-		startPort = 3000
-	}
-
+	startPort := 3000
 	var listener net.Listener
 	var actualPort int
 	for p := startPort; p < startPort+100; p++ {
@@ -116,8 +108,7 @@ func initateClient() {
 	}
 
 	if actualPort != startPort {
-		fmt.Printf("⚠️ Port %d was in use — switched to port %d\n", startPort, actualPort)
-		slog.Info("switched to alternative port", "original_port", startPort, "new_port", actualPort)
+		slog.Warn("port in use — switched to alternative port", "original_port", startPort, "new_port", actualPort)
 	}
 
 	server := &http.Server{
@@ -131,7 +122,7 @@ func initateClient() {
 	}()
 
 	for {
-		err := runSession(ctx, cli, dbPath, waLevel, hub)
+		err := runSession(ctx, cli, sessionDir, dbPath, waLevel, hub)
 
 		// Clean shutdown or context cancelled — exit normally.
 		if err == nil || errors.Is(err, context.Canceled) {
@@ -140,13 +131,10 @@ func initateClient() {
 
 		// Pairing stalled (malformed WA notification). Wipe the session and retry.
 		if errors.Is(err, ErrPairTimeout) {
-			fmt.Println()
-			fmt.Println("┌─────────────────────────────────────────────────────────┐")
-			fmt.Println("│    Pairing timed out — WhatsApp sent a bad response.    │")
-			fmt.Println("│  The session will be cleared and a new code generated.  │")
-			fmt.Println("└─────────────────────────────────────────────────────────┘")
+			slog.Error("session error", "err", "Pairing timed out — WhatsApp sent a bad response.")
+			slog.Warn("session action", "warn", "The session directory will be cleared and a new code generated.")
 
-			wipeSessionFiles(dbPath)
+			wipeSession(sessionDir)
 
 			for i := 10; i > 0; i-- {
 				fmt.Printf("\r  Retrying in %2ds…", i)
@@ -170,9 +158,9 @@ func initateClient() {
 // runSession opens the DB, creates a whatsmeow client, handles --logout, then
 // runs the bot. It returns ErrPairTimeout when --pair stalls so the caller
 // can wipe + retry, or nil on clean shutdown.
-func runSession(ctx context.Context, cli CliArgs, dbPath, waLevel string, hub *Hub) error {
+func runSession(ctx context.Context, cli Arguments, sessionDir, dbPath, waLevel string, hub *Hub) error {
 	dbLog := logger.WhatsmeowStyle("Database", waLevel, true)
-	container, err := sqlstore.New(ctx, "sqlite3", fmt.Sprintf("file:%s?_foreign_keys=on&_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=5000&_pragma=cache_size(-2000)", dbPath), dbLog)
+	container, err := sqlstore.New(ctx, "sqlite", fmt.Sprintf("file:%s?_foreign_keys=on&_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=5000&_pragma=cache_size(-2000)", dbPath), dbLog)
 	if err != nil {
 		return fmt.Errorf("failed to open db: %w", err)
 	}
@@ -193,9 +181,9 @@ func runSession(ctx context.Context, cli CliArgs, dbPath, waLevel string, hub *H
 	// Initialize meowcaller before connecting whatsmeow so raw call adapter hook is installed
 	commands.RegisterMeowCaller(client)
 
-	// ── Logout flow
+	// ── Logout
 	if cli.Logout {
-		fmt.Printf("Logging out session: %s\n", cli.Session)
+		slog.Info("logging out session", "session", cli.Session)
 
 		if deviceStore.ID == nil {
 			slog.Info("session was never paired, skipping server logout")
@@ -229,11 +217,10 @@ func runSession(ctx context.Context, cli CliArgs, dbPath, waLevel string, hub *H
 			}
 		}
 
-		// Close DB explicitly before file deletion (defer would also do it, but
-		// we want the files truly released before os.Remove).
+		// Close DB explicitly before file deletion
 		_ = container.Close()
-		wipeSessionFiles(dbPath)
-		fmt.Println("Session cleared.")
+		wipeSession(sessionDir)
+		slog.Info("session directory cleared successfully", "session", cli.Session)
 		return nil
 	}
 
@@ -242,12 +229,14 @@ func runSession(ctx context.Context, cli CliArgs, dbPath, waLevel string, hub *H
 	return bot.run(ctx)
 }
 
-// wipeSessionFiles removes the SQLite database and its WAL/SHM sidecar files.
-func wipeSessionFiles(dbPath string) {
-	for _, suffix := range []string{"", "-shm", "-wal"} {
-		path := dbPath + suffix
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "Failed to remove %s: %v\n", path, err)
-		}
+// wipeSession removes the session folder and all contained database/cache files.
+func wipeSession(sessionDir string) {
+	if err := os.RemoveAll(sessionDir); err != nil && !os.IsNotExist(err) {
+		slog.Error("failed to remove session directory", "path", sessionDir, "err", err)
+		return
+	}
+	// Recreate empty folder so future writes in the same run don't fail
+	if err := os.MkdirAll(sessionDir, 0755); err != nil {
+		slog.Error("failed to recreate session directory", "path", sessionDir, "err", err)
 	}
 }

@@ -16,7 +16,22 @@ require (
 	google.golang.org/protobuf v1.36.11
 )
 
-require github.com/Thruqe/htmlbuilder v1.0.0
+require (
+	github.com/Thruqe/htmlbuilder v1.0.0
+	github.com/nonibytes/ffgo v0.0.0-00010101000000-000000000000
+	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
+	modernc.org/sqlite v1.55.0
+)
+
+require (
+	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/ebitengine/purego v0.9.1 // indirect
+	github.com/ncruces/go-strftime v1.0.0 // indirect
+	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
+	modernc.org/libc v1.74.1 // indirect
+	modernc.org/mathutil v1.7.1 // indirect
+	modernc.org/memory v1.11.0 // indirect
+)
 
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect
@@ -42,3 +57,5 @@ require (
 	golang.org/x/term v0.45.0
 	golang.org/x/text v0.40.0
 )
+
+replace github.com/nonibytes/ffgo => github.com/obinnaokechukwu/ffgo v0.1.1

@@ -10,18 +10,18 @@ import (
 	"go.mau.fi/whatsmeow/types"
 )
 
-func (b *Bot) handleControl(ctx context.Context, ctrl ControlMessage) EventMessage {
+func (b *Bot) Controller(ctx context.Context, ctrl ControlMessage) EventMessage {
 	switch ctrl.Kind {
 	case ControlSendMessage:
-		return b.handleSendMessage(ctx, ctrl)
+		return b.CSendMessage(ctx, ctrl)
 	case ControlSendReaction:
-		return b.handleSendReaction(ctx, ctrl)
+		return b.CSendReaction(ctx, ctrl)
 	case ControlEditMessage:
-		return b.handleEditMessage(ctx, ctrl)
+		return b.CEditMessage(ctx, ctrl)
 	case ControlRevokeMessage:
-		return b.handleRevokeMessage(ctx, ctrl)
+		return b.CRevokeMessage(ctx, ctrl)
 	case ControlGetStatus:
-		return b.handleGetStatus(ctrl)
+		return b.CGetStatus(ctrl)
 	case ControlDisconnect:
 		slog.Info("disconnect requested")
 		b.client.Disconnect()
@@ -34,16 +34,16 @@ func (b *Bot) handleControl(ctx context.Context, ctrl ControlMessage) EventMessa
 		}
 		return ackEvent(ctrl.ID, true, "")
 	case ControlRequestPairCode:
-		return b.handleRequestPairCode(ctx, ctrl)
+		return b.CRequestPairCode(ctx, ctrl)
 	case ControlRequestPairQR:
-		return b.handleRequestPairQR(ctx, ctrl)
+		return b.CRequestPairQR(ctx, ctrl)
 	default:
 		slog.Warn("unknown control type", "kind", ctrl.Kind)
 		return ackEvent(ctrl.ID, false, "unknown control type")
 	}
 }
 
-func (b *Bot) handleSendMessage(ctx context.Context, ctrl ControlMessage) EventMessage {
+func (b *Bot) CSendMessage(ctx context.Context, ctrl ControlMessage) EventMessage {
 	var p SendMessagePayload
 	if err := json.Unmarshal(ctrl.Payload, &p); err != nil {
 		slog.Warn("bad send_message payload", "err", err)
@@ -77,7 +77,7 @@ func (b *Bot) handleSendMessage(ctx context.Context, ctrl ControlMessage) EventM
 	return ackEvent(ctrl.ID, true, "")
 }
 
-func (b *Bot) handleSendReaction(ctx context.Context, ctrl ControlMessage) EventMessage {
+func (b *Bot) CSendReaction(ctx context.Context, ctrl ControlMessage) EventMessage {
 	var p SendReactionPayload
 	if err := json.Unmarshal(ctrl.Payload, &p); err != nil {
 		slog.Warn("bad send_reaction payload", "err", err)
@@ -104,7 +104,7 @@ func (b *Bot) handleSendReaction(ctx context.Context, ctrl ControlMessage) Event
 	return ackEvent(ctrl.ID, true, "")
 }
 
-func (b *Bot) handleEditMessage(ctx context.Context, ctrl ControlMessage) EventMessage {
+func (b *Bot) CEditMessage(ctx context.Context, ctrl ControlMessage) EventMessage {
 	var p EditMessagePayload
 	if err := json.Unmarshal(ctrl.Payload, &p); err != nil {
 		slog.Warn("bad edit_message payload", "err", err)
@@ -125,7 +125,7 @@ func (b *Bot) handleEditMessage(ctx context.Context, ctrl ControlMessage) EventM
 	return ackEvent(ctrl.ID, true, "")
 }
 
-func (b *Bot) handleRevokeMessage(ctx context.Context, ctrl ControlMessage) EventMessage {
+func (b *Bot) CRevokeMessage(ctx context.Context, ctrl ControlMessage) EventMessage {
 	var p RevokeMessagePayload
 	if err := json.Unmarshal(ctrl.Payload, &p); err != nil {
 		slog.Warn("bad revoke_message payload", "err", err)
@@ -150,7 +150,7 @@ func (b *Bot) handleRevokeMessage(ctx context.Context, ctrl ControlMessage) Even
 	return ackEvent(ctrl.ID, true, "")
 }
 
-func (b *Bot) handleGetStatus(ctrl ControlMessage) EventMessage {
+func (b *Bot) CGetStatus(ctrl ControlMessage) EventMessage {
 	connected := b.client.IsConnected()
 	loggedIn := b.client.IsLoggedIn()
 	var jidStr *string
@@ -178,7 +178,7 @@ func (b *Bot) handleGetStatus(ctrl ControlMessage) EventMessage {
 	}
 }
 
-func (b *Bot) handleRequestPairCode(ctx context.Context, ctrl ControlMessage) EventMessage {
+func (b *Bot) CRequestPairCode(ctx context.Context, ctrl ControlMessage) EventMessage {
 	var p RequestPairCodePayload
 	if len(ctrl.Payload) > 0 {
 		_ = json.Unmarshal(ctrl.Payload, &p)
@@ -207,7 +207,7 @@ func (b *Bot) handleRequestPairCode(ctx context.Context, ctrl ControlMessage) Ev
 	return ackEvent(ctrl.ID, true, "")
 }
 
-func (b *Bot) handleRequestPairQR(ctx context.Context, ctrl ControlMessage) EventMessage {
+func (b *Bot) CRequestPairQR(ctx context.Context, ctrl ControlMessage) EventMessage {
 	go func() {
 		if err := b.runQR(ctx); err != nil {
 			slog.Error("requested pair QR failed", "err", err)

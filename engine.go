@@ -26,13 +26,13 @@ var ErrPairTimeout = errors.New("pairing timed out")
 type Bot struct {
 	client      *whatsmeow.Client
 	hub         *Hub
-	cli         CliArgs
+	cli         Arguments
 	startupTime time.Time
 }
 
 // newBot initializes and returns a new Bot instance with the provided whatsmeow Client,
 // central Hub, and command-line execution parameters.
-func newBot(client *whatsmeow.Client, hub *Hub, cli CliArgs) *Bot {
+func newBot(client *whatsmeow.Client, hub *Hub, cli Arguments) *Bot {
 	return &Bot{client: client, hub: hub, cli: cli, startupTime: time.Now()}
 }
 
@@ -78,7 +78,7 @@ func (b *Bot) run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case ctrl := <-b.hub.Control:
-			ack := b.handleControl(ctx, ctrl)
+			ack := b.Controller(ctx, ctrl)
 			b.hub.Broadcast(ack)
 		}
 	}

@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- project structure adjustments
 - fix
 - Panel Pair Code Display Fix (`connection.go`, `scripts/panel.zip`):
   - Fixed `slog.Info` formatting string in `connection.go` (`fmt.Sprintf("PAIR CODE: %s", code)`).
