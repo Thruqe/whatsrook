@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"whatsrook/store/sqlstore"
+	"whatsrook/utils"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
@@ -292,9 +293,20 @@ func handleTimezone(ctx *Context) error {
 
 	if len(ctx.Args) >= 2 && strings.ToLower(ctx.Args[0]) == "set" {
 		tzName := ctx.Args[1]
-		if _, err := time.LoadLocation(tzName); err != nil {
-			return ctx.Reply(fmt.Sprintf("Invalid timezone: %q. Please select a valid IANA timezone.", tzName))
+		if decoded, err := url.QueryUnescape(tzName); err == nil {
+			tzName = decoded
 		}
+
+		// Try direct IANA load first
+		if _, err := time.LoadLocation(tzName); err != nil {
+			// Fall back to Windows-name/abbreviation alias resolution
+			if resolved, ok := utils.ResolveTimezoneAlias(tzName); ok {
+				tzName = resolved
+			} else {
+				return ctx.Reply(fmt.Sprintf("Invalid timezone: %q. Please select a valid IANA timezone, Windows timezone name, or abbreviation.", tzName))
+			}
+		}
+
 		err := s.PutSetting(ctx.Ctx, "timezone", tzName)
 		if err != nil {
 			return ctx.Reply("Failed to save timezone setting.")
@@ -368,7 +380,7 @@ func renderTimezonePage(ctx *Context, s *sqlstore.SQLStore, page int) error {
 			btnText = btnText[:20]
 		}
 		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   fmt.Sprintf("%stimezone set %s", p, url.QueryEscape(tz)),
+			ID:   fmt.Sprintf("%stimezone set %s", p, tz),
 			Text: btnText,
 		})
 	}
