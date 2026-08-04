@@ -1,4 +1,3 @@
-// Downloader commands – Facebook, Instagram, Twitter/X, TikTok, Snapchat, Reddit, Pinterest, SoundCloud, Threads, Bluesky, VK, Tumblr, and Twitch media downloaders.
 package commands
 
 import (
@@ -6,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,6 +16,8 @@ import (
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types/events"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 var (
@@ -68,6 +70,14 @@ func init() {
 		Category:    "downloader",
 		IsPublic:    true,
 		Handler:     handleDownload,
+	})
+	Register(&Command{
+		Name:        "igstory",
+		Aliases:     []string{"igs", "story"},
+		Description: "Download public Instagram stories by username or URL",
+		Category:    "downloader",
+		IsPublic:    true,
+		Handler:     handleIGStory,
 	})
 	Register(&Command{
 		Name:        "twitter",
@@ -188,22 +198,9 @@ func HandlePendingDLReply(ctx context.Context, client *whatsmeow.Client, evt *ev
 		return false
 	}
 
-	// Remove pending prompt
 	dlPromptsMu.Lock()
 	delete(pendingDLPrompts, key)
 	dlPromptsMu.Unlock()
-
-	if err := downloader.ValidateURL(targetURL); err != nil {
-		fakeCtx := &Context{
-			Ctx:    ctx,
-			Client: client,
-			Chat:   evt.Info.Chat,
-			Sender: evt.Info.Sender,
-			Evt:    evt,
-		}
-		_ = fakeCtx.Reply(fmt.Sprintf("Invalid URL for %s: %v. Please provide a valid link.", serviceName, err))
-		return true
-	}
 
 	fakeCtx := &Context{
 		Ctx:     ctx,
@@ -212,6 +209,11 @@ func HandlePendingDLReply(ctx context.Context, client *whatsmeow.Client, evt *ev
 		Sender:  evt.Info.Sender,
 		Evt:     evt,
 		RawArgs: targetURL,
+	}
+
+	if err := downloader.ValidateURL(targetURL); err != nil {
+		_ = fakeCtx.Reply(fmt.Sprintf("Invalid URL for %s: %v. Please provide a valid link.", serviceName, err))
+		return true
 	}
 
 	_ = executeDownload(fakeCtx, targetURL)
@@ -231,7 +233,7 @@ func handleDownload(ctx *Context) error {
 		}
 
 		if sub == "prompt" && len(args) > 1 {
-			targetService := strings.Title(args[1])
+			targetService := cases.Title(language.English).String(args[1])
 			key := fmt.Sprintf("%s:%s", ctx.Chat.String(), ctx.Sender.String())
 			dlPromptsMu.Lock()
 			pendingDLPrompts[key] = targetService
@@ -257,7 +259,6 @@ func handleDownload(ctx *Context) error {
 		return sendDLMenuPage(ctx, 1)
 	}
 
-	// Validate URL
 	if err := downloader.ValidateURL(targetURL); err != nil {
 		return ctx.Reply(fmt.Sprintf("Invalid URL: %v. Please provide a valid HTTP/HTTPS social media link.", err))
 	}
@@ -301,17 +302,16 @@ func sendDLMenuPage(ctx *Context, pageNum int) error {
 		})
 	}
 
-	// Navigation buttons
 	if pageNum > 1 {
 		buttons = append(buttons, struct{ ID, Text string }{
 			ID:   fmt.Sprintf("%sdl page %d", p, pageNum-1),
-			Text: "◀️ Prev",
+			Text: "Previous Page",
 		})
 	}
 	if pageNum < totalPages {
 		buttons = append(buttons, struct{ ID, Text string }{
 			ID:   fmt.Sprintf("%sdl page %d", p, pageNum+1),
-			Text: "Next ▶️",
+			Text: "Next Page",
 		})
 	}
 
@@ -331,26 +331,90 @@ func executeDownload(ctx *Context, targetURL string) error {
 		return ctx.Reply("No downloadable media items found.")
 	}
 
+	return dispatchMediaItems(ctx, res)
+}
+
+func handleIGStory(ctx *Context) error {
+	target := strings.TrimSpace(ctx.RawArgs)
+
+	if target == "" && ctx.Evt != nil && ctx.Evt.Message != nil {
+		quotedText := utils.GetDirectMessageText(ctx.Evt.Message)
+		if quotedText != "" {
+			target = strings.Fields(quotedText)[0]
+		}
+	}
+
+	if target == "" {
+		return ctx.Reply("Please provide an Instagram username or story URL. Usage: `.igstory <username|URL>`")
+	}
+
+	username := extractIGUsername(target)
+
+	loader := ctx.StartLoader(fmt.Sprintf("Fetching stories for @%s...", username))
+	defer loader.Delete()
+
+	res, err := downloader.DownloadInstagramStories(ctx.Ctx, username)
+	if err != nil {
+		return ctx.Reply("Failed to extract stories: " + err.Error())
+	}
+
+	if len(res.Items) == 0 {
+		return ctx.Reply(fmt.Sprintf("No active stories found for @%s.", username))
+	}
+
+	return dispatchMediaItems(ctx, res)
+}
+
+func extractIGUsername(input string) string {
+	input = strings.TrimSpace(input)
+	if strings.Contains(input, "instagram.com/stories/") {
+		parts := strings.Split(input, "instagram.com/stories/")
+		if len(parts) > 1 {
+			subParts := strings.Split(parts[1], "/")
+			return subParts[0]
+		}
+	} else if strings.Contains(input, "instagram.com/") {
+		parts := strings.Split(input, "instagram.com/")
+		if len(parts) > 1 {
+			subParts := strings.Split(parts[1], "/")
+			if subParts[0] != "p" && subParts[0] != "reel" && subParts[0] != "reels" {
+				return subParts[0]
+			}
+		}
+	}
+	return strings.TrimPrefix(input, "@")
+}
+
+func dispatchMediaItems(ctx *Context, res *downloader.Result) error {
 	httpClient := &http.Client{Timeout: 60 * time.Second}
 
 	for i, item := range res.Items {
-		if i >= 5 { // Limit max items per request to avoid flooding
+		if i >= 5 {
 			break
 		}
 
-		req, err := http.NewRequestWithContext(ctx.Ctx, http.MethodGet, item.URL, nil)
-		if err != nil {
-			continue
-		}
-		req.Header.Set("User-Agent", downloader.DefaultUserAgent)
+		var data []byte
+		var err error
 
-		resp, err := httpClient.Do(req)
-		if err != nil {
-			continue
-		}
+		// Check if item.URL is a network URL or a local file path from yt-dlp
+		if strings.HasPrefix(item.URL, "http://") || strings.HasPrefix(item.URL, "https://") {
+			req, reqErr := http.NewRequestWithContext(ctx.Ctx, http.MethodGet, item.URL, nil)
+			if reqErr != nil {
+				continue
+			}
+			req.Header.Set("User-Agent", downloader.DefaultUserAgent)
 
-		data, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+			resp, doErr := httpClient.Do(req)
+			if doErr != nil {
+				continue
+			}
+
+			data, err = io.ReadAll(resp.Body)
+			resp.Body.Close()
+		} else {
+			data, err = os.ReadFile(item.URL)
+			defer os.Remove(item.URL)
+		}
 
 		if err != nil || len(data) == 0 {
 			continue

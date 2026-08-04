@@ -4,333 +4,140 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
-	"regexp"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 )
 
-var (
-	igShortcodeRegex = regexp.MustCompile(`/(?:p|reel|reels|tv)/([^/?#]+)`)
-	igEmbedJSONRegex = regexp.MustCompile(`"init",\[\],\[(.*?)\]\],`)
-)
-
-type igEmbedData struct {
-	ContextJSON string `json:"contextJSON"`
+type ytDlpEntry struct {
+	ID       string `json:"id"`
+	Ext      string `json:"ext"`
+	VCodec   string `json:"vcodec"`
+	ACodec   string `json:"acodec"`
+	URL      string `json:"url"`
+	Filename string `json:"_filename"`
 }
 
-type igMediaNode struct {
-	DisplayURL string     `json:"display_url"`
-	VideoURL   string     `json:"video_url"`
-	IsVideo    bool       `json:"is_video"`
-	TypeName   string     `json:"__typename"`
-	Sidecar    *igSidecar `json:"edge_sidecar_to_children"`
+type ytDlpSingleJson struct {
+	ID       string       `json:"id"`
+	Title    string       `json:"title"`
+	Uploader string       `json:"uploader"`
+	Type     string       `json:"_type"` // "playlist" or "multi_video" for carousels
+	Entries  []ytDlpEntry `json:"entries"`
+	// Single media fields
+	Ext    string `json:"ext"`
+	VCodec string `json:"vcodec"`
+	ACodec string `json:"acodec"`
 }
 
-type igSidecar struct {
-	Edges []struct {
-		Node igMediaNode `json:"node"`
-	} `json:"edges"`
-}
-
-type igShortcodeMedia struct {
-	ShortcodeMedia igMediaNode `json:"shortcode_media"`
-}
-
-// DownloadInstagram extracts media from an Instagram post, reel, or TV link.
+// DownloadInstagram extracts single/multiple photos or videos using yt-dlp.
 func (c *Client) DownloadInstagram(ctx context.Context, rawURL string) (*Result, error) {
-	shortcode := extractInstagramShortcode(rawURL)
-	if shortcode == "" {
-		return nil, fmt.Errorf("could not parse shortcode from Instagram URL: %s", rawURL)
+	tmpDir := os.TempDir()
+	outTemplate := filepath.Join(tmpDir, "ig_%(id)s_%(autonumber)s.%(ext)s")
+
+	// 1. Dump full metadata structure
+	metaArgs := []string{
+		"--dump-single-json",
+		"--no-warnings",
+		rawURL,
 	}
 
-	// Try Embed API method first
-	res, err := c.fetchInstagramEmbed(ctx, shortcode)
-	if err == nil && res != nil && len(res.Items) > 0 {
-		return res, nil
-	}
-
-	// Try OEmbed / Mobile API fallback method
-	res, err = c.fetchInstagramOEmbed(ctx, shortcode)
-	if err == nil && res != nil && len(res.Items) > 0 {
-		return res, nil
-	}
-
-	return nil, fmt.Errorf("failed to extract Instagram media for code %s", shortcode)
-}
-
-func (c *Client) fetchInstagramEmbed(ctx context.Context, shortcode string) (*Result, error) {
-	embedURL := fmt.Sprintf("https://www.instagram.com/p/%s/embed/captioned/", shortcode)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, embedURL, nil)
+	cmdMeta := exec.CommandContext(ctx, "yt-dlp", metaArgs...)
+	metaOut, err := cmdMeta.Output()
 	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("User-Agent", DefaultUserAgent)
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("embed HTTP status %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	html := string(body)
-	m := igEmbedJSONRegex.FindStringSubmatch(html)
-	if len(m) < 2 {
-		return nil, fmt.Errorf("embed JSON pattern not found")
-	}
-
-	var embedArr []json.RawMessage
-	if err := json.Unmarshal([]byte("["+m[1]+"]"), &embedArr); err != nil {
-		return nil, err
-	}
-
-	var contextJSON string
-	for _, raw := range embedArr {
-		var data igEmbedData
-		if err := json.Unmarshal(raw, &data); err == nil && data.ContextJSON != "" {
-			contextJSON = data.ContextJSON
-			break
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return nil, fmt.Errorf("yt-dlp metadata failed: %s", string(exitErr.Stderr))
 		}
+		return nil, fmt.Errorf("failed to run yt-dlp: %w", err)
 	}
 
-	if contextJSON == "" {
-		return nil, fmt.Errorf("contextJSON missing from embed data")
+	var root ytDlpSingleJson
+	if err := json.Unmarshal(metaOut, &root); err != nil {
+		return nil, fmt.Errorf("failed to parse yt-dlp metadata: %w", err)
 	}
 
-	var mediaRoot igShortcodeMedia
-	if err := json.Unmarshal([]byte(contextJSON), &mediaRoot); err != nil {
-		return nil, err
+	// 2. Execute download to disk
+	dlArgs := []string{
+		"-f", "b[ext=mp4]/bv*[ext=mp4]+ba[ext=m4a]/b",
+		"-o", outTemplate,
+		"--no-warnings",
+		rawURL,
 	}
 
-	media := mediaRoot.ShortcodeMedia
+	cmdDl := exec.CommandContext(ctx, "yt-dlp", dlArgs...)
+	if dlOut, err := cmdDl.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("yt-dlp download failed: %s", string(dlOut))
+	}
+
 	var items []MediaItem
-	isPhoto := true
+	hasVideo := false
 
-	if media.Sidecar != nil && len(media.Sidecar.Edges) > 0 {
-		for i, edge := range media.Sidecar.Edges {
-			node := edge.Node
-			ext := "jpg"
-			mediaType := "photo"
-			targetURL := node.DisplayURL
+	// Helper to categorize media
+	parseMediaType := func(ext, vcodec string) (string, string) {
+		ext = strings.ToLower(ext)
+		if ext == "jpg" || ext == "jpeg" || ext == "png" || ext == "webp" || vcodec == "none" {
+			return "photo", ext
+		}
+		return "video", "mp4"
+	}
 
-			if node.IsVideo && node.VideoURL != "" {
-				ext = "mp4"
-				mediaType = "video"
-				targetURL = node.VideoURL
-				isPhoto = false
+	// 3. Process Carousel (Multiple items)
+	if len(root.Entries) > 0 {
+		for i, entry := range root.Entries {
+			mediaType, ext := parseMediaType(entry.Ext, entry.VCodec)
+			if mediaType == "video" {
+				hasVideo = true
 			}
 
-			if targetURL != "" {
-				items = append(items, MediaItem{
-					URL:      targetURL,
-					Type:     mediaType,
-					Filename: fmt.Sprintf("instagram_%s_%d.%s", shortcode, i+1, ext),
-					ThumbURL: node.DisplayURL,
-				})
+			// Locate downloaded file on disk
+			localPath := filepath.Join(tmpDir, fmt.Sprintf("ig_%s_%05d.%s", root.ID, i+1, ext))
+			if _, err := os.Stat(localPath); os.IsNotExist(err) {
+				// Fallback glob if autonumber format differed
+				matches, _ := filepath.Glob(filepath.Join(tmpDir, fmt.Sprintf("ig_%s_*", root.ID)))
+				if len(matches) > i {
+					localPath = matches[i]
+				}
+			}
+
+			items = append(items, MediaItem{
+				URL:      localPath,
+				Type:     mediaType,
+				Filename: fmt.Sprintf("instagram_%s_%d.%s", root.ID, i+1, ext),
+			})
+		}
+	} else {
+		// 4. Process Single Media (Single Reel, Post, or Video)
+		mediaType, ext := parseMediaType(root.Ext, root.VCodec)
+		if mediaType == "video" {
+			hasVideo = true
+		}
+
+		localPath := filepath.Join(tmpDir, fmt.Sprintf("ig_%s_00001.%s", root.ID, ext))
+		if _, err := os.Stat(localPath); os.IsNotExist(err) {
+			matches, _ := filepath.Glob(filepath.Join(tmpDir, fmt.Sprintf("ig_%s_*", root.ID)))
+			if len(matches) > 0 {
+				localPath = matches[0]
 			}
 		}
-	} else if media.IsVideo && media.VideoURL != "" {
-		isPhoto = false
+
 		items = append(items, MediaItem{
-			URL:      media.VideoURL,
-			Type:     "video",
-			Filename: fmt.Sprintf("instagram_%s.mp4", shortcode),
-			ThumbURL: media.DisplayURL,
-		})
-	} else if media.DisplayURL != "" {
-		items = append(items, MediaItem{
-			URL:      media.DisplayURL,
-			Type:     "photo",
-			Filename: fmt.Sprintf("instagram_%s.jpg", shortcode),
+			URL:      localPath,
+			Type:     mediaType,
+			Filename: fmt.Sprintf("instagram_%s.%s", root.ID, ext),
 		})
 	}
 
 	if len(items) == 0 {
-		return nil, fmt.Errorf("no items found in embed payload")
+		return nil, fmt.Errorf("no media items downloaded for URL: %s", rawURL)
 	}
 
 	return &Result{
 		Service: "instagram",
-		ID:      shortcode,
+		ID:      root.ID,
+		Title:   root.Title,
+		Author:  root.Uploader,
+		IsPhoto: !hasVideo,
 		Items:   items,
-		IsPhoto: isPhoto,
 	}, nil
-}
-
-type igOEmbedResponse struct {
-	Title        string `json:"title"`
-	AuthorName   string `json:"author_name"`
-	ThumbnailURL string `json:"thumbnail_url"`
-	MediaID      string `json:"media_id"`
-}
-
-type igMobileMediaResponse struct {
-	Items []struct {
-		VideoVersions []struct {
-			Width  int    `json:"width"`
-			Height int    `json:"height"`
-			URL    string `json:"url"`
-		} `json:"video_versions"`
-		ImageVersions2 struct {
-			Candidates []struct {
-				URL string `json:"url"`
-			} `json:"candidates"`
-		} `json:"image_versions2"`
-		CarouselMedia []struct {
-			VideoVersions []struct {
-				Width  int    `json:"width"`
-				Height int    `json:"height"`
-				URL    string `json:"url"`
-			} `json:"video_versions"`
-			ImageVersions2 struct {
-				Candidates []struct {
-					URL string `json:"url"`
-				} `json:"candidates"`
-			} `json:"image_versions2"`
-		} `json:"carousel_media"`
-	} `json:"items"`
-}
-
-func (c *Client) fetchInstagramOEmbed(ctx context.Context, shortcode string) (*Result, error) {
-	oembedURL := fmt.Sprintf("https://i.instagram.com/api/v1/oembed/?url=https://www.instagram.com/p/%s/", shortcode)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, oembedURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("User-Agent", "Instagram 275.0.0.27.98 Android (33/13; 280dpi; 720x1423; Xiaomi; Redmi 7; onclite; qcom; en_US; 458229237)")
-	req.Header.Set("X-IG-App-ID", "936619743392459")
-
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("oembed HTTP status %d", resp.StatusCode)
-	}
-
-	var oembed igOEmbedResponse
-	if err := json.NewDecoder(resp.Body).Decode(&oembed); err != nil {
-		return nil, err
-	}
-
-	if oembed.MediaID != "" {
-		infoURL := fmt.Sprintf("https://i.instagram.com/api/v1/media/%s/info/", oembed.MediaID)
-		infoReq, errInfo := http.NewRequestWithContext(ctx, http.MethodGet, infoURL, nil)
-		if errInfo == nil {
-			infoReq.Header.Set("User-Agent", "Instagram 275.0.0.27.98 Android (33/13; 280dpi; 720x1423; Xiaomi; Redmi 7; onclite; qcom; en_US; 458229237)")
-			infoReq.Header.Set("X-IG-App-ID", "936619743392459")
-
-			infoResp, errDo := c.HTTPClient.Do(infoReq)
-			if errDo == nil && infoResp.StatusCode == http.StatusOK {
-				defer infoResp.Body.Close()
-				var mobileResp igMobileMediaResponse
-				if json.NewDecoder(infoResp.Body).Decode(&mobileResp) == nil && len(mobileResp.Items) > 0 {
-					item := mobileResp.Items[0]
-					var items []MediaItem
-					isPhoto := true
-
-					if len(item.CarouselMedia) > 0 {
-						for i, cm := range item.CarouselMedia {
-							if len(cm.VideoVersions) > 0 {
-								best := cm.VideoVersions[0]
-								for _, v := range cm.VideoVersions {
-									if v.Width*v.Height > best.Width*best.Height {
-										best = v
-									}
-								}
-								isPhoto = false
-								items = append(items, MediaItem{
-									URL:      best.URL,
-									Type:     "video",
-									Filename: fmt.Sprintf("instagram_%s_%d.mp4", shortcode, i+1),
-								})
-							} else if len(cm.ImageVersions2.Candidates) > 0 {
-								items = append(items, MediaItem{
-									URL:      cm.ImageVersions2.Candidates[0].URL,
-									Type:     "photo",
-									Filename: fmt.Sprintf("instagram_%s_%d.jpg", shortcode, i+1),
-								})
-							}
-						}
-					} else if len(item.VideoVersions) > 0 {
-						best := item.VideoVersions[0]
-						for _, v := range item.VideoVersions {
-							if v.Width*v.Height > best.Width*best.Height {
-								best = v
-							}
-						}
-						isPhoto = false
-						items = append(items, MediaItem{
-							URL:      best.URL,
-							Type:     "video",
-							Filename: fmt.Sprintf("instagram_%s.mp4", shortcode),
-						})
-					} else if len(item.ImageVersions2.Candidates) > 0 {
-						items = append(items, MediaItem{
-							URL:      item.ImageVersions2.Candidates[0].URL,
-							Type:     "photo",
-							Filename: fmt.Sprintf("instagram_%s.jpg", shortcode),
-						})
-					}
-
-					if len(items) > 0 {
-						return &Result{
-							Service: "instagram",
-							ID:      shortcode,
-							Title:   oembed.Title,
-							Author:  oembed.AuthorName,
-							Items:   items,
-							IsPhoto: isPhoto,
-						}, nil
-					}
-				}
-			}
-		}
-	}
-
-	if oembed.ThumbnailURL != "" {
-		return &Result{
-			Service: "instagram",
-			ID:      shortcode,
-			Title:   oembed.Title,
-			Author:  oembed.AuthorName,
-			IsPhoto: true,
-			Items: []MediaItem{
-				{
-					URL:      oembed.ThumbnailURL,
-					Type:     "photo",
-					Filename: fmt.Sprintf("instagram_%s.jpg", shortcode),
-				},
-			},
-		}, nil
-	}
-
-	return nil, fmt.Errorf("oembed fallback failed")
-}
-
-func extractInstagramShortcode(rawURL string) string {
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return ""
-	}
-	m := igShortcodeRegex.FindStringSubmatch(u.Path)
-	if len(m) > 1 {
-		return m[1]
-	}
-	return ""
 }
