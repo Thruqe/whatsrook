@@ -291,35 +291,6 @@ func handleWCGChain(ctx *Context) error {
 		return ctx.Reply("Word Chain Game (WCG) ended.")
 	}
 
-	// Join sub-command
-	if arg0 == "join" {
-		if existingGame == nil {
-			return ctx.Reply("No WCG game lobby open. Type .wcg to start one!")
-		}
-
-		existingGame.Mu.Lock()
-		if existingGame.State != utils.WCGStateLobby {
-			existingGame.Mu.Unlock()
-			return ctx.Reply("WCG game is already in progress!")
-		}
-
-		senderLID := ctx.Sender.ToNonAD()
-		if existingGame.FindPlayerIndex(senderLID) != -1 {
-			existingGame.Mu.Unlock()
-			return ctx.Reply("You are already in the WCG lobby!")
-		}
-		existingGame.Mu.Unlock()
-
-		mentionJID, username := ctx.ResolveMention(senderLID)
-		tag := "@" + username
-		if !existingGame.AddPlayer(senderLID, mentionJID, tag) {
-			return ctx.Reply("Failed to join. Game may have started.")
-		}
-
-		msg := fmt.Sprintf("%s joined the WCG match! (%d players in lobby)\nType .wcg start to begin immediately or wait for timer.", tag, len(existingGame.Players))
-		return ctx.ReplyWithMentions(msg, []types.JID{mentionJID})
-	}
-
 	// Start sub-command
 	if arg0 == "start" || arg0 == "create" {
 		if existingGame != nil {
@@ -327,7 +298,7 @@ func handleWCGChain(ctx *Context) error {
 			if existingGame.State == utils.WCGStateLobby {
 				if len(existingGame.Players) == 0 {
 					existingGame.Mu.Unlock()
-					return ctx.Reply("No players in lobby yet! Type .wcg join to join first.")
+					return ctx.Reply("No players in lobby yet! Type `join` to join first.")
 				}
 				if existingGame.LobbyTimer != nil {
 					existingGame.LobbyTimer.Stop()
@@ -346,7 +317,7 @@ func handleWCGChain(ctx *Context) error {
 		existingGame.Mu.Lock()
 		defer existingGame.Mu.Unlock()
 		if existingGame.State == utils.WCGStateLobby {
-			return ctx.Reply(fmt.Sprintf("WCG Lobby Open! (%d players)\nType .wcg join to join or .wcg start to begin!", len(existingGame.Players)))
+			return ctx.Reply(fmt.Sprintf("WCG Lobby Open! (%d players)\nType `join` to join or .wcg start to begin!", len(existingGame.Players)))
 		}
 		return ctx.Reply("A WCG game is already in progress in this chat!")
 	}
@@ -377,9 +348,9 @@ func handleWCGChain(ctx *Context) error {
 	})
 	newGame.SetLobbyTimer(timer)
 
-	err := sendWCGChainInteractiveMenu(ctx, hostTag)
+	err := sendWCGChainInteractiveMenu(ctx, hostTag, hostMention)
 	if err != nil {
-		textMsg := fmt.Sprintf("WORD CHAIN GAME (WCG)\n\nHosted by: %s\n\nLobby is open for 30 SECONDS!\nType '.wcg join' to join\nType '.wcg start' to begin now\nType '.wcg lb' for Leaderboard", hostTag)
+		textMsg := fmt.Sprintf("WORD CHAIN GAME (WCG)\n\nHosted by: %s\n\nLobby is open for 30 SECONDS!\nType '`join`' to join\nType '.wcg start' to begin now\nType '.wcg lb' for Leaderboard", hostTag)
 		return ctx.ReplyWithMentions(textMsg, []types.JID{hostMention})
 	}
 
@@ -647,15 +618,59 @@ func handleWCGChainLeaderboard(ctx *Context) error {
 	return ctx.ReplyWithMentions(strings.TrimSpace(sb.String()), mentions)
 }
 
-func sendWCGChainInteractiveMenu(ctx *Context, hostTag string) error {
+func sendWCGChainInteractiveMenu(ctx *Context, hostTag string, hostMention types.JID) error {
 	p := ctx.GetPrefix()
-	bodyText := fmt.Sprintf("WORD CHAIN GAME (WCG)\n\nHosted by %s\n\n30s Join Window Open!\nClick 'Join Match' or type '%swcg join' to play.\n\nRules:\n- Starting letter is picked at random\n- Words must start with required letter and meet length limit\n- Validated in real-time across 5 parallel dictionary APIs\n- Non-players are ignored\n- Win XP and climb performance ratings!", hostTag, p)
+	bodyText := fmt.Sprintf("WORD CHAIN GAME (WCG)\n\nHosted by %s\n\n30s Join Window Open!\nType '%swcg join' to play.\n\nRules:\n- Starting letter is picked at random\n- Words must start with required letter and meet length limit\n- Validated in real-time across 5 parallel dictionary APIs\n- Non-players are ignored\n- Win XP and climb performance ratings!", hostTag, p)
 
 	buttons := []struct{ ID, Text string }{
-		{ID: p + "wcg join", Text: "Join Match"},
 		{ID: p + "wcg start", Text: "Start Match"},
 		{ID: p + "wcg end", Text: "End Game"},
 	}
 
-	return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
+	return sendInteractiveButtonsWithMentions(ctx, bodyText, fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons, []types.JID{hostMention})
+}
+
+// HandleWCGLobbyInput intercepts plain "join" text messages while a WCG lobby is open.
+func HandleWCGLobbyInput(ctx *Context, text string) bool {
+	chatKey := ctx.Chat.String()
+
+	game := utils.GetWCGGame(chatKey)
+	if game == nil {
+		return false
+	}
+
+	game.Mu.Lock()
+	if game.State != utils.WCGStateLobby {
+		game.Mu.Unlock()
+		return false
+	}
+	game.Mu.Unlock()
+
+	trimmed := strings.ToLower(strings.TrimSpace(text))
+	if trimmed != "join" {
+		return false
+	}
+
+	game.Mu.Lock()
+	if game.State != utils.WCGStateLobby {
+		game.Mu.Unlock()
+		return false
+	}
+
+	senderLID := ctx.Sender.ToNonAD()
+	if game.FindPlayerIndex(senderLID) != -1 {
+		game.Mu.Unlock()
+		return true // already joined, silently ignore or reply below
+	}
+	game.Mu.Unlock()
+
+	mentionJID, username := ctx.ResolveMention(senderLID)
+	tag := "@" + username
+	if !game.AddPlayer(senderLID, mentionJID, tag) {
+		return true // game may have started between checks
+	}
+
+	msg := fmt.Sprintf("%s joined the WCG match! (%d players in lobby)\nType 'join' to join or wait for the host to start.", tag, len(game.Players))
+	_ = ctx.ReplyWithMentions(msg, []types.JID{mentionJID})
+	return true
 }

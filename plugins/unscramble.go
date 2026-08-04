@@ -131,35 +131,6 @@ func handleUnscramble(ctx *Context) error {
 		return ctx.Reply("Unscramble Game cancelled.")
 	}
 
-	// Join sub-command
-	if arg0 == "join" {
-		if existingGame == nil {
-			return ctx.Reply("No Unscramble game lobby open. Type .unscramble to start one!")
-		}
-
-		existingGame.Mu.Lock()
-		if existingGame.State != utils.UnscrambleStateLobby {
-			existingGame.Mu.Unlock()
-			return ctx.Reply("Unscramble game is already in progress!")
-		}
-
-		senderLID := ctx.Sender.ToNonAD()
-		if existingGame.FindPlayerIndex(senderLID) != -1 {
-			existingGame.Mu.Unlock()
-			return ctx.Reply("You are already in the Unscramble lobby!")
-		}
-		existingGame.Mu.Unlock()
-
-		mentionJID, username := ctx.ResolveMention(senderLID)
-		tag := "@" + username
-		if !existingGame.AddPlayer(senderLID, mentionJID, tag) {
-			return ctx.Reply("Failed to join. Game may have started.")
-		}
-
-		msg := fmt.Sprintf("%s joined the Unscramble match! (%d players in lobby)\nType .unscramble start to begin immediately or wait for timer.", tag, len(existingGame.Players))
-		return ctx.ReplyWithMentions(msg, []types.JID{mentionJID})
-	}
-
 	// Start sub-command
 	if arg0 == "start" || arg0 == "create" {
 		if existingGame != nil {
@@ -217,8 +188,7 @@ func handleUnscramble(ctx *Context) error {
 	})
 	newGame.SetLobbyTimer(timer)
 
-	// Try sending interactive message with buttons
-	err := sendUnscrambleInteractiveMenu(ctx, hostTag)
+	err := sendUnscrambleInteractiveMenu(ctx, hostTag, hostMention)
 	if err != nil {
 		textMsg := fmt.Sprintf("UNSCRAMBLE GAME\n\nHosted by: %s\n\nLobby is open for 30 SECONDS!\nType '.unscramble join' to join\nType '.unscramble start' to begin now\nType '.unscramble lb' for Leaderboard", hostTag)
 		return ctx.ReplyWithMentions(textMsg, []types.JID{hostMention})
@@ -443,17 +413,16 @@ func handleUnscrambleLeaderboard(ctx *Context) error {
 	return ctx.ReplyWithMentions(strings.TrimSpace(sb.String()), mentions)
 }
 
-func sendUnscrambleInteractiveMenu(ctx *Context, hostTag string) error {
+func sendUnscrambleInteractiveMenu(ctx *Context, hostTag string, hostMention types.JID) error {
 	p := ctx.GetPrefix()
-	bodyText := fmt.Sprintf("UNSCRAMBLE GAME\n\nHosted by %s\n\n30s Join Window Open!\nClick 'Join Match' or type '%sunscramble join' to play.\n\nRules:\n- Words progress from 3 to 16 letters\n- Turn time decreases as difficulty rises (30s -> 6s)\n- Non-players are ignored\n- Win XP and climb performance ratings!", hostTag, p)
+	bodyText := fmt.Sprintf("UNSCRAMBLE GAME\n\nHosted by %s\n\n30s Join Window Open!\nType 'join' to play.\n\nRules:\n- Words progress from 3 to 16 letters\n- Turn time decreases as difficulty rises (30s -> 6s)\n- Non-players are ignored\n- Win XP and climb performance ratings!", hostTag)
 
 	buttons := []struct{ ID, Text string }{
-		{ID: p + "unscramble join", Text: "Join Match"},
 		{ID: p + "unscramble start", Text: "Start Match"},
 		{ID: p + "unscramble lb", Text: "Leaderboard"},
 	}
 
-	return sendInteractiveButtons(ctx, bodyText, "WhatsRook Unscramble Game", buttons)
+	return sendInteractiveButtonsWithMentions(ctx, bodyText, "WhatsRook Unscramble Game", buttons, []types.JID{hostMention})
 }
 
 // isPureEmoji returns true if the input text consists solely of emoji characters.
@@ -485,4 +454,49 @@ func isEmojiRune(r rune) bool {
 		(r >= 0x2700 && r <= 0x27BF) || // Dingbats
 		(r >= 0xFE00 && r <= 0xFE0F) || // Variation Selectors
 		(r >= 0x1F1E6 && r <= 0x1F1FF) // Regional Indicator Symbols
+}
+
+// HandleUnscrambleLobbyInput intercepts plain "join" text messages while an Unscramble lobby is open.
+func HandleUnscrambleLobbyInput(ctx *Context, text string) bool {
+	chatKey := ctx.Chat.String()
+
+	game := utils.GetUnscrambleGame(chatKey)
+	if game == nil {
+		return false
+	}
+
+	game.Mu.Lock()
+	if game.State != utils.UnscrambleStateLobby {
+		game.Mu.Unlock()
+		return false
+	}
+	game.Mu.Unlock()
+
+	trimmed := strings.ToLower(strings.TrimSpace(text))
+	if trimmed != "join" {
+		return false
+	}
+
+	game.Mu.Lock()
+	if game.State != utils.UnscrambleStateLobby {
+		game.Mu.Unlock()
+		return false
+	}
+
+	senderLID := ctx.Sender.ToNonAD()
+	if game.FindPlayerIndex(senderLID) != -1 {
+		game.Mu.Unlock()
+		return true // already joined
+	}
+	game.Mu.Unlock()
+
+	mentionJID, username := ctx.ResolveMention(senderLID)
+	tag := "@" + username
+	if !game.AddPlayer(senderLID, mentionJID, tag) {
+		return true // game may have started between checks
+	}
+
+	msg := fmt.Sprintf("%s joined the Unscramble match! (%d players in lobby)\nType 'join' to join or wait for the host to start.", tag, len(game.Players))
+	_ = ctx.ReplyWithMentions(msg, []types.JID{mentionJID})
+	return true
 }

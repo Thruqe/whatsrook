@@ -269,28 +269,34 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		return runCommand(ctx, client, evt, "ttt "+trimmedText)
 	}
 
-	// Active Unscramble Game listener
-	if utils.IsUnscrambleGameActive(chatStr) {
+	// Unscramble Game listener — lobby join or active turn
+	if utils.GetUnscrambleGame(chatStr) != nil {
 		cctx := &Context{
 			Ctx:    ctx,
 			Client: client,
 			Evt:    evt,
 			Chat:   evt.Info.Chat,
 			Sender: evt.Info.Sender,
+		}
+		if HandleUnscrambleLobbyInput(cctx, text) {
+			return true
 		}
 		if HandleUnscrambleInput(cctx, text) {
 			return true
 		}
 	}
 
-	// Active Word Chain Game (WCG) listener
-	if utils.IsWCGGameActive(chatStr) {
+	// Word Chain Game (WCG) listener — lobby join or active turn
+	if utils.GetWCGGame(chatStr) != nil {
 		cctx := &Context{
 			Ctx:    ctx,
 			Client: client,
 			Evt:    evt,
 			Chat:   evt.Info.Chat,
 			Sender: evt.Info.Sender,
+		}
+		if HandleWCGLobbyInput(cctx, text) {
+			return true
 		}
 		if HandleWCGInput(cctx, text) {
 			return true
