@@ -47,9 +47,6 @@ jobs:
           - os: linux
             arch: amd64
             ext: ""
-          - os: windows
-            arch: amd64
-            ext: ".exe"
           - os: darwin
             arch: amd64
             ext: ""
@@ -66,13 +63,11 @@ jobs:
       - name: Install Cross Compilers (GCC / CGO)
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc gcc-mingw-w64-x86-64 gcc-aarch64-linux-gnu
+          sudo apt-get install -y gcc gcc-aarch64-linux-gnu
       - name: Build Binary
         run: |
           BIN_NAME="whatsrook${{ matrix.target.ext }}"
-          if [ "${{ matrix.target.os }}" = "windows" ]; then
-            CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc GOOS=windows GOARCH=amd64 go build -o $BIN_NAME .
-          elif [ "${{ matrix.target.os }}" = "darwin" ]; then
+          if [ "${{ matrix.target.os }}" = "darwin" ]; then
             CGO_ENABLED=0 GOOS=darwin GOARCH=${{ matrix.target.arch }} go build -o $BIN_NAME .
           else
             CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o $BIN_NAME .
@@ -147,11 +142,9 @@ jobs:
         run: |
           VERSION="${{ needs.check-version.outputs.version }}"
           DATE=$(date +'%Y-%m-%d')
-          
-          # Replace ## [Unreleased] header with new version header and add fresh [Unreleased] section
+
           sed -i "s/## \[Unreleased\]/## [Unreleased]\n\n## [${VERSION}] - ${DATE}/g" CHANGELOG.md
 
-          # Commit updated CHANGELOG.md back to repository if modified
           if ! git diff --quiet CHANGELOG.md; then
             git add CHANGELOG.md
             git commit -m "chore(changelog): release v${VERSION} [skip ci]"
@@ -179,6 +172,3 @@ jobs:
           files: artifacts/*/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-
-

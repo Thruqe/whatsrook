@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- remove windows support
 - fix instagram, snapchat & add igstory
 - fix automute
 - project structure adjustments
