@@ -173,11 +173,16 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	if isViewOnce && okStore {
 		raw, _ := s.GetSetting(ctx, "autovv")
-		if raw == "on" && client.Store.ID != nil {
-			ownerJID := client.Store.ID.ToNonAD()
+		if raw == "on" {
 			unwrapped := waSender.ExtractViewOnceMessage(evt.Message)
 			if unwrapped != nil {
-				_, _ = client.SendMessage(ctx, ownerJID, unwrapped)
+				mode, _ := s.GetSetting(ctx, "autovv_mode")
+				if mode == "public" {
+					_, _ = client.SendMessage(ctx, evt.Info.Chat, unwrapped)
+				} else if client.Store.ID != nil {
+					ownerJID := client.Store.ID.ToNonAD()
+					_, _ = client.SendMessage(ctx, ownerJID, unwrapped)
+				}
 			}
 		}
 	}

@@ -11,6 +11,10 @@ import (
 
 	"whatsrook/downloader"
 	"whatsrook/utils"
+
+	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waE2E"
+	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -58,31 +62,9 @@ func handleYTV(ctx *Context) error {
 	}
 
 	item := res.Items[0]
-	var data []byte
-
-	if len(item.Buffer) > 0 {
-		data = item.Buffer
-	} else if item.URL != "" {
-		httpClient := &http.Client{Timeout: 60 * time.Second}
-		req, err := http.NewRequestWithContext(ctx.Ctx, http.MethodGet, item.URL, nil)
-		if err != nil {
-			return ctx.Reply("Failed to request video stream: " + err.Error())
-		}
-		req.Header.Set("User-Agent", downloader.DefaultUserAgent)
-
-		resp, err := httpClient.Do(req)
-		if err != nil {
-			return ctx.Reply("Failed to fetch video stream: " + err.Error())
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode == http.StatusOK {
-			data, _ = io.ReadAll(resp.Body)
-		}
-	}
-
-	if len(data) == 0 {
-		return ctx.Reply("Downloaded video data was empty.")
+	data, err := fetchStreamBytes(ctx, item)
+	if err != nil || len(data) == 0 {
+		return ctx.Reply("Failed to fetch video stream.")
 	}
 
 	caption := res.Title
@@ -118,31 +100,9 @@ func handleYTA(ctx *Context) error {
 	}
 
 	item := res.Items[0]
-	var data []byte
-
-	if len(item.Buffer) > 0 {
-		data = item.Buffer
-	} else if item.URL != "" {
-		httpClient := &http.Client{Timeout: 60 * time.Second}
-		req, err := http.NewRequestWithContext(ctx.Ctx, http.MethodGet, item.URL, nil)
-		if err != nil {
-			return ctx.Reply("Failed to request media stream: " + err.Error())
-		}
-		req.Header.Set("User-Agent", downloader.DefaultUserAgent)
-
-		resp, err := httpClient.Do(req)
-		if err != nil {
-			return ctx.Reply("Failed to fetch media stream: " + err.Error())
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode == http.StatusOK {
-			data, _ = io.ReadAll(resp.Body)
-		}
-	}
-
-	if len(data) == 0 {
-		return ctx.Reply("Downloaded media data was empty.")
+	data, err := fetchStreamBytes(ctx, item)
+	if err != nil || len(data) == 0 {
+		return ctx.Reply("Failed to fetch media stream.")
 	}
 
 	tmpIn := fmt.Sprintf("/tmp/yt_in_%d.bin", time.Now().UnixNano())
@@ -155,16 +115,124 @@ func handleYTA(ctx *Context) error {
 	defer os.Remove(tmpOut)
 
 	cmd := exec.CommandContext(ctx.Ctx, "ffmpeg", "-y", "-i", tmpIn, "-vn", "-c:a", "aac", "-b:a", "128k", tmpOut)
-	if err := cmd.Run(); err != nil {
-		return ctx.ReplyWithAudio(data, "audio/mp4")
+	audioBytes := data
+	mimetype := "audio/mp4"
+	if err := cmd.Run(); err == nil {
+		if converted, rerr := os.ReadFile(tmpOut); rerr == nil && len(converted) > 0 {
+			audioBytes = converted
+		}
 	}
 
-	audioBytes, err := os.ReadFile(tmpOut)
-	if err != nil || len(audioBytes) == 0 {
-		return ctx.ReplyWithAudio(data, "audio/mp4")
+	thumb := fetchThumbnailBytes(ctx, res.Thumbnail)
+
+	return replyWithMusicAudio(ctx, audioBytes, mimetype, res, thumb)
+}
+
+func fetchStreamBytes(ctx *Context, item downloader.MediaItem) ([]byte, error) {
+	if len(item.Buffer) > 0 {
+		return item.Buffer, nil
+	}
+	if item.URL == "" {
+		return nil, fmt.Errorf("empty item URL")
 	}
 
-	return ctx.ReplyWithAudio(audioBytes, "audio/mp4")
+	if strings.HasPrefix(item.URL, "http://") || strings.HasPrefix(item.URL, "https://") {
+		httpClient := &http.Client{Timeout: 60 * time.Second}
+		req, err := http.NewRequestWithContext(ctx.Ctx, http.MethodGet, item.URL, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("User-Agent", downloader.DefaultUserAgent)
+
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("stream fetch status %d", resp.StatusCode)
+		}
+		return io.ReadAll(resp.Body)
+	}
+
+	data, err := os.ReadFile(item.URL)
+	if err == nil {
+		defer os.Remove(item.URL)
+	}
+	return data, err
+}
+
+func fetchThumbnailBytes(ctx *Context, thumbURL string) []byte {
+	if thumbURL == "" {
+		return nil
+	}
+	httpClient := &http.Client{Timeout: 15 * time.Second}
+	req, err := http.NewRequestWithContext(ctx.Ctx, http.MethodGet, thumbURL, nil)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("User-Agent", downloader.DefaultUserAgent)
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+	data, _ := io.ReadAll(resp.Body)
+	return data
+}
+
+// replyWithMusicAudio sends audio with an ExternalAdReplyInfo "music card":
+// title, author (as body), and thumbnail. MediaType is left unset (nil) since
+// it's optional and the exact enum constant name varies by whatsmeow version.
+func replyWithMusicAudio(ctx *Context, data []byte, mimetype string, res *downloader.Result, thumb []byte) error {
+	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaAudio)
+	if err != nil {
+		return fmt.Errorf("audio upload failed: %w", err)
+	}
+
+	title := res.Title
+	if title == "" {
+		title = "YouTube Audio"
+	}
+
+	adInfo := &waE2E.ContextInfo_ExternalAdReplyInfo{
+		Title:                 proto.String(title),
+		SourceURL:             proto.String("https://www.youtube.com/watch?v=" + res.ID),
+		RenderLargerThumbnail: proto.Bool(true),
+		ShowAdAttribution:     proto.Bool(false),
+	}
+	if res.Author != "" {
+		adInfo.Body = proto.String(res.Author)
+	}
+	if len(thumb) > 0 {
+		adInfo.Thumbnail = thumb
+	}
+
+	cinfo := &waE2E.ContextInfo{
+		ExternalAdReply: adInfo,
+	}
+
+	fileLength := uint64(len(data))
+	msg := &waE2E.Message{
+		AudioMessage: &waE2E.AudioMessage{
+			URL:           &uploaded.URL,
+			DirectPath:    &uploaded.DirectPath,
+			MediaKey:      uploaded.MediaKey,
+			Mimetype:      proto.String(mimetype),
+			FileEncSHA256: uploaded.FileEncSHA256,
+			FileSHA256:    uploaded.FileSHA256,
+			FileLength:    &fileLength,
+			ContextInfo:   cinfo,
+		},
+	}
+
+	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
+	return err
 }
 
 func extractTargetURL(ctx *Context) string {

@@ -178,7 +178,7 @@ func runSession(ctx context.Context, cli Arguments, sessionDir, dbPath, waLevel 
 		return fmt.Errorf("failed to get device: %w", err)
 	}
 
-	clientLog := logger.WhatsmeowStyle("Client", waLevel, true)
+	clientLog := logger.WhatsmeowStyle("Client", "INFO", true)
 	client := whatsmeow.NewClient(deviceStore, clientLog)
 
 	// Initialize meowcaller before connecting whatsmeow so raw call adapter hook is installed

@@ -30,6 +30,7 @@ type Result struct {
 	Items       []MediaItem `json:"items"`
 	IsPhoto     bool        `json:"is_photo,omitempty"`
 	IsAudioOnly bool        `json:"is_audio_only,omitempty"`
+	Thumbnail   string
 }
 
 type Client struct {

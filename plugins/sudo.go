@@ -327,16 +327,27 @@ func handleAutoVV(ctx *Context) error {
 		if curr == "" {
 			curr = "off"
 		}
+		mode, _ := s.GetSetting(ctx.Ctx, "autovv_mode")
+		if mode == "" {
+			mode = "dm"
+		}
 		p := ctx.GetPrefix()
-		bodyText := fmt.Sprintf("╭━━━〔 AUTO-VIEWONCE FORWARDING 〕━━━\n│ Status : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAutomatically forwards unwrapped ViewOnce media to your DM.", strings.ToUpper(curr))
+		bodyText := fmt.Sprintf("╭━━━〔 AUTO-VIEWONCE FORWARDING 〕━━━\n│ Status : %s\n│ Mode   : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAutomatically forwards unwrapped ViewOnce media to your DM or directly in the chat.", strings.ToUpper(curr), strings.ToUpper(mode))
 		var actionButton struct{ ID, Text string }
 		if curr == "on" {
 			actionButton = struct{ ID, Text string }{ID: p + "autovv off", Text: "Deactivate"}
 		} else {
 			actionButton = struct{ ID, Text string }{ID: p + "autovv on", Text: "Activate"}
 		}
+		var modeButton struct{ ID, Text string }
+		if mode == "public" {
+			modeButton = struct{ ID, Text string }{ID: p + "autovv dm", Text: "Switch to DM"}
+		} else {
+			modeButton = struct{ ID, Text string }{ID: p + "autovv public", Text: "Switch to Public"}
+		}
 		buttons := []struct{ ID, Text string }{
 			actionButton,
+			modeButton,
 			{ID: p + "autovv customize", Text: "Customize"},
 		}
 		return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s AutoVV", ctx.GetBotName()), buttons)
@@ -350,6 +361,12 @@ func handleAutoVV(ctx *Context) error {
 	case "off", "disable":
 		_ = s.PutSetting(ctx.Ctx, "autovv", "off")
 		return ctx.Reply("Auto ViewOnce forwarding DISABLED.")
+	case "dm", "private":
+		_ = s.PutSetting(ctx.Ctx, "autovv_mode", "dm")
+		return ctx.Reply("Auto ViewOnce delivery mode set to DM (Private).")
+	case "public", "chat":
+		_ = s.PutSetting(ctx.Ctx, "autovv_mode", "public")
+		return ctx.Reply("Auto ViewOnce delivery mode set to PUBLIC (Same Chat).")
 	case "toggle":
 		curr, _ := s.GetSetting(ctx.Ctx, "autovv")
 		if curr == "on" {
@@ -360,9 +377,9 @@ func handleAutoVV(ctx *Context) error {
 		return ctx.Reply("Auto ViewOnce forwarding ENABLED.")
 	case "customize", "custom", "help":
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("╭━━━〔 AUTOVV GUIDE 〕━━━\n\nCommands:\n• %sautovv on\n• %sautovv off\n• %sautovv toggle\n\nAutomatically intercepts ViewOnce media sent in chats and forwards unwrapped media to your DM.", p, p, p))
+		return ctx.Reply(fmt.Sprintf("╭━━━〔 AUTOVV GUIDE 〕━━━\n\nCommands:\n• %sautovv on\n• %sautovv off\n• %sautovv dm\n• %sautovv public\n• %sautovv toggle\n\nAutomatically intercepts ViewOnce media sent in chats and forwards unwrapped media to your DM or the public chat.", p, p, p, p, p))
 	default:
-		return ctx.Reply("Usage: .autovv [on|off|toggle|customize]")
+		return ctx.Reply("Usage: .autovv [on|off|dm|public|toggle|customize]")
 	}
 }
 

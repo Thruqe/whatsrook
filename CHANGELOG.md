@@ -129,6 +129,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- fix stuff
 - Download Format Exception Log Adjustments (`ember/ember.go`, `plugins/play.go`):
   - Changed log severity for external Embers/yt-dlp extraction errors (e.g. format restriction errors) from `ERROR` to `WARN` so user-driven YouTube download failures do not pollute `debug.log`.
 - Error-Only Log Filtering for `debug.log` (`logger/logger.go`, `logger/logger_test.go`):

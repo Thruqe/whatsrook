@@ -503,8 +503,6 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 	now := time.Now().In(loc)
 	currentTimeStr := fmt.Sprintf("%02d:%02d", now.Hour(), now.Minute())
 
-	slog.Debug("automute: tick", "now", now.Format("2006-01-02 15:04:05"), "tz", tzName, "our_jid", s.JID)
-
 	rows, err := db.Query(ctx, `SELECT key, value FROM bot_settings WHERE our_jid=$1 AND (key LIKE 'automute:%' OR key LIKE 'autounmute:%')`, s.JID)
 	if err != nil {
 		slog.Error("automute: query failed", "err", err)
@@ -520,8 +518,6 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 			slog.Error("automute: row scan failed", "err", err)
 			continue
 		}
-
-		slog.Debug("automute: checking schedule", "key", key, "target", targetTime, "current", currentTimeStr, "match", targetTime == currentTimeStr)
 
 		if targetTime != currentTimeStr {
 			continue
