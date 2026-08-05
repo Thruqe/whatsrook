@@ -3,43 +3,92 @@
 > [!CAUTION]
 > Educational project only. See [DISCLAIMER.md](DISCLAIMER.md) before use.
 
-Read [Documentation](./Documentation/README.md) for detailed architecture, CLI usage, WebSocket IPC specification, plugin development, and deployment guides.
+Read [Documentation](https://github.com/Thruqe/whatsrook-docs) for detailed architecture, CLI usage, WebSocket IPC specification, plugin development, and deployment guides.
 
 Real-time WhatsApp API built on [whatsmeow](https://github.com/tulir/whatsmeow).
 
+Connect your app to WhatsApp and receive live events — messages, groups, stories, channels — then send actions back programmatically.
+
 [![Go Code Quality & Tests](https://github.com/Thruqe/whatsrook/actions/workflows/go-checks.yml/badge.svg)](https://github.com/Thruqe/whatsrook/actions/workflows/go-checks.yml)
 [![Go Version](https://badgen.net/badge/Go/1.26.4/blue)](https://github.com/Thruqe/whatsrook/blob/master/go.mod)
-[![Release](https://badgen.net/badge/Release/v5.0.0/orange)](https://github.com/Thruqe/whatsrook/releases)
+[![Release](https://badgen.net/badge/Release/v4.0.0/orange)](https://github.com/Thruqe/whatsrook/releases)
 [![License](https://badgen.net/badge/License/MIT/yellow)](LICENSE)
 [![Join WhatsApp Channel](https://img.shields.io/badge/WhatsApp-Support%20Channel-25D366?style=flat&logo=whatsapp&logoColor=white)](https://whatsapp.com/channel/0029Vb8Vo0k0bIdsTOTF1G2o)
 
 ## Features
 
-- **Abstract Plugin Engine**: Easy plugin development taking full advantage of [`plugins/error.go`](file:///home/thruqe/Documents/whatsrook/plugins/error.go) and [`whatsrook/send`](file:///home/thruqe/Documents/whatsrook/send) abstractions.
-- **Unified Makefile**: Simple commands (`make start`, `make build`, `make test`, `make format`, `make vet`, `make update`, `make patch`).
-- **CLI Architecture**: Clean CLI launcher isolated under [`cli/main.go`](file:///home/thruqe/Documents/whatsrook/cli/main.go).
-- **WhatsMeow Patching**: Custom `patch/` system maintaining prefix-free database schemas and custom overrides.
-- **Voice Note Engine**: Automatic 64-bin frequency-normalized waveform generation for Opus PTT voice notes.
-
-## Quick Start (Makefile)
-
-```bash
-# Install dependencies
-make install
-
-# Run application
-make start ARGS="-s 1234567890"
-
-# Build binary
-make build
-
-# Run test suite
-make test
-```
+- Real-time event streaming (messages, groups, stories, channels)
+- Bidirectional communication — receive events, dispatch actions
+- Build bots, automations, and integrations on top of WhatsApp
+- Powered by whatsmeow (no browser automation, no Puppeteer)
 
 ## Deployment
 
-### 1. Local Docker Deployment (Recommended)
+### 1. Pterodactyl Deployment
+
+1. [Download the installer](https://raw.githubusercontent.com/Thruqe/whatsrook/refs/heads/master/scripts/panel.zip) script.
+2. In the **Files** tab, upload the downloaded script.
+3. Open the installer file and fill in the required variables before running it.
+4. Go to the **Start Up** tab, scroll down and put
+
+```txt
+node --max-old-space-size=48 --max-semi-space-size=2 --optimize-for-size --gc-interval=100 index.js
+```
+
+inside the **COMMAND RUN** box.
+
+5. Go to the **Console** tab and click **Start**.
+
+**Setting up sessions**
+
+In **Files**, create a file named `phone.txt`. Add one phone number per line for each WhatsApp session you want whatsrook to run:
+
+```txt
+23480612345678
+23490298765432
+```
+
+- **Adding a number**: whatsrook will start a new session for it automatically. Check the **Console** tab for the pair code to link that number.
+- **Removing a number**: whatsrook will automatically log out and delete that session — no manual cleanup needed.
+
+### 2. Heroku Deployment
+
+Deploy WhatsRook directly to Heroku as a Docker container using the **Deploy to Heroku** button or Heroku CLI:
+
+[![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/Thruqe/whatsrook)
+
+#### Manual Heroku CLI Deployment:
+
+```bash
+heroku login
+heroku container:login
+heroku create whatsrook-app
+heroku stack:set container -a whatsrook-app
+heroku config:set SESSION=1234567890 -a whatsrook-app
+heroku container:push web -a whatsrook-app
+heroku container:release web -a whatsrook-app
+```
+
+### 3. Render Deployment
+
+Deploy WhatsRook to Render with persistent session volume storage using the **Deploy to Render** button:
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Thruqe/whatsrook)
+
+Render automatically parses [`render.yaml`](./render.yaml) to build the Docker container and attach persistent volume storage at `/app/auth`.
+
+### 3. Local Docker Deployment
+
+You can deploy WhatsRook locally or on a private VPS using Docker or Docker Compose.
+
+#### Using Docker Compose (Recommended):
+
+```bash
+# Set your SESSION phone number in docker-compose.yml or as an env var
+SESSION=1234567890 docker compose up -d --build
+```
+
+#### Using Docker CLI:
 
 ```bash
 # Build Docker image
@@ -54,24 +103,6 @@ docker run -d \
   -v whatsrook_auth:/app/auth \
   whatsrook
 ```
-
-### 2. Docker Compose Deployment
-
-```bash
-SESSION=1234567890 docker compose up -d --build
-```
-
-### 3. Heroku Deployment
-
-Deploy WhatsRook directly to Heroku as a Docker container using the **Deploy to Heroku** button or Heroku CLI:
-
-[![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/Thruqe/whatsrook)
-
-### 4. Render Deployment
-
-Deploy WhatsRook to Render with persistent session volume storage using the **Deploy to Render** button:
-
-[![Deploy to Render](https://render.com/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Thruqe/whatsrook)
 
 ## Contributing
 
