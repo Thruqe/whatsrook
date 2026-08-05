@@ -90,7 +90,7 @@ func handleSetVideoCall(ctx *Context) error {
 	if videoMsg == nil {
 		if path, ok := getSavedVideo(ctx, ctx.Sender); ok {
 			baseName := filepath.Base(path)
-			return ctx.Reply(fmt.Sprintf("✅ You currently have a default video call video set.\n\nFile: %s\n\nTo update it, reply to a new video message with `%ssetvideocall`.", baseName, ctx.GetPrefix()))
+			return ctx.Reply(fmt.Sprintf("You currently have a default video call video set.\n\nFile: %s\n\nTo update it, reply to a new video message with `%ssetvideocall`.", baseName, ctx.GetPrefix()))
 		}
 		return ctx.Reply(fmt.Sprintf("Reply to or attach a video file with `%ssetvideocall` to set your default video for video calls.", ctx.GetPrefix()))
 	}
@@ -120,5 +120,5 @@ func handleSetVideoCall(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("Failed to save video call config: %v", err))
 	}
 
-	return ctx.Reply("✅ Default video call video set successfully!")
+	return ctx.Reply("Default video call video set successfully!")
 }

@@ -334,6 +334,18 @@ func handleTimezone(ctx *Context) error {
 		return renderTimezonePage(ctx, s, pageNum)
 	}
 
+	if len(ctx.Args) >= 2 && strings.ToLower(ctx.Args[0]) == "setidx" {
+		idx, err := strconv.Atoi(ctx.Args[1])
+		if err != nil || idx < 1 || idx > len(supportedTimezones) {
+			return ctx.Reply("Invalid timezone selection.")
+		}
+		tzName := supportedTimezones[idx-1]
+		if err := s.PutSetting(ctx.Ctx, "timezone", tzName); err != nil {
+			return ctx.Reply("Failed to save timezone setting.")
+		}
+		return ctx.Reply(fmt.Sprintf("Bot timezone successfully set to *%s*.", tzName))
+	}
+
 	if len(ctx.Args) == 1 {
 		tzName := ctx.Args[0]
 		if _, err := time.LoadLocation(tzName); err == nil {
@@ -389,13 +401,14 @@ func renderTimezonePage(ctx *Context, s *sqlstore.SQLStore, page int) error {
 	}
 
 	var buttons []struct{ ID, Text string }
-	for _, tz := range pageItems {
+	for idx, tz := range pageItems {
+		globalIdx := startIdx + idx + 1
 		btnText := tz
 		if len(btnText) > 20 {
 			btnText = btnText[:20]
 		}
 		buttons = append(buttons, struct{ ID, Text string }{
-			ID:   fmt.Sprintf("%stimezone set %s", p, tz),
+			ID:   fmt.Sprintf("%stimezone setidx %d", p, globalIdx),
 			Text: btnText,
 		})
 	}
