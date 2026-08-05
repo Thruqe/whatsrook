@@ -103,7 +103,6 @@ func (b *Bot) WAEventHandler(evt any) {
 		plugins.TrackPresence(v.Sender, true)
 
 	case *events.Receipt:
-		slog.Debug("events: received Receipt event", "sender", v.Sender.String(), "type", v.Type)
 		if !v.Sender.IsEmpty() {
 			if v.Chat.Server == "g.us" {
 				if s, ok := b.client.Store.Identities.(*sqlstore.SQLStore); ok {

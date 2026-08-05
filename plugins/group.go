@@ -701,7 +701,6 @@ func TrackPresence(jid types.JID, isOnline bool) {
 		IsOnline: isOnline,
 	}
 	presenceMu.Unlock()
-	slog.Debug("TrackPresence update", "jid", key, "isOnline", isOnline)
 }
 
 func IsUserOnline(jid types.JID, client *whatsmeow.Client) bool {
