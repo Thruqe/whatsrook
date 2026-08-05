@@ -339,8 +339,12 @@ func handleIGStory(ctx *Context) error {
 
 	if target == "" && ctx.Evt != nil && ctx.Evt.Message != nil {
 		quotedText := utils.GetDirectMessageText(ctx.Evt.Message)
+		quotedText = strings.TrimSpace(quotedText)
 		if quotedText != "" {
-			target = strings.Fields(quotedText)[0]
+			fields := strings.Fields(quotedText)
+			if len(fields) > 0 {
+				target = fields[0]
+			}
 		}
 	}
 
@@ -349,17 +353,20 @@ func handleIGStory(ctx *Context) error {
 	}
 
 	username := extractIGUsername(target)
+	if username == "" {
+		return ctx.Reply("Please provide an Instagram username or story URL. Usage: `.igstory <username|URL>`")
+	}
 
 	loader := ctx.StartLoader(fmt.Sprintf("Fetching stories for @%s...", username))
 	defer loader.Delete()
 
 	res, err := downloader.DownloadInstagramStories(ctx.Ctx, username)
 	if err != nil {
-		return ctx.Reply("Failed to extract stories: " + err.Error())
+		return ctx.Reply(fmt.Sprintf("Couldn't fetch stories for @%s — the account might not exist, might be private, or might have no active stories right now.", username))
 	}
 
 	if len(res.Items) == 0 {
-		return ctx.Reply(fmt.Sprintf("No active stories found for @%s.", username))
+		return ctx.Reply(fmt.Sprintf("No active stories found for @%s — the account might have none right now, or it might be private.", username))
 	}
 
 	return dispatchMediaItems(ctx, res)
