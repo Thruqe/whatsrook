@@ -337,24 +337,13 @@ func executeDownload(ctx *Context, targetURL string) error {
 func handleIGStory(ctx *Context) error {
 	target := strings.TrimSpace(ctx.RawArgs)
 
-	if target == "" && ctx.Evt != nil && ctx.Evt.Message != nil {
-		quotedText := utils.GetDirectMessageText(ctx.Evt.Message)
-		quotedText = strings.TrimSpace(quotedText)
-		if quotedText != "" {
-			fields := strings.Fields(quotedText)
-			if len(fields) > 0 {
-				target = fields[0]
-			}
-		}
-	}
-
 	if target == "" {
-		return ctx.Reply("Please provide an Instagram username or story URL. Usage: `.igstory <username|URL>`")
+		return ctx.Reply("Please provide an Instagram username or story URL. Usage: `.igstory <username>`")
 	}
 
 	username := extractIGUsername(target)
 	if username == "" {
-		return ctx.Reply("Please provide an Instagram username or story URL. Usage: `.igstory <username|URL>`")
+		return ctx.Reply("Please provide an Instagram username or story URL. Usage: `.igstory <username>`")
 	}
 
 	loader := ctx.StartLoader(fmt.Sprintf("Fetching stories for @%s...", username))
