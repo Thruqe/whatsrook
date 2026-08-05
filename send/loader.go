@@ -6,7 +6,9 @@ import (
 	"sync"
 	"time"
 
+	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
+	"google.golang.org/protobuf/proto"
 )
 
 // Braille spinner frames for smooth text animation
@@ -27,32 +29,31 @@ func nextLoaderID() string {
 
 // Loader represents an active background text animation editing a WhatsApp message.
 type Loader struct {
-	ctx        *PluginContext
-	id         string
-	msgID      types.MessageID
-	delayTimer *time.Timer
-	stopChan   chan struct{}
-	active     bool
-	stopped    bool
-	mu         sync.Mutex
+	ctx         *PluginContext
+	id          string
+	initialText string
+	msgID       types.MessageID
+	stopChan    chan struct{}
+	active      bool
+	stopped     bool
+	mu          sync.Mutex
 }
 
-// StartLoader returns a Loader that displays an interactive loader with animation & Cancel button
-// ONLY if the operation takes longer than 1.5 seconds.
+// StartLoader returns a Loader that immediately sends an animated loading message to the chat,
+// continuously editing frame-by-frame until the operation completes, then deleting the message.
 func (ctx *PluginContext) StartLoader(initialText string) *Loader {
 	loaderID := nextLoaderID()
 	l := &Loader{
-		ctx:      ctx,
-		id:       loaderID,
-		stopChan: make(chan struct{}),
+		ctx:         ctx,
+		id:          loaderID,
+		initialText: initialText,
+		stopChan:    make(chan struct{}),
 	}
 
 	activeLoaders.Store(loaderID, l)
 
-	// Delay loader display by 1.5 seconds. If operation finishes earlier, no message is ever sent.
-	l.delayTimer = time.AfterFunc(1500*time.Millisecond, func() {
-		l.activate()
-	})
+	// Activate loader message synchronously so it appears instantly in chat
+	l.activate()
 
 	return l
 }
@@ -66,20 +67,15 @@ func (l *Loader) activate() {
 	l.active = true
 	l.mu.Unlock()
 
-	// Only loading animation frame, no text
 	frame := loaderFrames[0]
+	displayText := fmt.Sprintf("%s %s", l.initialText, frame)
 
-	// Interactive button to cancel in-flight operation
-	buttons := []struct{ ID, Text string }{
-		{ID: "cancel_loader_" + l.id, Text: "Cancel"},
-	}
-
-	btnMsg := CreateInteractiveButtonMessage(frame, buttons)
-
-	slog.Debug("StartLoader: activating delayed loader", "id", l.id)
-	resp, err := l.ctx.Client.SendMessage(l.ctx.Ctx, l.ctx.Chat, btnMsg)
+	slog.Debug("StartLoader: sending loader message synchronously", "id", l.id, "text", l.initialText)
+	resp, err := l.ctx.Client.SendMessage(l.ctx.Ctx, l.ctx.Chat, &waE2E.Message{
+		Conversation: proto.String(displayText),
+	})
 	if err != nil {
-		slog.Debug("StartLoader: failed to send loader interactive button", "err", err)
+		slog.Error("StartLoader: failed to send loader message", "err", err)
 		return
 	}
 
@@ -91,7 +87,7 @@ func (l *Loader) activate() {
 }
 
 func (l *Loader) run() {
-	ticker := time.NewTicker(1200 * time.Millisecond)
+	ticker := time.NewTicker(800 * time.Millisecond)
 	defer ticker.Stop()
 
 	frameIdx := 1
@@ -112,8 +108,8 @@ func (l *Loader) run() {
 			msgID := l.msgID
 			l.mu.Unlock()
 
-			// Update message with ONLY the loading animation frame
-			_, err := l.ctx.Edit(msgID, frame)
+			displayText := fmt.Sprintf("%s %s", l.initialText, frame)
+			_, err := l.ctx.Edit(msgID, displayText)
 			if err != nil {
 				slog.Debug("Loader animation edit failed", "msgID", msgID, "err", err)
 			}
@@ -156,12 +152,9 @@ func (l *Loader) MessageID() types.MessageID {
 	return l.msgID
 }
 
-// Stop halts the delay timer and animation ticker.
+// Stop halts the animation ticker.
 func (l *Loader) Stop() {
 	l.mu.Lock()
-	if l.delayTimer != nil {
-		l.delayTimer.Stop()
-	}
 	if !l.stopped {
 		l.stopped = true
 		close(l.stopChan)
@@ -190,6 +183,7 @@ func (l *Loader) Delete() {
 	l.mu.Unlock()
 
 	if msgID != "" {
+		slog.Debug("StartLoader: deleting loader message", "msgID", msgID)
 		_, _ = l.ctx.Delete(msgID)
 	}
 }

@@ -1,9 +1,11 @@
 package utils
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +15,126 @@ import (
 	"github.com/tcolgate/mp3"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 )
+
+// AudioPTTMeta contains converted Opus OGG data, duration in seconds, and 64-bin amplitude waveform bytes.
+type AudioPTTMeta struct {
+	Data     []byte
+	Seconds  uint32
+	Waveform []byte
+}
+
+// EnsureOpusPTT converts audio bytes (MP3, WAV, AAC, M4A, etc.) to WhatsApp-compatible Opus OGG format using ffmpeg,
+// and extracts duration in seconds and 64-bin normalized amplitude waveform bytes.
+func EnsureOpusPTT(ctx context.Context, audioBytes []byte) (*AudioPTTMeta, error) {
+	if len(audioBytes) == 0 {
+		return &AudioPTTMeta{Data: audioBytes}, nil
+	}
+
+	tempDir := os.TempDir()
+	nowNano := time.Now().UnixNano()
+	tempIn := filepath.Join(tempDir, fmt.Sprintf("audio_in_%d.tmp", nowNano))
+	tempOut := filepath.Join(tempDir, fmt.Sprintf("audio_out_%d.opus", nowNano))
+	tempPcm := filepath.Join(tempDir, fmt.Sprintf("audio_pcm_%d.raw", nowNano))
+
+	if err := os.WriteFile(tempIn, audioBytes, 0644); err != nil {
+		return &AudioPTTMeta{Data: audioBytes}, fmt.Errorf("failed to write temp audio file: %w", err)
+	}
+	defer os.Remove(tempIn)
+	defer os.Remove(tempOut)
+	defer os.Remove(tempPcm)
+
+	// 1. Transcode audio to Opus OGG
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-i", tempIn, "-c:a", "libopus", "-b:a", "32k", "-application", "voip", "-f", "ogg", tempOut)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		log.Printf("[WARN] EnsureOpusPTT: ffmpeg conversion failed: %v (%s)", err, string(out))
+		return &AudioPTTMeta{Data: audioBytes}, nil
+	}
+
+	converted, err := os.ReadFile(tempOut)
+	if err != nil || len(converted) == 0 {
+		return &AudioPTTMeta{Data: audioBytes}, nil
+	}
+
+	meta := &AudioPTTMeta{
+		Data: converted,
+	}
+
+	// 2. Decode raw PCM to compute seconds & waveform samples matching WhatsApp waveform spec
+	cmdPcm := exec.CommandContext(ctx, "ffmpeg", "-y", "-i", tempIn, "-ac", "1", "-ar", "8000", "-f", "s16le", tempPcm)
+	if errPcm := cmdPcm.Run(); errPcm == nil {
+		pcmBytes, rErr := os.ReadFile(tempPcm)
+		if rErr == nil && len(pcmBytes) >= 2 {
+			meta.Seconds, meta.Waveform = extractWaveformAndDuration(pcmBytes, 8000)
+		}
+	}
+
+	return meta, nil
+}
+
+func ExtractWaveformForTest(pcmBytes []byte, sampleRate int) (uint32, []byte) {
+	return extractWaveformAndDuration(pcmBytes, sampleRate)
+}
+
+func extractWaveformAndDuration(pcmBytes []byte, sampleRate int) (uint32, []byte) {
+	numSamples := len(pcmBytes) / 2
+	if numSamples == 0 {
+		return 0, make([]byte, 64)
+	}
+
+	seconds := uint32(math.Round(float64(numSamples) / float64(sampleRate)))
+	if seconds == 0 {
+		seconds = 1
+	}
+
+	const numBins = 64
+	type binData struct {
+		sum   float64
+		count uint32
+	}
+	bins := make([]binData, numBins)
+
+	const scaleS16 = 1.0 / 32768.0
+	numSamplesU64 := uint64(numSamples)
+
+	for i := 0; i < numSamples; i++ {
+		sampleVal := int16(uint16(pcmBytes[i*2]) | uint16(pcmBytes[i*2+1])<<8)
+		sampleAbs := math.Abs(float64(sampleVal) * scaleS16)
+
+		binIdx := int((uint64(i) * numBins) / numSamplesU64)
+		if binIdx >= numBins {
+			binIdx = numBins - 1
+		}
+		bins[binIdx].sum += sampleAbs
+		bins[binIdx].count++
+	}
+
+	averages := make([]float64, numBins)
+	var maxAvg float64
+	for i := 0; i < numBins; i++ {
+		if bins[i].count > 0 {
+			averages[i] = bins[i].sum / float64(bins[i].count)
+		}
+		if averages[i] > maxAvg {
+			maxAvg = averages[i]
+		}
+	}
+
+	waveform := make([]byte, numBins)
+	if maxAvg == 0.0 {
+		return seconds, waveform
+	}
+
+	scale := 100.0 / maxAvg
+	for i := 0; i < numBins; i++ {
+		val := averages[i] * scale
+		if val > 100.0 {
+			val = 100.0
+		}
+		waveform[i] = byte(math.Round(val))
+	}
+
+	return seconds, waveform
+}
 
 // TranscodeToMP3 converts input audio to MP3 via ffmpeg CLI.
 func TranscodeToMP3(inputPath string) (string, error) {

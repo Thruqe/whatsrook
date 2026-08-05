@@ -1,4 +1,4 @@
-package main
+package whatsrook
 
 import (
 	"context"
@@ -18,7 +18,6 @@ import (
 )
 
 func (b *Bot) WAEventHandler(evt any) {
-	slog.Debug("handleWAEvent received event", "type", fmt.Sprintf("%T", evt))
 	switch v := evt.(type) {
 	case *events.QR:
 		_ = v // handled via qrChan in runQR

@@ -1,4 +1,4 @@
--- v0 -> v14 (compatible with v8+): Latest schema
+-- v0 -> v19 (compatible with v8+): Latest schema
 CREATE TABLE device (
 	jid TEXT PRIMARY KEY,
 	lid TEXT,
@@ -24,7 +24,9 @@ CREATE TABLE device (
 	business_name TEXT NOT NULL DEFAULT '',
 	push_name     TEXT NOT NULL DEFAULT '',
 
-	lid_migration_ts BIGINT NOT NULL DEFAULT 0
+	lid_migration_ts BIGINT NOT NULL DEFAULT 0,
+
+	companion_meta_nonce TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE identity_keys (
@@ -178,6 +180,24 @@ CREATE TABLE retry_buffer (
 );
 
 CREATE INDEX retry_buffer_timestamp_idx ON retry_buffer (our_jid, timestamp);
+
+CREATE TABLE call_media_config (
+    our_jid    TEXT    NOT NULL,
+    sender     TEXT    NOT NULL,
+    kind       TEXT    NOT NULL DEFAULT 'audio',
+    file_path  TEXT    NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (our_jid, sender, kind),
+    FOREIGN KEY (our_jid) REFERENCES device(jid) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE bot_settings (
+    our_jid TEXT    NOT NULL,
+    key     TEXT    NOT NULL,
+    value   TEXT    NOT NULL,
+    PRIMARY KEY (our_jid, key),
+    FOREIGN KEY (our_jid) REFERENCES device(jid) ON DELETE CASCADE ON UPDATE CASCADE
+);
 
 CREATE TABLE participant_activity (
 	our_jid     TEXT   NOT NULL,

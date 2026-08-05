@@ -87,3 +87,30 @@ func (c *PluginContext) GetBotName() string {
 	}
 	return strings.TrimSpace(raw)
 }
+
+// HasArgs returns true if the command was invoked with any positional arguments.
+func (c *PluginContext) HasArgs() bool {
+	return len(c.Args) > 0
+}
+
+// GetArg returns the argument at the given 0-indexed position, or empty string if out of bounds.
+func (c *PluginContext) GetArg(index int) string {
+	if index >= 0 && index < len(c.Args) {
+		return c.Args[index]
+	}
+	return ""
+}
+
+// GetArgOrDefault returns the argument at position index, or defaultVal if out of bounds or empty.
+func (c *PluginContext) GetArgOrDefault(index int, defaultVal string) string {
+	val := c.GetArg(index)
+	if val == "" {
+		return defaultVal
+	}
+	return val
+}
+
+// ReplyError sends a formatted error reply to the current chat.
+func (c *PluginContext) ReplyError(msg string) error {
+	return c.Reply("⚠️ " + msg)
+}

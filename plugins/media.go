@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -152,20 +153,25 @@ func handleCrop(ctx *Context) error {
 }
 
 func handleMP4(ctx *Context) error {
-	data, _, err := ctx.GetMedia()
+	slog.Debug("handleMP4: fetching media for conversion", "chat", ctx.Chat.String(), "sender", ctx.Sender.String())
+	data, mime, err := ctx.GetMedia()
 	if err != nil {
+		slog.Warn("handleMP4: no media found", "chat", ctx.Chat.String(), "err", err)
 		return ctx.Reply("No media found in this message or the replied message.")
 	}
 
+	slog.Debug("handleMP4: starting conversion loader", "mime", mime, "size", len(data))
 	loader := ctx.StartLoader("Converting to MP4")
 	defer loader.Delete()
 
-	mp4Data, err := processMP4(data)
+	mp4Data, err := processMP4(data, mime)
 	if err != nil {
+		slog.Error("handleMP4: processMP4 failed", "mime", mime, "size", len(data), "err", err)
 		loader.Delete()
-		return ctx.Reply(fmt.Sprintf(" Failed to convert to MP4: %v", err))
+		return ctx.Reply(fmt.Sprintf("⚠️ Failed to convert to MP4: %v", err))
 	}
 
+	slog.Debug("handleMP4: conversion successful, sending video", "outputSize", len(mp4Data))
 	return ctx.ReplyWithVideo(mp4Data, "video/mp4", "")
 }
 
@@ -184,7 +190,7 @@ func handleMP3(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf(" Failed to convert to MP3: %v", err))
 	}
 
-	return ctx.ReplyWithAudio(mp3Data, "audio/mp3")
+	return ctx.ReplyWithAudio(mp3Data, "audio/ogg; codecs=opus")
 }
 
 func handleMP4URL(ctx *Context) error {
@@ -202,7 +208,7 @@ func handleMP4URL(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf(" Failed to download video: %v", err))
 	}
 
-	mp4Data, err := processMP4(videoBytes)
+	mp4Data, err := processMP4(videoBytes, "video/mp4")
 	if err != nil {
 		loader.Delete()
 		return ctx.Reply(fmt.Sprintf(" Failed to process video into MP4: %v", err))
@@ -373,26 +379,75 @@ func processSticker(data []byte, isVideo bool, packName, author, filter string) 
 	return os.ReadFile(finalPath)
 }
 
-func processMP4(data []byte) ([]byte, error) {
+func processMP4(data []byte, mime string) ([]byte, error) {
+	slog.Debug("processMP4: starting conversion", "inputBytes", len(data), "mime", mime)
 	tmpDir, err := os.MkdirTemp("", "whatsrook_mp4_*")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create temp dir: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	tempIn := filepath.Join(tmpDir, "input")
+	ext := utils.ExtensionFor(mime)
+	if ext == ".bin" || ext == "" {
+		if bytes.HasPrefix(data, []byte("RIFF")) && len(data) > 12 && string(data[8:12]) == "WEBP" {
+			ext = ".webp"
+		} else if bytes.HasPrefix(data, []byte("GIF8")) {
+			ext = ".gif"
+		} else {
+			ext = ".webp"
+		}
+	}
+
+	tempIn := filepath.Join(tmpDir, "input"+ext)
 	if err := os.WriteFile(tempIn, data, 0644); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to write temp input file: %w", err)
 	}
 
 	tempOut := filepath.Join(tmpDir, "output.mp4")
 
-	cmd := exec.Command("ffmpeg", "-y", "-i", tempIn, "-pix_fmt", "yuv420p", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", tempOut)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("ffmpeg mp4 failed: %w (output: %s)", err, string(out))
+	// 1. Try direct convert (works for video/MP4/GIF/standard images)
+	cmd := exec.Command("ffmpeg", "-y", "-i", tempIn, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-movflags", "+faststart", tempOut)
+	if out, err := cmd.CombinedOutput(); err == nil {
+		res, errRead := os.ReadFile(tempOut)
+		if errRead == nil && len(res) > 0 {
+			slog.Debug("processMP4: direct ffmpeg conversion successful", "outputBytes", len(res))
+			return res, nil
+		}
+	} else {
+		slog.Debug("processMP4: direct ffmpeg failed, trying ImageMagick frame extraction fallback", "err", err, "ffmpegOutput", string(out))
 	}
 
-	return os.ReadFile(tempOut)
+	// 2. Try ImageMagick frame extraction (works for animated WebP stickers with ANIM/ANMF chunks)
+	framePattern := filepath.Join(tmpDir, "frame_%03d.png")
+	cmdMagick := exec.Command("magick", tempIn, framePattern)
+	if outMagick, errMagick := cmdMagick.CombinedOutput(); errMagick == nil {
+		cmdStitch := exec.Command("ffmpeg", "-y", "-framerate", "15", "-i", framePattern, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-movflags", "+faststart", tempOut)
+		if outStitch, errStitch := cmdStitch.CombinedOutput(); errStitch == nil {
+			res, errRead := os.ReadFile(tempOut)
+			if errRead == nil && len(res) > 0 {
+				slog.Debug("processMP4: ImageMagick frame extraction conversion successful", "outputBytes", len(res))
+				return res, nil
+			}
+		} else {
+			slog.Debug("processMP4: ffmpeg frame stitching failed", "err", errStitch, "output", string(outStitch))
+		}
+	} else {
+		slog.Debug("processMP4: ImageMagick frame extraction failed", "err", errMagick, "output", string(outMagick))
+	}
+
+	// 3. Fallback for static image/sticker input: loop for 3 seconds
+	cmdLoop := exec.Command("ffmpeg", "-y", "-loop", "1", "-i", tempIn, "-c:v", "libx264", "-t", "3", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-movflags", "+faststart", tempOut)
+	outLoop, errLoop := cmdLoop.CombinedOutput()
+	if errLoop == nil {
+		res, errRead := os.ReadFile(tempOut)
+		if errRead == nil && len(res) > 0 {
+			slog.Debug("processMP4: static loop conversion successful", "outputBytes", len(res))
+			return res, nil
+		}
+	}
+
+	slog.Error("processMP4: all conversion levels failed", "err", errLoop, "ffmpegOutput", string(outLoop))
+	return nil, fmt.Errorf("ffmpeg mp4 conversion failed: %w (output: %s)", errLoop, string(outLoop))
 }
 
 func processMP3(data []byte) ([]byte, error) {
@@ -407,11 +462,11 @@ func processMP3(data []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	tempOut := filepath.Join(tmpDir, "output.mp3")
+	tempOut := filepath.Join(tmpDir, "output.opus")
 
-	cmd := exec.Command("ffmpeg", "-y", "-i", tempIn, "-q:a", "2", tempOut)
+	cmd := exec.Command("ffmpeg", "-y", "-i", tempIn, "-c:a", "libopus", "-b:a", "32k", "-application", "voip", "-f", "ogg", tempOut)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("ffmpeg mp3 failed: %w (output: %s)", err, string(out))
+		return nil, fmt.Errorf("ffmpeg opus failed: %w (output: %s)", err, string(out))
 	}
 
 	return os.ReadFile(tempOut)

@@ -131,7 +131,9 @@ func handleFancy(ctx *Context) error {
 	if len(ctx.Args) < 2 {
 		var sb strings.Builder
 		sb.WriteString("Please provide a font number and text to convert.\n\n")
-		sb.WriteString("Use *" + p + "fontlist* to view all available font numbers.\n\n")
+		sb.WriteString("Use *")
+		sb.WriteString(p)
+		sb.WriteString("fontlist* to view all available font numbers.\n\n")
 		sb.WriteString("Usage Example:\n")
 		fmt.Fprintf(&sb, "• `%sfancy 14 Hello World`\n", p)
 		fmt.Fprintf(&sb, "• `%sfancy 2 WhatsRook AI`\n\n", p)

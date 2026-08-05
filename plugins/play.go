@@ -126,7 +126,7 @@ func processYouTubeAudioDownload(ctx *Context, targetURL string) error {
 	}
 
 	tmpIn := filepath.Join(os.TempDir(), fmt.Sprintf("yt_in_%d.bin", time.Now().UnixNano()))
-	tmpOut := filepath.Join(os.TempDir(), fmt.Sprintf("yt_out_%d.m4a", time.Now().UnixNano()))
+	tmpOut := filepath.Join(os.TempDir(), fmt.Sprintf("yt_out_%d.opus", time.Now().UnixNano()))
 
 	if err := os.WriteFile(tmpIn, data, 0644); err != nil {
 		return ctx.Reply("Failed to write temporary audio file.")
@@ -134,9 +134,9 @@ func processYouTubeAudioDownload(ctx *Context, targetURL string) error {
 	defer os.Remove(tmpIn)
 	defer os.Remove(tmpOut)
 
-	cmd := exec.CommandContext(ctx.Ctx, "ffmpeg", "-y", "-i", tmpIn, "-vn", "-c:a", "aac", "-b:a", "128k", tmpOut)
+	cmd := exec.CommandContext(ctx.Ctx, "ffmpeg", "-y", "-i", tmpIn, "-vn", "-c:a", "libopus", "-b:a", "32k", "-application", "voip", "-f", "ogg", tmpOut)
 	audioBytes := data
-	mimetype := "audio/mp4"
+	mimetype := "audio/ogg; codecs=opus"
 	if err := cmd.Run(); err == nil {
 		if converted, rerr := os.ReadFile(tmpOut); rerr == nil && len(converted) > 0 {
 			audioBytes = converted

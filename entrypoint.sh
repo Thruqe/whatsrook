@@ -1,53 +1,68 @@
 #!/bin/sh
 
-HAS_SESSION_ARG=false
+HAS_EXPLICIT_FLAG=false
+RAW_PHONE=""
+
 for arg in "$@"; do
-  if [ "$arg" = "--session" ] || echo "$arg" | grep -q "^--session="; then
-    HAS_SESSION_ARG=true
-    break
-  fi
+  case "$arg" in
+    -s|--session|--session=*|-s=*)
+      HAS_EXPLICIT_FLAG=true
+      break
+      ;;
+    *)
+      clean_num=$(echo "$arg" | tr -d '+')
+      case "$clean_num" in
+        ''|*[!0-9]*) ;;
+        *)
+          if [ ${#clean_num} -ge 7 ] && [ ${#clean_num} -le 15 ]; then
+            RAW_PHONE="$arg"
+          fi
+          ;;
+      esac
+      ;;
+  esac
 done
 
-if [ -z "$SESSION" ] && [ "$HAS_SESSION_ARG" = "false" ]; then
-  echo "Error: SESSION environment variable or --session argument is required."
+ARGS=""
+
+if [ "$HAS_EXPLICIT_FLAG" = "false" ]; then
+  if [ -n "$RAW_PHONE" ]; then
+    SESSION="$RAW_PHONE"
+    ARGS="-s $RAW_PHONE"
+  elif [ -n "$SESSION" ]; then
+    ARGS="-s $SESSION"
+  fi
+fi
+
+if [ -z "$SESSION" ] && [ "$HAS_EXPLICIT_FLAG" = "false" ]; then
+  echo "Error: SESSION environment variable or --session / -s argument is required."
   exit 1
 fi
 
-ARGS=""
-if [ -n "$SESSION" ]; then
-  ARGS="--session $SESSION"
-fi
-
-if [ "$PAIR" = "true" ]; then
-  ARGS="$ARGS --pair"
-fi
-
-if [ -n "$PORT" ]; then
-  ARGS="$ARGS --port $PORT"
-fi
-
-if [ -n "$AUTH_DIR" ]; then
-  ARGS="$ARGS --auth-dir $AUTH_DIR"
+if [ "$PAIR" = "true" ] || [ "$PAIR" = "1" ]; then
+  ARGS="$ARGS -p"
 fi
 
 if [ -n "$CLIENT" ]; then
-  ARGS="$ARGS --client $CLIENT"
+  ARGS="$ARGS -c $CLIENT"
 fi
 
-if [ "$QRCODE" = "true" ]; then
-  ARGS="$ARGS --qrcode"
+if [ "$QRCODE" = "true" ] || [ "$QRCODE" = "1" ]; then
+  ARGS="$ARGS -q"
 fi
 
-if [ "$LOGOUT" = "true" ]; then
-  ARGS="$ARGS --logout"
+if [ "$LOGOUT" = "true" ] || [ "$LOGOUT" = "1" ]; then
+  ARGS="$ARGS -l"
 fi
 
-if [ "$VERBOSE" = "true" ]; then
-  ARGS="$ARGS --verbose"
+if [ "$VERBOSE" = "true" ] || [ "$VERBOSE" = "1" ]; then
+  ARGS="$ARGS -v"
 fi
 
-if [ "$DEV" = "true" ]; then
-  ARGS="$ARGS --dev"
+if [ -f "./bin/whatsrook" ]; then
+  exec ./bin/whatsrook $ARGS "$@"
+elif [ -f "./whatsrook" ]; then
+  exec ./whatsrook $ARGS "$@"
+else
+  exec go run ./cli $ARGS "$@"
 fi
-
-exec ./whatsrook $ARGS "$@"

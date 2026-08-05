@@ -1,5 +1,5 @@
 // WebSocket control message handlers – send, edit, revoke messages, react, etc.
-package main
+package whatsrook
 
 import (
 	"context"

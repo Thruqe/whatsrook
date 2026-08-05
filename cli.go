@@ -1,4 +1,4 @@
-package main
+package whatsrook
 
 import (
 	"flag"
@@ -74,6 +74,26 @@ Options:
 
 	_ = fs.Parse(os.Args[1:])
 
+	sessionVal := *session
+	if sessionVal == "" && fs.NArg() > 0 {
+		for _, arg := range fs.Args() {
+			cleanArg := strings.TrimPrefix(arg, "+")
+			if len(cleanArg) >= 7 && len(cleanArg) <= 15 {
+				allDigits := true
+				for _, r := range cleanArg {
+					if r < '0' || r > '9' {
+						allDigits = false
+						break
+					}
+				}
+				if allDigits {
+					sessionVal = arg
+					break
+				}
+			}
+		}
+	}
+
 	clientVal := *client
 	if clientVal == "chrome" && os.Getenv("CLIENT") != "" {
 		clientVal = os.Getenv("CLIENT")
@@ -85,13 +105,13 @@ Options:
 		os.Exit(1)
 	}
 
-	if *session == "" && !*update {
+	if sessionVal == "" && !*update {
 		fmt.Fprintln(os.Stderr, "Error: --session <phone_number> or $SESSION environment variable is required. Run with -h for help.")
 		os.Exit(1)
 	}
 
 	return Arguments{
-		Session:         *session,
+		Session:         sessionVal,
 		Pair:            *pair || getEnvBool("PAIR"),
 		QRCode:          *qr || getEnvBool("QRCODE"),
 		Logout:          *logout || getEnvBool("LOGOUT"),

@@ -154,7 +154,7 @@ func handleFFmpeg(ctx *Context) error {
 
 		if outBytes, err := os.ReadFile(outFile); err == nil && len(outBytes) > 0 {
 			if strings.HasSuffix(outFile, ".mp3") || strings.HasSuffix(outFile, ".ogg") {
-				return ctx.SendAudio(outBytes, "audio/mp4")
+				return ctx.SendAudio(outBytes, "audio/ogg; codecs=opus")
 			} else if strings.HasSuffix(outFile, ".webp") {
 				return ctx.SendSticker(outBytes)
 			} else if strings.HasSuffix(outFile, ".png") || strings.HasSuffix(outFile, ".jpg") {

@@ -3,6 +3,7 @@ package plugins
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -35,6 +36,15 @@ func init() {
 		Category:    "downloader",
 		IsPublic:    true,
 		Handler:     handleYTA,
+	})
+
+	Register(&Command{
+		Name:        "yts",
+		Aliases:     []string{"ytsearch", "searchyt"},
+		Description: "Search YouTube for videos and display formatted results",
+		Category:    "downloader",
+		IsPublic:    true,
+		Handler:     handleYTS,
 	})
 }
 
@@ -119,7 +129,7 @@ func handleYTA(ctx *Context) error {
 	}
 
 	tmpIn := filepath.Join(os.TempDir(), fmt.Sprintf("yt_in_%d.bin", time.Now().UnixNano()))
-	tmpOut := filepath.Join(os.TempDir(), fmt.Sprintf("yt_out_%d.m4a", time.Now().UnixNano()))
+	tmpOut := filepath.Join(os.TempDir(), fmt.Sprintf("yt_out_%d.opus", time.Now().UnixNano()))
 
 	if err := os.WriteFile(tmpIn, data, 0644); err != nil {
 		return ctx.Reply("Failed to write temporary media file.")
@@ -127,9 +137,9 @@ func handleYTA(ctx *Context) error {
 	defer os.Remove(tmpIn)
 	defer os.Remove(tmpOut)
 
-	cmd := exec.CommandContext(ctx.Ctx, "ffmpeg", "-y", "-i", tmpIn, "-vn", "-c:a", "aac", "-b:a", "128k", tmpOut)
+	cmd := exec.CommandContext(ctx.Ctx, "ffmpeg", "-y", "-i", tmpIn, "-vn", "-c:a", "libopus", "-b:a", "32k", "-application", "voip", "-f", "ogg", tmpOut)
 	audioBytes := data
-	mimetype := "audio/mp4"
+	mimetype := "audio/ogg; codecs=opus"
 	if err := cmd.Run(); err == nil {
 		if converted, rerr := os.ReadFile(tmpOut); rerr == nil && len(converted) > 0 {
 			audioBytes = converted
@@ -204,9 +214,14 @@ func fetchThumbnailBytes(ctx *Context, thumbURL string) []byte {
 }
 
 // replyWithMusicAudio sends audio with an ExternalAdReplyInfo "music card":
-// title, author (as body), and thumbnail. MediaType is left unset (nil) since
-// it's optional and the exact enum constant name varies by whatsmeow version.
+// title, author (as body), and thumbnail.
 func replyWithMusicAudio(ctx *Context, data []byte, mimetype string, res *downloader.Result, thumb []byte) error {
+	meta, errMeta := utils.EnsureOpusPTT(ctx.Ctx, data)
+	if errMeta == nil && meta != nil && len(meta.Data) > 0 {
+		data = meta.Data
+	}
+	mimetype = "audio/ogg; codecs=opus"
+
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaAudio)
 	if err != nil {
 		return fmt.Errorf("audio upload failed: %w", err)
@@ -219,12 +234,25 @@ func replyWithMusicAudio(ctx *Context, data []byte, mimetype string, res *downlo
 
 	mediaType := waE2E.ContextInfo_ExternalAdReplyInfo_IMAGE.Enum()
 
+	thumbURL := res.Thumbnail
+	if thumbURL == "" && res.ID != "" {
+		thumbURL = fmt.Sprintf("https://img.youtube.com/vi/%s/hqdefault.jpg", res.ID)
+	}
+
+	sourceURL := "https://github.com/Thruqe/whatsrook"
+	if res.ID != "" {
+		sourceURL = "https://www.youtube.com/watch?v=" + res.ID
+	}
+
 	adInfo := &waE2E.ContextInfo_ExternalAdReplyInfo{
 		Title:                 proto.String(title),
-		SourceURL:             proto.String("https://www.youtube.com/watch?v=" + res.ID),
+		SourceURL:             proto.String(sourceURL),
 		MediaType:             mediaType,
 		RenderLargerThumbnail: proto.Bool(true),
 		ShowAdAttribution:     proto.Bool(false),
+	}
+	if thumbURL != "" {
+		adInfo.ThumbnailURL = proto.String(thumbURL)
 	}
 	if res.Author != "" {
 		adInfo.Body = proto.String(res.Author)
@@ -252,8 +280,17 @@ func replyWithMusicAudio(ctx *Context, data []byte, mimetype string, res *downlo
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
 			FileLength:    &fileLength,
+			PTT:           proto.Bool(true),
 			ContextInfo:   cinfo,
 		},
+	}
+	if meta != nil {
+		if meta.Seconds > 0 {
+			msg.AudioMessage.Seconds = proto.Uint32(meta.Seconds)
+		}
+		if len(meta.Waveform) > 0 {
+			msg.AudioMessage.Waveform = meta.Waveform
+		}
 	}
 
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
@@ -274,4 +311,72 @@ func extractTargetURL(ctx *Context) string {
 		}
 	}
 	return targetURL
+}
+
+func handleYTS(ctx *Context) error {
+	if len(ctx.Args) == 0 {
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage: %syts <search query>\nExample: %syts Alan Walker Faded", p, p))
+	}
+
+	query := strings.Join(ctx.Args, " ")
+
+	loader := ctx.StartLoader(fmt.Sprintf("Searching YouTube for %q...", query))
+	defer loader.Delete()
+
+	dl := downloader.NewClient()
+	cookiePath := filepath.Join(GetSessionAuthDir(ctx.Client), "cookies.txt")
+	dl.CookieFile = cookiePath
+
+	results, err := dl.Search(ctx.Ctx, query, 5, "ytsearch")
+	if err != nil {
+		slog.Error("handleYTS: YouTube search failed", "err", err)
+		if isBotDetectionError(err.Error()) {
+			return SendYTCookieHelp(ctx)
+		}
+		return ctx.Reply(fmt.Sprintf("YouTube search failed: %v", err))
+	}
+
+	if len(results) == 0 {
+		return ctx.Reply(fmt.Sprintf("No YouTube videos found matching %q.", query))
+	}
+
+	var buttons []struct{ ID, Text string }
+	var sb strings.Builder
+	p := ctx.GetPrefix()
+
+	fmt.Fprintf(&sb, "*YOUTUBE SEARCH RESULTS*\n\nQuery: _%s_\n\n", query)
+
+	for i, item := range results {
+		if i >= 3 {
+			break
+		}
+		num := i + 1
+		title := item.Title
+		url := item.GetURL()
+		if url == "" {
+			continue
+		}
+		duration := item.FormatDuration()
+		channel := item.Uploader
+		if channel == "" {
+			channel = "YouTube"
+		}
+
+		fmt.Fprintf(&sb, "%d. *%s*\n", num, title)
+		if duration != "N/A" {
+			fmt.Fprintf(&sb, "Duration: %s | Channel: %s\n", duration, channel)
+		} else {
+			fmt.Fprintf(&sb, "Channel: %s\n", channel)
+		}
+		fmt.Fprintf(&sb, "Link: %s\n\n", url)
+
+		btnID := fmt.Sprintf("%sytv %s", p, url)
+		btnText := fmt.Sprintf("Download Video #%d", num)
+		buttons = append(buttons, struct{ ID, Text string }{ID: btnID, Text: btnText})
+	}
+
+	sb.WriteString("Select a button below to download video:")
+
+	return sendInteractiveButtons(ctx, sb.String(), fmt.Sprintf("%s YouTube Search", ctx.GetBotName()), buttons)
 }

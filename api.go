@@ -1,6 +1,6 @@
 // WebSocket hub for managing real-time connections, concurrent broadcasting,
 // and safe read/write loops.
-package main
+package whatsrook
 
 import (
 	"context"

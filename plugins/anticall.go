@@ -75,7 +75,7 @@ func handleAntiCall(ctx *Context) error {
 				return ctx.Reply("AntiCall contacts only restriction disabled.")
 			}
 			_ = s.PutSetting(ctx.Ctx, "anticall_contacts_only", "true")
-			return ctx.Reply(fmt.Sprintf("AntiCall set to allow calls from contacts only."))
+			return ctx.Reply("AntiCall set to allow calls from contacts only.")
 		}
 		return ctx.Reply(fmt.Sprintf("Usage: %santicall contacts [on|off|toggle]", p))
 

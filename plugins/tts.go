@@ -66,8 +66,8 @@ func handleTTS(ctx *Context) error {
 		return ctx.ReplyWithAudio(opusData, "audio/ogg; codecs=opus")
 	}
 
-	slog.Warn("handleTTS: ffmpeg OPUS conversion failed, falling back to MP3", "err", errConv)
-	return ctx.ReplyWithAudio(mp3Data, "audio/mp4")
+	slog.Warn("handleTTS: ffmpeg OPUS conversion failed, falling back to automatic conversion", "err", errConv)
+	return ctx.ReplyWithAudio(mp3Data, "audio/ogg; codecs=opus")
 }
 
 func fetchGoogleTTS(ctx context.Context, text string, lang string) ([]byte, error) {

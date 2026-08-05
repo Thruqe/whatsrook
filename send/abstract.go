@@ -770,12 +770,13 @@ func (ctx *PluginContext) extractMediaFromMessage(msg *waE2E.Message) ([]byte, s
 	return data, mimetype, true
 }
 
-// SendAudio uploads and sends an audio file.
+// SendAudio uploads and sends an audio file as an opus/ptt voice note.
 func (ctx *PluginContext) SendAudio(data []byte, mimetype string) error {
-	if mimetype == "" {
-		slog.Warn("SendAudio: mimetype is empty, defaulting to audio/mp4")
-		mimetype = "audio/mp4"
+	meta, errMeta := utils.EnsureOpusPTT(ctx.Ctx, data)
+	if errMeta == nil && meta != nil && len(meta.Data) > 0 {
+		data = meta.Data
 	}
+	mimetype = "audio/ogg; codecs=opus"
 	slog.Debug("Building SendAudio", "data_len", len(data), "mimetype", mimetype)
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaAudio)
 	if err != nil {
@@ -790,10 +791,18 @@ func (ctx *PluginContext) SendAudio(data []byte, mimetype string) error {
 			Mimetype:      &mimetype,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    new(uint64),
+			FileLength:    proto.Uint64(uint64(len(data))),
+			PTT:           proto.Bool(true),
 		},
 	}
-	*msg.AudioMessage.FileLength = uint64(len(data))
+	if meta != nil {
+		if meta.Seconds > 0 {
+			msg.AudioMessage.Seconds = proto.Uint32(meta.Seconds)
+		}
+		if len(meta.Waveform) > 0 {
+			msg.AudioMessage.Waveform = meta.Waveform
+		}
+	}
 	slog.Debug("Sending SendAudio", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
 	if err != nil {
@@ -804,12 +813,13 @@ func (ctx *PluginContext) SendAudio(data []byte, mimetype string) error {
 	return err
 }
 
-// ReplyWithAudio uploads and sends an audio file as a reply.
+// ReplyWithAudio uploads and sends an audio file as an opus/ptt voice note reply.
 func (ctx *PluginContext) ReplyWithAudio(data []byte, mimetype string) error {
-	if mimetype == "" {
-		slog.Warn("ReplyWithAudio: mimetype is empty, defaulting to audio/mp4")
-		mimetype = "audio/mp4"
+	meta, errMeta := utils.EnsureOpusPTT(ctx.Ctx, data)
+	if errMeta == nil && meta != nil && len(meta.Data) > 0 {
+		data = meta.Data
 	}
+	mimetype = "audio/ogg; codecs=opus"
 	cinfo := ctx.replyContextInfo()
 	slog.Debug("Building ReplyWithAudio", "data_len", len(data), "mimetype", mimetype, "context_info", cinfo)
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaAudio)
@@ -825,11 +835,19 @@ func (ctx *PluginContext) ReplyWithAudio(data []byte, mimetype string) error {
 			Mimetype:      &mimetype,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    new(uint64),
+			FileLength:    proto.Uint64(uint64(len(data))),
+			PTT:           proto.Bool(true),
 			ContextInfo:   cinfo,
 		},
 	}
-	*msg.AudioMessage.FileLength = uint64(len(data))
+	if meta != nil {
+		if meta.Seconds > 0 {
+			msg.AudioMessage.Seconds = proto.Uint32(meta.Seconds)
+		}
+		if len(meta.Waveform) > 0 {
+			msg.AudioMessage.Waveform = meta.Waveform
+		}
+	}
 	slog.Debug("Sending ReplyWithAudio", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
 	if err != nil {
@@ -1080,6 +1098,7 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 	var mimeType string
 	var caption string
 
+	var audioMeta *utils.AudioPTTMeta
 	if img := unwrapped.GetImageMessage(); img != nil {
 		data, err := client.Download(ctx, img)
 		if err == nil && len(data) > 0 {
@@ -1113,12 +1132,14 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 	} else if aud := unwrapped.GetAudioMessage(); aud != nil {
 		data, err := client.Download(ctx, aud)
 		if err == nil && len(data) > 0 {
+			meta, cErr := utils.EnsureOpusPTT(ctx, data)
+			if cErr == nil && meta != nil && len(meta.Data) > 0 {
+				data = meta.Data
+				audioMeta = meta
+			}
 			mediaData = data
 			mediaType = whatsmeow.MediaAudio
-			mimeType = aud.GetMimetype()
-			if mimeType == "" {
-				mimeType = "audio/ogg; codecs=opus"
-			}
+			mimeType = "audio/ogg; codecs=opus"
 			caption = headerCaption
 		}
 	}
@@ -1166,6 +1187,14 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 						FileLength:    proto.Uint64(uint64(len(mediaData))),
 						PTT:           proto.Bool(true),
 					},
+				}
+				if audioMeta != nil {
+					if audioMeta.Seconds > 0 {
+						freshMsg.AudioMessage.Seconds = proto.Uint32(audioMeta.Seconds)
+					}
+					if len(audioMeta.Waveform) > 0 {
+						freshMsg.AudioMessage.Waveform = audioMeta.Waveform
+					}
 				}
 			}
 

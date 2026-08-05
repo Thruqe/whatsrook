@@ -224,10 +224,11 @@ func sendAntiMsgMenu(ctx *Context, s *sqlstore.SQLStore, note string) error {
 	fmt.Fprintf(&sb, "╭━━━〔 ANTIMSG CONFIGURATION 〕━━━\n│ Group  : %s\n│ Status : %s\n│ Targets: %d user(s)\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n", chatKey, strings.ToUpper(status), len(users))
 
 	if note != "" {
-		sb.WriteString(note + "\n\n")
+		sb.WriteString(note)
+		sb.WriteString("\n\n")
 	}
 
-	sb.WriteString("💡 *How to use AntiMsg:*\n")
+	sb.WriteString("How to use AntiMsg:\n")
 	fmt.Fprintf(&sb, "• Reply to any message with `%santimsg` to add user\n", p)
 	fmt.Fprintf(&sb, "• Mention `@user` with `%santimsg` to add user\n", p)
 	fmt.Fprintf(&sb, "• Remove user: `%santimsg del @user`\n", p)

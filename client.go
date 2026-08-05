@@ -1,5 +1,5 @@
 // Bot lifecycle, database initialization, HTTP/WebSocket server, and session management.
-package main
+package whatsrook
 
 import (
 	"context"
@@ -25,8 +25,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// main executes the WhatsRook lifecycle.
-func main() {
+// ExecuteCLI executes the WhatsRook CLI lifecycle.
+func ExecuteCLI() {
 	cli := parseArgs()
 
 	if cli.Update {

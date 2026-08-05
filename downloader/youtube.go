@@ -24,10 +24,28 @@ type MediaInfo struct {
 }
 
 type SearchResult struct {
-	ID         string `json:"id"`
-	Title      string `json:"title"`
-	URL        string `json:"url"`
-	WebpageURL string `json:"webpage_url"`
+	ID         string  `json:"id"`
+	Title      string  `json:"title"`
+	Uploader   string  `json:"uploader"`
+	Duration   float64 `json:"duration"`
+	URL        string  `json:"url"`
+	WebpageURL string  `json:"webpage_url"`
+	ViewCount  int64   `json:"view_count"`
+}
+
+func (s *SearchResult) FormatDuration() string {
+	if s.Duration <= 0 {
+		return "N/A"
+	}
+	totalSeconds := int(s.Duration)
+	minutes := totalSeconds / 60
+	seconds := totalSeconds % 60
+	hours := minutes / 60
+	minutes = minutes % 60
+	if hours > 0 {
+		return fmt.Sprintf("%d:%02d:%02d", hours, minutes, seconds)
+	}
+	return fmt.Sprintf("%d:%02d", minutes, seconds)
 }
 
 func (s *SearchResult) GetURL() string {
@@ -122,9 +140,9 @@ func (c *Client) DownloadYouTubeMedia(ctx context.Context, rawURL string, isAudi
 	ext := "mp4"
 
 	if isAudioOnly {
-		formatSpec = "bestaudio[ext=m4a]/bestaudio/best"
+		formatSpec = "bestaudio[acodec=opus]/bestaudio[ext=webm]/bestaudio/best"
 		mediaType = "audio"
-		ext = "m4a"
+		ext = "opus"
 	}
 
 	out, err := c.runYtDlp(ctx, "--no-warnings",

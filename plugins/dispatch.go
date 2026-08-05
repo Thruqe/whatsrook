@@ -582,8 +582,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 
 		slog.Debug("Executing command", "command", name, "chat", cctx.Chat.String(), "sender", cctx.Sender.String(), "args", cctx.Args)
 		if err := cmd.Handler(cctx); err != nil {
-			slog.Error("Command handler failed", "command", name, "err", err)
-			logHandlerErr(name, err)
+			LogHandlerErrWithContext(cctx, name, err)
 		} else {
 			slog.Debug("Command completed successfully", "command", name)
 		}

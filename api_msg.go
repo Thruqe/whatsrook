@@ -1,5 +1,5 @@
 // JSON-based WebSocket payload type definitions and serialisation.
-package main
+package whatsrook
 
 import (
 	"context"

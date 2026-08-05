@@ -428,7 +428,7 @@ func dispatchMediaItems(ctx *Context, res *downloader.Result) error {
 		case "video", "gif":
 			_ = ctx.ReplyWithVideo(data, "video/mp4", caption)
 		case "audio":
-			_ = ctx.ReplyWithAudio(data, "audio/mp4")
+			_ = ctx.ReplyWithAudio(data, "audio/ogg; codecs=opus")
 		default:
 			_ = ctx.ReplyWithDocument(data, "application/octet-stream", item.Filename, caption)
 		}

@@ -12,7 +12,7 @@ require (
 	github.com/writeas/go-strip-markdown/v2 v2.1.1
 	go.mau.fi/libsignal v0.2.2
 	go.mau.fi/util v0.9.12-0.20260717235539-f9ffa7eca58d
-	go.mau.fi/whatsmeow v0.0.0-20260722203353-e9a033b24933
+	go.mau.fi/whatsmeow v0.0.0-20260805124304-6723e556f35a
 	google.golang.org/protobuf v1.36.11
 )
 

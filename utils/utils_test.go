@@ -1,6 +1,7 @@
 package utils_test
 
 import (
+	"context"
 	"testing"
 
 	"whatsrook/utils"
@@ -99,5 +100,46 @@ func TestGetDirectMessageText(t *testing.T) {
 	}
 	if text := utils.GetDirectMessageText(msg); text != " hello" {
 		t.Errorf("expected ' hello', got %q", text)
+	}
+}
+
+func TestEnsureOpusPTT_Empty(t *testing.T) {
+	ctx := context.Background()
+	meta, err := utils.EnsureOpusPTT(ctx, nil)
+	if err != nil {
+		t.Fatalf("unexpected error on nil input: %v", err)
+	}
+	if meta == nil || len(meta.Data) != 0 {
+		t.Errorf("expected empty output for nil input, got %+v", meta)
+	}
+}
+
+func TestWaveformExtraction(t *testing.T) {
+	// Generate 1 second of 8kHz 16-bit PCM (8000 samples = 16000 bytes)
+	pcm := make([]byte, 16000)
+	for i := 0; i < 8000; i++ {
+		// First 4000 samples low volume, last 4000 samples high volume
+		val := int16(1000)
+		if i >= 4000 {
+			val = int16(30000)
+		}
+		pcm[i*2] = byte(uint16(val))
+		pcm[i*2+1] = byte(uint16(val) >> 8)
+	}
+
+	sec, waveform := utils.ExtractWaveformForTest(pcm, 8000)
+	if sec != 1 {
+		t.Errorf("expected 1 second, got %d", sec)
+	}
+	if len(waveform) != 64 {
+		t.Fatalf("expected 64 waveform bins, got %d", len(waveform))
+	}
+	// Second half should be scaled to peak 100
+	if waveform[63] != 100 {
+		t.Errorf("expected peak bin to be 100, got %d", waveform[63])
+	}
+	// First half average should be lower than second half
+	if waveform[10] >= waveform[50] {
+		t.Errorf("expected first half average (%d) to be strictly lower than second half (%d)", waveform[10], waveform[50])
 	}
 }

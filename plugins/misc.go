@@ -100,6 +100,9 @@ func handleWeather(ctx *Context) error {
 	escapedQuery := url.QueryEscape(query)
 	apiURL := fmt.Sprintf("https://wttr.in/%s?format=4", escapedQuery)
 
+	loader := ctx.StartLoader(fmt.Sprintf("Fetching weather for %s...", query))
+	defer loader.Delete()
+
 	req, err := http.NewRequestWithContext(ctx.Ctx, "GET", apiURL, nil)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf("Error creating request: %v", err))
@@ -135,6 +138,9 @@ func handleUrban(ctx *Context) error {
 
 	query := strings.Join(ctx.Args, " ")
 	apiURL := fmt.Sprintf("https://api.urbandictionary.com/v0/define?term=%s", url.QueryEscape(query))
+
+	loader := ctx.StartLoader(fmt.Sprintf("Searching Urban Dictionary for %q...", query))
+	defer loader.Delete()
 
 	req, err := http.NewRequestWithContext(ctx.Ctx, "GET", apiURL, nil)
 	if err != nil {
@@ -222,6 +228,10 @@ func handleShortURL(ctx *Context) error {
 	}
 
 	apiURL := fmt.Sprintf("https://tinyurl.com/api-create.php?url=%s", url.QueryEscape(query))
+
+	loader := ctx.StartLoader("Shortening URL...")
+	defer loader.Delete()
+
 	req, err := http.NewRequestWithContext(ctx.Ctx, "GET", apiURL, nil)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf("Error creating request: %v", err))
