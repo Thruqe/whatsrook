@@ -1,5 +1,5 @@
 // Markets command – fetches real-time Forex Factory market rates and quotes.
-package commands
+package plugins
 
 import (
 	"context"

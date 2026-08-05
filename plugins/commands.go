@@ -1,16 +1,13 @@
-// Command registry – defines the Command type, handler interface, and global
-// registration table used by init() blocks across the package.
-package commands
+package plugins
 
 import (
 	"strings"
 	"sync"
-
-	"whatsrook/sender"
+	"whatsrook/send"
 )
 
 // Context is passed to every command handler.
-type Context = sender.Context
+type Context = send.PluginContext
 
 // Handler is the function signature for a command handler.
 type Handler func(ctx *Context) error

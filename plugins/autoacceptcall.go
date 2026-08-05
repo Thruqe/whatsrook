@@ -1,5 +1,5 @@
 // AutoAcceptCall command & handler – automatically answer incoming calls with pre-set call media.
-package commands
+package plugins
 
 import (
 	"context"

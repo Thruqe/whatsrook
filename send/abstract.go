@@ -1,6 +1,4 @@
-// Abstract message builder for composing rich WhatsApp messages with
-// formatting, quoting, mentions, and buttons.
-package sender
+package send
 
 import (
 	"context"
@@ -28,24 +26,24 @@ func FormatTextResponseRaw(text string) string {
 }
 
 // formatTextResponse strips asterisks, emojis, and wraps response in 3 backticks for monospace formatting
-func (ctx *Context) formatTextResponse(text string) string {
+func (ctx *PluginContext) formatTextResponse(text string) string {
 	return FormatTextResponseRaw(text)
 }
 
 // simulateTyping simulates text typing presence for 3 seconds
-func (ctx *Context) simulateTyping() {
+func (ctx *PluginContext) simulateTyping() {
 	_ = ctx.Client.SendChatPresence(ctx.Ctx, ctx.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaText)
 	time.Sleep(2 * time.Second)
 }
 
 // simulateRecording simulates audio recording presence for 3 seconds
-func (ctx *Context) simulateRecording() {
+func (ctx *PluginContext) simulateRecording() {
 	_ = ctx.Client.SendChatPresence(ctx.Ctx, ctx.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaAudio)
 	time.Sleep(3 * time.Second)
 }
 
 // SendText sends a simple text message to the current chat (with typing simulation and monospace format).
-func (ctx *Context) SendText(text string) error {
+func (ctx *PluginContext) SendText(text string) error {
 	ctx.simulateTyping()
 	formatted := ctx.formatTextResponse(text)
 	slog.Debug("Building SendText", "text", text, "formatted", formatted)
@@ -62,7 +60,7 @@ func (ctx *Context) SendText(text string) error {
 }
 
 // Send sends unified content (string or *waE2E.Message) with optional SendRequestExtra parameters.
-func (ctx *Context) Send(content any, extra ...whatsmeow.SendRequestExtra) (whatsmeow.SendResponse, error) {
+func (ctx *PluginContext) Send(content any, extra ...whatsmeow.SendRequestExtra) (whatsmeow.SendResponse, error) {
 	var msg *waE2E.Message
 	switch v := content.(type) {
 	case string:
@@ -84,7 +82,7 @@ func (ctx *Context) Send(content any, extra ...whatsmeow.SendRequestExtra) (what
 }
 
 // Edit edits an existing message in the current chat by message ID.
-func (ctx *Context) Edit(msgID types.MessageID, content any, extra ...whatsmeow.SendRequestExtra) (whatsmeow.SendResponse, error) {
+func (ctx *PluginContext) Edit(msgID types.MessageID, content any, extra ...whatsmeow.SendRequestExtra) (whatsmeow.SendResponse, error) {
 	var msg *waE2E.Message
 	switch v := content.(type) {
 	case string:
@@ -107,7 +105,7 @@ func (ctx *Context) Edit(msgID types.MessageID, content any, extra ...whatsmeow.
 }
 
 // Delete revokes/deletes a message in the current chat by message ID.
-func (ctx *Context) Delete(msgID types.MessageID, senderJID ...types.JID) (whatsmeow.SendResponse, error) {
+func (ctx *PluginContext) Delete(msgID types.MessageID, senderJID ...types.JID) (whatsmeow.SendResponse, error) {
 	sJID := types.EmptyJID
 	if len(senderJID) > 0 {
 		sJID = senderJID[0]
@@ -117,13 +115,13 @@ func (ctx *Context) Delete(msgID types.MessageID, senderJID ...types.JID) (whats
 }
 
 // Reply sends a text message replying to the current message (with typing simulation and monospace format).
-func (ctx *Context) Reply(text string) error {
+func (ctx *PluginContext) Reply(text string) error {
 	_, err := ctx.ReplyWithID(text)
 	return err
 }
 
 // ReplyWithID sends a text message replying to the current message and returns the sent MessageID.
-func (ctx *Context) ReplyWithID(text string) (types.MessageID, error) {
+func (ctx *PluginContext) ReplyWithID(text string) (types.MessageID, error) {
 	ctx.simulateTyping()
 	formatted := ctx.formatTextResponse(text)
 	cinfo := ctx.replyContextInfo()
@@ -143,7 +141,7 @@ func (ctx *Context) ReplyWithID(text string) (types.MessageID, error) {
 	return resp.ID, nil
 }
 
-func (ctx *Context) replyContextInfo() *waE2E.ContextInfo {
+func (ctx *PluginContext) replyContextInfo() *waE2E.ContextInfo {
 	if ctx.Evt == nil {
 		return nil
 	}
@@ -157,7 +155,7 @@ func (ctx *Context) replyContextInfo() *waE2E.ContextInfo {
 }
 
 // SendImage uploads and sends an image to the current chat.
-func (ctx *Context) SendImage(data []byte, mimetype, caption string) error {
+func (ctx *PluginContext) SendImage(data []byte, mimetype, caption string) error {
 	if mimetype == "" {
 		slog.Warn("SendImage: mimetype is empty, defaulting to image/jpeg")
 		mimetype = "image/jpeg"
@@ -192,7 +190,7 @@ func (ctx *Context) SendImage(data []byte, mimetype, caption string) error {
 }
 
 // ReplyWithImage uploads and sends an image as a reply.
-func (ctx *Context) ReplyWithImage(data []byte, mimetype, caption string) error {
+func (ctx *PluginContext) ReplyWithImage(data []byte, mimetype, caption string) error {
 	if mimetype == "" {
 		slog.Warn("ReplyWithImage: mimetype is empty, defaulting to image/jpeg")
 		mimetype = "image/jpeg"
@@ -229,16 +227,16 @@ func (ctx *Context) ReplyWithImage(data []byte, mimetype, caption string) error 
 }
 
 // SendVideo uploads and sends a video to the current chat.
-func (ctx *Context) SendVideo(data []byte, mimetype, caption string) error {
+func (ctx *PluginContext) SendVideo(data []byte, mimetype, caption string) error {
 	return ctx.sendVideoInternal(data, mimetype, caption, false)
 }
 
 // SendVideoGif uploads and sends a video with GifPlayback enabled so it plays as an inline looping GIF.
-func (ctx *Context) SendVideoGif(data []byte, mimetype, caption string) error {
+func (ctx *PluginContext) SendVideoGif(data []byte, mimetype, caption string) error {
 	return ctx.sendVideoInternal(data, mimetype, caption, true)
 }
 
-func (ctx *Context) sendVideoInternal(data []byte, mimetype, caption string, gifPlayback bool) error {
+func (ctx *PluginContext) sendVideoInternal(data []byte, mimetype, caption string, gifPlayback bool) error {
 	if mimetype == "" || gifPlayback {
 		mimetype = "video/mp4"
 	}
@@ -274,16 +272,16 @@ func (ctx *Context) sendVideoInternal(data []byte, mimetype, caption string, gif
 }
 
 // ReplyWithVideo uploads and sends a video as a reply.
-func (ctx *Context) ReplyWithVideo(data []byte, mimetype, caption string) error {
+func (ctx *PluginContext) ReplyWithVideo(data []byte, mimetype, caption string) error {
 	return ctx.replyVideoInternal(data, mimetype, caption, false)
 }
 
 // ReplyWithVideoGif uploads and sends a video with GifPlayback enabled as a reply so it plays as an inline looping GIF.
-func (ctx *Context) ReplyWithVideoGif(data []byte, mimetype, caption string) error {
+func (ctx *PluginContext) ReplyWithVideoGif(data []byte, mimetype, caption string) error {
 	return ctx.replyVideoInternal(data, mimetype, caption, true)
 }
 
-func (ctx *Context) replyVideoInternal(data []byte, mimetype, caption string, gifPlayback bool) error {
+func (ctx *PluginContext) replyVideoInternal(data []byte, mimetype, caption string, gifPlayback bool) error {
 	if mimetype == "" || gifPlayback {
 		mimetype = "video/mp4"
 	}
@@ -321,7 +319,7 @@ func (ctx *Context) replyVideoInternal(data []byte, mimetype, caption string, gi
 }
 
 // SendDocument uploads and sends a document.
-func (ctx *Context) SendDocument(data []byte, mimetype, filename, caption string) error {
+func (ctx *PluginContext) SendDocument(data []byte, mimetype, filename, caption string) error {
 	if mimetype == "" {
 		slog.Warn("SendDocument: mimetype is empty, defaulting to application/octet-stream")
 		mimetype = "application/octet-stream"
@@ -357,7 +355,7 @@ func (ctx *Context) SendDocument(data []byte, mimetype, filename, caption string
 }
 
 // ReplyWithDocument uploads and sends a document as a reply.
-func (ctx *Context) ReplyWithDocument(data []byte, mimetype, filename, caption string) error {
+func (ctx *PluginContext) ReplyWithDocument(data []byte, mimetype, filename, caption string) error {
 	if mimetype == "" {
 		slog.Warn("ReplyWithDocument: mimetype is empty, defaulting to application/octet-stream")
 		mimetype = "application/octet-stream"
@@ -395,7 +393,7 @@ func (ctx *Context) ReplyWithDocument(data []byte, mimetype, filename, caption s
 }
 
 // SendSticker uploads and sends a sticker.
-func (ctx *Context) SendSticker(data []byte) error {
+func (ctx *PluginContext) SendSticker(data []byte) error {
 	mimetype := "image/webp"
 	slog.Debug("Building SendSticker", "data_len", len(data))
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaImage)
@@ -426,7 +424,7 @@ func (ctx *Context) SendSticker(data []byte) error {
 }
 
 // ReplyWithSticker uploads and sends a sticker as a reply.
-func (ctx *Context) ReplyWithSticker(data []byte) error {
+func (ctx *PluginContext) ReplyWithSticker(data []byte) error {
 	mimetype := "image/webp"
 	cinfo := ctx.replyContextInfo()
 	slog.Debug("Building ReplyWithSticker", "data_len", len(data), "context_info", cinfo)
@@ -458,7 +456,7 @@ func (ctx *Context) ReplyWithSticker(data []byte) error {
 	return err
 }
 
-func (ctx *Context) getContextInfo() *waE2E.ContextInfo {
+func (ctx *PluginContext) getContextInfo() *waE2E.ContextInfo {
 	if ctx.Evt == nil || ctx.Evt.Message == nil {
 		return nil
 	}
@@ -485,12 +483,12 @@ func (ctx *Context) getContextInfo() *waE2E.ContextInfo {
 }
 
 // GetContextInfo returns the context info of the message if available.
-func (ctx *Context) GetContextInfo() *waE2E.ContextInfo {
+func (ctx *PluginContext) GetContextInfo() *waE2E.ContextInfo {
 	return ctx.getContextInfo()
 }
 
 // GetQuotedMessage returns the quoted message if this event has one.
-func (ctx *Context) GetQuotedMessage() *waE2E.Message {
+func (ctx *PluginContext) GetQuotedMessage() *waE2E.Message {
 	ci := ctx.getContextInfo()
 	if ci != nil {
 		return ci.QuotedMessage
@@ -499,7 +497,7 @@ func (ctx *Context) GetQuotedMessage() *waE2E.Message {
 }
 
 // GetQuotedSender returns the quoted message sender JID if available.
-func (ctx *Context) GetQuotedSender() (types.JID, bool) {
+func (ctx *PluginContext) GetQuotedSender() (types.JID, bool) {
 	ci := ctx.getContextInfo()
 	if ci != nil && ci.Participant != nil {
 		pj, err := types.ParseJID(*ci.Participant)
@@ -511,7 +509,7 @@ func (ctx *Context) GetQuotedSender() (types.JID, bool) {
 }
 
 // GetMentionedJIDs returns JIDs that were tagged/mentioned in the message.
-func (ctx *Context) GetMentionedJIDs() []types.JID {
+func (ctx *PluginContext) GetMentionedJIDs() []types.JID {
 	ci := ctx.getContextInfo()
 	if ci == nil {
 		return nil
@@ -527,7 +525,7 @@ func (ctx *Context) GetMentionedJIDs() []types.JID {
 }
 
 // GetArgsJIDs parses any phone numbers or JID strings in command args.
-func (ctx *Context) GetArgsJIDs() []types.JID {
+func (ctx *PluginContext) GetArgsJIDs() []types.JID {
 	var out []types.JID
 	for _, arg := range ctx.Args {
 		clean := strings.TrimLeft(arg, "@")
@@ -606,16 +604,16 @@ func IsSameUserRaw(ctx context.Context, client *whatsmeow.Client, a, b types.JID
 }
 
 // IsSameUser compares two JIDs, resolving and matching any LID mappings.
-func (ctx *Context) IsSameUser(a, b types.JID) bool {
+func (ctx *PluginContext) IsSameUser(a, b types.JID) bool {
 	res := IsSameUserRaw(ctx.Ctx, ctx.Client, a, b)
 	slog.Debug("IsSameUser helper check", "a", a.String(), "b", b.String(), "result", res)
 	return res
 }
 
 // GetTargets resolves targets from reply, mentions, or arguments.
-// If in a P2P chat and no other target is provided (or if the provided target/sender is ours),
+// If in a P2P chat and no other target is provided (or if the provided target/send is ours),
 // we fall back to the chat JID (as long as it isn't ours).
-func (ctx *Context) GetTargets() []types.JID {
+func (ctx *PluginContext) GetTargets() []types.JID {
 	if ctx.Client.Store.ID == nil {
 		return nil
 	}
@@ -665,7 +663,7 @@ func (ctx *Context) GetTargets() []types.JID {
 }
 
 // IsOwner checks if the message sender is the bot owner (the connected WhatsApp account JID).
-func (ctx *Context) IsOwner() bool {
+func (ctx *PluginContext) IsOwner() bool {
 	if ctx.Client.Store.ID != nil {
 		return ctx.IsSameUser(ctx.Sender, *ctx.Client.Store.ID)
 	}
@@ -673,7 +671,7 @@ func (ctx *Context) IsOwner() bool {
 }
 
 // IsSudo checks if the message sender is a registered sudo user or the bot owner.
-func (ctx *Context) IsSudo() bool {
+func (ctx *PluginContext) IsSudo() bool {
 	slog.Debug("IsSudo checking", "sender", ctx.Sender.String())
 	if ctx.IsOwner() {
 		slog.Debug("IsSudo result: true (bot owner)", "sender", ctx.Sender.String())
@@ -705,7 +703,7 @@ func (ctx *Context) IsSudo() bool {
 }
 
 // GetMedia retrieves media bytes and mimetype from the message or its quoted message.
-func (ctx *Context) GetMedia() ([]byte, string, error) {
+func (ctx *PluginContext) GetMedia() ([]byte, string, error) {
 	// First check the main message
 	if data, mimetype, ok := ctx.extractMediaFromMessage(ctx.Evt.Message); ok {
 		return data, mimetype, nil
@@ -719,7 +717,7 @@ func (ctx *Context) GetMedia() ([]byte, string, error) {
 	return nil, "", fmt.Errorf("no media found in message or quoted message")
 }
 
-func (ctx *Context) extractMediaFromMessage(msg *waE2E.Message) ([]byte, string, bool) {
+func (ctx *PluginContext) extractMediaFromMessage(msg *waE2E.Message) ([]byte, string, bool) {
 	if msg == nil {
 		return nil, "", false
 	}
@@ -768,7 +766,7 @@ func (ctx *Context) extractMediaFromMessage(msg *waE2E.Message) ([]byte, string,
 }
 
 // SendAudio uploads and sends an audio file (with recording simulation).
-func (ctx *Context) SendAudio(data []byte, mimetype string) error {
+func (ctx *PluginContext) SendAudio(data []byte, mimetype string) error {
 	ctx.simulateRecording()
 	if mimetype == "" {
 		slog.Warn("SendAudio: mimetype is empty, defaulting to audio/mp4")
@@ -803,7 +801,7 @@ func (ctx *Context) SendAudio(data []byte, mimetype string) error {
 }
 
 // ReplyWithAudio uploads and sends an audio file as a reply (with recording simulation).
-func (ctx *Context) ReplyWithAudio(data []byte, mimetype string) error {
+func (ctx *PluginContext) ReplyWithAudio(data []byte, mimetype string) error {
 	ctx.simulateRecording()
 	if mimetype == "" {
 		slog.Warn("ReplyWithAudio: mimetype is empty, defaulting to audio/mp4")
@@ -840,7 +838,7 @@ func (ctx *Context) ReplyWithAudio(data []byte, mimetype string) error {
 }
 
 // SendTextWithMentions sends a text message with WhatsApp mentions.
-func (ctx *Context) SendTextWithMentions(text string, jids []types.JID) error {
+func (ctx *PluginContext) SendTextWithMentions(text string, jids []types.JID) error {
 	ctx.simulateTyping()
 	formatted := ctx.formatMentionTextResponse(text)
 	var mentioned []string
@@ -868,7 +866,7 @@ func (ctx *Context) SendTextWithMentions(text string, jids []types.JID) error {
 }
 
 // ReplyWithMentions sends a text message with WhatsApp mentions replying to the current message.
-func (ctx *Context) ReplyWithMentions(text string, jids []types.JID) error {
+func (ctx *PluginContext) ReplyWithMentions(text string, jids []types.JID) error {
 	ctx.simulateTyping()
 	formatted := ctx.formatMentionTextResponse(text)
 	var mentioned []string
@@ -907,12 +905,12 @@ func ResolveMentionRaw(ctx context.Context, client *whatsmeow.Client, jid types.
 }
 
 // ResolveMention returns the resolved JID and username matching display representation for mentions.
-func (ctx *Context) ResolveMention(jid types.JID) (types.JID, string) {
+func (ctx *PluginContext) ResolveMention(jid types.JID) (types.JID, string) {
 	return ResolveMentionRaw(ctx.Ctx, ctx.Client, jid)
 }
 
 // SendTextWithGroupMention sends a text message featuring WhatsApp's native @all group mention via NonJIDMentions.
-func (ctx *Context) SendTextWithGroupMention(text string) error {
+func (ctx *PluginContext) SendTextWithGroupMention(text string) error {
 	ctx.simulateTyping()
 	formatted := ctx.formatMentionTextResponse(text)
 
@@ -935,7 +933,7 @@ func (ctx *Context) SendTextWithGroupMention(text string) error {
 }
 
 // ReplyWithGroupMention sends a text message featuring WhatsApp's native @all group mention replying to the current message.
-func (ctx *Context) ReplyWithGroupMention(text string) error {
+func (ctx *PluginContext) ReplyWithGroupMention(text string) error {
 	ctx.simulateTyping()
 	formatted := ctx.formatMentionTextResponse(text)
 
@@ -960,12 +958,12 @@ func (ctx *Context) ReplyWithGroupMention(text string) error {
 }
 
 // FormatMention resolves a target JID and returns its "@username" string representation along with the resolved JID for mentions.
-func (ctx *Context) FormatMention(jid types.JID) (string, types.JID) {
+func (ctx *PluginContext) FormatMention(jid types.JID) (string, types.JID) {
 	resolvedJID, username := ctx.ResolveMention(jid)
 	return "@" + username, resolvedJID
 }
 
-func (ctx *Context) formatMentionTextResponse(text string) string {
+func (ctx *PluginContext) formatMentionTextResponse(text string) string {
 	text = strings.ReplaceAll(text, "*", "")
 	text = removeEmojis(text)
 	return text
@@ -1042,14 +1040,14 @@ func IsAdminRaw(ctx context.Context, client *whatsmeow.Client, info *types.Group
 }
 
 // IsAdmin checks if a specific JID is a group admin.
-func (ctx *Context) IsAdmin(info *types.GroupInfo, jid types.JID) bool {
+func (ctx *PluginContext) IsAdmin(info *types.GroupInfo, jid types.JID) bool {
 	res := IsAdminRaw(ctx.Ctx, ctx.Client, info, jid)
 	slog.Debug("IsAdmin helper check", "jid", jid.String(), "result", res)
 	return res
 }
 
 // AmIAdmin checks if the bot itself is an admin in the group.
-func (ctx *Context) AmIAdmin(info *types.GroupInfo) bool {
+func (ctx *PluginContext) AmIAdmin(info *types.GroupInfo) bool {
 	slog.Debug("AmIAdmin checking")
 	if ctx.Client.Store.ID == nil {
 		slog.Debug("AmIAdmin result: false (bot JID nil)")
@@ -1061,7 +1059,7 @@ func (ctx *Context) AmIAdmin(info *types.GroupInfo) bool {
 }
 
 // IsSenderAdmin checks if the command sender is a group admin or bot sudoer.
-func (ctx *Context) IsSenderAdmin(info *types.GroupInfo) bool {
+func (ctx *PluginContext) IsSenderAdmin(info *types.GroupInfo) bool {
 	slog.Debug("IsSenderAdmin checking", "sender", ctx.Sender.String())
 	if ctx.IsSudo() {
 		slog.Debug("IsSenderAdmin result: true (is sudo)")

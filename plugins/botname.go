@@ -1,5 +1,5 @@
 // Bot Customization plugin – unified setup wizard and settings for Bot Name, Menu Thumbnail, Command Prefix, and Status Bio.
-package commands
+package plugins
 
 import (
 	"context"

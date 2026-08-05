@@ -1,5 +1,5 @@
 // Status broadcast command – posts status updates (text, image, or video with optional caption) to status.whatsapp.net broadcast.
-package commands
+package plugins
 
 import (
 	"fmt"

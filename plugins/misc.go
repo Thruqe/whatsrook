@@ -1,5 +1,5 @@
 // Miscellaneous commands – urban dictionary, QR generation, etc.
-package commands
+package plugins
 
 import (
 	"encoding/hex"

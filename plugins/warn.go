@@ -1,5 +1,5 @@
 // Warn command – issue warnings to users, set warning thresholds, and automatically block & kick offenders.
-package commands
+package plugins
 
 import (
 	"fmt"
@@ -284,7 +284,7 @@ func sendWarnCustomizeGuide(ctx *Context) error {
 
 	sb.WriteString("Automated Enforcement Rules:\n")
 	sb.WriteString("1. Reaching max threshold in Group -> Blocks user & Kicks from group (requires bot admin).\n")
-	sb.WriteString("2. Reaching max threshold in Private Chat -> Blocks sender.\n")
+	sb.WriteString("2. Reaching max threshold in Private Chat -> Blocks send.\n")
 	sb.WriteString("3. Bot Owner & Sudoers are immune to warnings.\n")
 	sb.WriteString("4. Group Admins cannot be kicked unless bot is group owner.\n\n")
 

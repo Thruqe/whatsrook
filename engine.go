@@ -1,5 +1,3 @@
-// Connection engine – manages device login, QR/pair-code registration,
-// reconnection, and logout.
 package main
 
 import (
@@ -40,7 +38,7 @@ func newBot(client *whatsmeow.Client, hub *Hub, cli Arguments) *Bot {
 // or pairing flows, and processes incoming control commands until the context is canceled.
 func (b *Bot) run(ctx context.Context) error {
 	b.client.AddEventHandler(func(evt any) {
-		b.handleWAEvent(evt)
+		b.WAEventHandler(evt)
 	})
 
 	switch b.cli.Client {

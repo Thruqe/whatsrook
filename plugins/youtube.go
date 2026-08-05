@@ -1,4 +1,4 @@
-package commands
+package plugins
 
 import (
 	"fmt"
@@ -137,7 +137,7 @@ func fetchStreamBytes(ctx *Context, item downloader.MediaItem) ([]byte, error) {
 	}
 
 	if strings.HasPrefix(item.URL, "http://") || strings.HasPrefix(item.URL, "https://") {
-		httpClient := &http.Client{Timeout: 60 * time.Second}
+		httpClient := &http.Client{Timeout: 120 * time.Second}
 		req, err := http.NewRequestWithContext(ctx.Ctx, http.MethodGet, item.URL, nil)
 		if err != nil {
 			return nil, err

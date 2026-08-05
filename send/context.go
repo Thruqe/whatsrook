@@ -1,5 +1,4 @@
-// Command context type that is passed to every command handler.
-package sender
+package send
 
 import (
 	"context"
@@ -11,8 +10,8 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 )
 
-// Context is passed to every command handler.
-type Context struct {
+// PluginContext is passed to every command handler.
+type PluginContext struct {
 	Ctx    context.Context
 	Client *whatsmeow.Client
 	Evt    *events.Message
@@ -26,7 +25,7 @@ type Context struct {
 }
 
 // GetPrefix returns the primary active command prefix from the database settings, or "." default.
-func (c *Context) GetPrefix() string {
+func (c *PluginContext) GetPrefix() string {
 	if c.Client == nil || c.Client.Store == nil || c.Client.Store.Identities == nil {
 		return "."
 	}
@@ -64,7 +63,7 @@ func isWordPrefix(s string) bool {
 }
 
 // GetBotName returns the configured bot display name from database settings, or "WhatsRook" default.
-func (c *Context) GetBotName() string {
+func (c *PluginContext) GetBotName() string {
 	if c.Client == nil || c.Client.Store == nil || c.Client.Store.Identities == nil {
 		return "WhatsRook"
 	}

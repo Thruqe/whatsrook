@@ -1,5 +1,5 @@
 // Movie command – search movies/shows using Xer Movie API (MovieBox/Nkiri) and display results with interactive buttons.
-package commands
+package plugins
 
 import (
 	"encoding/json"

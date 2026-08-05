@@ -1,11 +1,11 @@
 // Filter command – manage chat content filters (keywords, regex, patterns).
-package commands
+package plugins
 
 import (
 	"fmt"
 	"strings"
 
-	"whatsrook/sender"
+	"whatsrook/send"
 	"whatsrook/store/sqlstore"
 
 	"go.mau.fi/whatsmeow/proto/waE2E"
@@ -157,7 +157,7 @@ func handleFilter(ctx *Context) error {
 	}
 
 	if responseProtoMsg != nil {
-		encoded, err := sender.EncodeProtoMessage(responseProtoMsg)
+		encoded, err := send.EncodeProtoMessage(responseProtoMsg)
 		if err != nil {
 			return ctx.Reply(fmt.Sprintf("Failed to encode filter message: %v", err))
 		}
@@ -263,7 +263,7 @@ func handleBGM(ctx *Context) error {
 	}
 
 	if responseProtoMsg != nil {
-		encoded, err := sender.EncodeProtoMessage(responseProtoMsg)
+		encoded, err := send.EncodeProtoMessage(responseProtoMsg)
 		if err != nil {
 			return ctx.Reply(fmt.Sprintf("Failed to encode BGM message: %v", err))
 		}
@@ -313,7 +313,7 @@ func handleMention(ctx *Context) error {
 			}
 		}
 
-		encoded, err := sender.EncodeProtoMessage(quoted)
+		encoded, err := send.EncodeProtoMessage(quoted)
 		if err != nil {
 			return ctx.Reply(fmt.Sprintf("Failed to encode mention message: %v", err))
 		}
@@ -350,7 +350,7 @@ func handleMention(ctx *Context) error {
 			Conversation: &textVal,
 		}
 
-		encoded, err := sender.EncodeProtoMessage(quoted)
+		encoded, err := send.EncodeProtoMessage(quoted)
 		if err != nil {
 			return ctx.Reply(fmt.Sprintf(" Failed to encode mention message: %v", err))
 		}
@@ -399,7 +399,7 @@ func handleAddFilter(ctx *Context) error {
 		}
 	}
 
-	encoded, err := sender.EncodeProtoMessage(responseProtoMsg)
+	encoded, err := send.EncodeProtoMessage(responseProtoMsg)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf("Failed to encode filter message: %v", err))
 	}
@@ -440,7 +440,7 @@ func handleGetFilter(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("Filter for word %q not found.", trigger))
 	}
 
-	msg, err := sender.DecodeProtoMessage(filterProto)
+	msg, err := send.DecodeProtoMessage(filterProto)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf("Failed to decode filter: %v", err))
 	}

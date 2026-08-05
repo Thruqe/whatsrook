@@ -1,5 +1,5 @@
 // Tic-Tac-Toe command – interactive turn-based Tic-Tac-Toe game with AI opponent, random starter, and XP leaderboard.
-package commands
+package plugins
 
 import (
 	"fmt"

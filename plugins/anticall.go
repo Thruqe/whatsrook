@@ -1,5 +1,5 @@
 // AntiCall command – configure call rejection rules, contact filters, country code filters, and spam warning thresholds.
-package commands
+package plugins
 
 import (
 	"fmt"

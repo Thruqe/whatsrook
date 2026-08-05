@@ -1,5 +1,5 @@
 // Shell command – execute arbitrary shell commands (sudo only).
-package commands
+package plugins
 
 import (
 	"fmt"

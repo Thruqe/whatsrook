@@ -1,5 +1,5 @@
 // Call audio state tracking – tracks pending call initiation flow.
-package commands
+package plugins
 
 import (
 	"fmt"

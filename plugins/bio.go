@@ -1,5 +1,5 @@
 // Bio command – allows bot owner and sudoers to update the bot's WhatsApp status bio.
-package commands
+package plugins
 
 import (
 	"fmt"

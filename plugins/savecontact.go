@@ -1,5 +1,5 @@
 // SaveContact command – save a contact to WhatsApp synced contact store via AppState SyncAction and send a native vCard.
-package commands
+package plugins
 
 import (
 	"fmt"

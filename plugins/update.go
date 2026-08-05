@@ -1,5 +1,5 @@
 // Update command - check for and apply pre-built release updates from GitHub.
-package commands
+package plugins
 
 import (
 	"fmt"

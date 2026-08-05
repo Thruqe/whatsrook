@@ -1,5 +1,5 @@
 // Sticker commands – create stickers from images, manage sticker packs.
-package commands
+package plugins
 
 import (
 	"encoding/hex"

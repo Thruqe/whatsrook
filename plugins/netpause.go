@@ -1,5 +1,5 @@
 // NetPause command – checks network connection status and allows manual pause/resume.
-package commands
+package plugins
 
 import (
 	"fmt"

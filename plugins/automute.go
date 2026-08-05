@@ -1,5 +1,5 @@
 // Automute & Autounmute group management plugin – schedules automatic group mute/unmute times with timezone support and interactive pagination.
-package commands
+package plugins
 
 import (
 	"context"
@@ -12,9 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"go.mau.fi/whatsmeow/proto/waE2E"
 	"whatsrook/store/sqlstore"
 	"whatsrook/utils"
+
+	"go.mau.fi/whatsmeow/proto/waE2E"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
@@ -657,9 +658,5 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 				slog.Error("autounmute: failed to send open notice", "group", groupJIDStr, "err", sendErr)
 			}
 		}
-	}
-
-	if rowCount == 0 {
-		slog.Debug("automute: no schedules found for our_jid", "our_jid", s.JID)
 	}
 }

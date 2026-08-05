@@ -1,6 +1,6 @@
 // AI Bot tools – hidden helper commands that allow Meta AI and raw callers
 // to execute send, edit, ffmpeg, fetch, and delete actions with raw parameters.
-package commands
+package plugins
 
 import (
 	"fmt"

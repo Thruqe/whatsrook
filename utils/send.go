@@ -1,5 +1,4 @@
-// Low-level message sending functions: text, media, stickers, location, reactions.
-package sender
+package utils
 
 import (
 	"context"

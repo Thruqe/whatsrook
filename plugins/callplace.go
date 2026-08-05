@@ -1,5 +1,5 @@
 // Call placement – place voice/video calls to phone numbers.
-package commands
+package plugins
 
 import (
 	"fmt"

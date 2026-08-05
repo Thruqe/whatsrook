@@ -1,5 +1,5 @@
 // Per-user rate limiting for download-heavy commands.
-package commands
+package plugins
 
 import (
 	"sync"

@@ -1,5 +1,5 @@
 // AntiSpam command – configure group anti-spam rules, message rate limits, and automated actions.
-package commands
+package plugins
 
 import (
 	"fmt"

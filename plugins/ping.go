@@ -1,5 +1,5 @@
 // Ping command – replies with latency and message ID timing info.
-package commands
+package plugins
 
 import (
 	"fmt"

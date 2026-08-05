@@ -1,5 +1,5 @@
 // AntiMsg command – automatically delete incoming messages from specified group participants.
-package commands
+package plugins
 
 import (
 	"fmt"

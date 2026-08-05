@@ -1,5 +1,5 @@
 // Privacy management command – view and configure WhatsApp account privacy settings using interactive buttons.
-package commands
+package plugins
 
 import (
 	"fmt"

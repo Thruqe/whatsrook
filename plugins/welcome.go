@@ -1,5 +1,5 @@
 // Welcome and Goodbye commands – configure group join/leave greetings with buttons, tags, group descriptions, custom text templates, and media.
-package commands
+package plugins
 
 import (
 	"fmt"

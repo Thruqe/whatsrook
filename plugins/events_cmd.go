@@ -1,5 +1,5 @@
 // Events command – toggle real-time WhatsApp group event notification messages.
-package commands
+package plugins
 
 import (
 	"fmt"

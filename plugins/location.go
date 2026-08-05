@@ -1,5 +1,5 @@
 // Location command – send interactive messages with location headers and buttons.
-package commands
+package plugins
 
 // import (
 // 	"go.mau.fi/whatsmeow"

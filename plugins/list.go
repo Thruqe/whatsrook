@@ -1,5 +1,5 @@
 // Select list command – send an interactive dropdown list message.
-package commands
+package plugins
 
 // import (
 // 	"go.mau.fi/whatsmeow"

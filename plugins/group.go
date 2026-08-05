@@ -1,5 +1,5 @@
 // Group management commands – invite, kick, promote, demote, tag all, etc.
-package commands
+package plugins
 
 import (
 	"context"

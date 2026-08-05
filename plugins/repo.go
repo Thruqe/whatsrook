@@ -1,8 +1,8 @@
 // Repo command – displays the repository link and star request with interactive buttons.
-package commands
+package plugins
 
 import (
-	"whatsrook/sender"
+	"whatsrook/send"
 
 	"go.mau.fi/whatsmeow"
 	waBinary "go.mau.fi/whatsmeow/binary"
@@ -82,7 +82,7 @@ func handleRepo(ctx *Context) error {
 
 	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
 	if err != nil {
-		return ctx.Reply(sender.FormatTextResponseRaw(bodyText))
+		return ctx.Reply(send.FormatTextResponseRaw(bodyText))
 	}
 	return nil
 }

@@ -1,6 +1,6 @@
 // AI command – integrates with Meta AI for question answering and
 // command invocation via natural language.
-package commands
+package plugins
 
 import (
 	"context"
@@ -801,7 +801,7 @@ func handleAI(ctx *Context) error {
 			Chat:    ctx.Chat,
 			Sender:  ctx.Sender,
 		}
-		slog.Debug("handleAI: executing command on behalf of AI", "command", cmdName, "args", cctx.Args)
+		slog.Debug("handleAI: executing command on behalf of AI", "command", cmdName, "args", ctx.Args)
 		return targetCmd.Handler(cctx)
 	}
 

@@ -1,5 +1,5 @@
 // Word Chain Game (WCG) – Word chain game where players submit words starting with the required character, validated against 5 parallel English dictionary APIs.
-package commands
+package plugins
 
 import (
 	"context"

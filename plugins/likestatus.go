@@ -1,5 +1,5 @@
 // LikeStatus command – automatically reacts to incoming WhatsApp status broadcasts with a random love emoji.
-package commands
+package plugins
 
 import (
 	"fmt"

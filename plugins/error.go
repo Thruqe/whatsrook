@@ -1,5 +1,5 @@
 // Command handler error logging utility.
-package commands
+package plugins
 
 import "log/slog"
 

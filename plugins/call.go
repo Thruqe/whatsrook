@@ -1,5 +1,5 @@
 // Call handling – manage incoming/outgoing call audio replies.
-package commands
+package plugins
 
 import (
 	"fmt"

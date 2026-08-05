@@ -1,5 +1,5 @@
 // Buttons command – send interactive messages with action buttons.
-package commands
+package plugins
 
 // import (
 // 	"go.mau.fi/whatsmeow"

@@ -1,11 +1,12 @@
 // Chat management commands – archive, pin, mute, delete, mark read, etc.
-package commands
+package plugins
 
 import (
 	"fmt"
 	"strings"
 	"time"
 
+	"whatsrook/send"
 	"whatsrook/store/sqlstore"
 
 	"go.mau.fi/whatsmeow/appstate"
@@ -15,7 +16,6 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
-	"whatsrook/sender"
 )
 
 func init() {
@@ -529,7 +529,7 @@ func handleVV(ctx *Context) error {
 		return ctx.Reply("The replied message is not a ViewOnce message.")
 	}
 
-	unwrapped := sender.ExtractViewOnceMessage(quoted)
+	unwrapped := send.ExtractViewOnceMessage(quoted)
 	if unwrapped == nil {
 		return ctx.Reply("Failed to unwrap ViewOnce message.")
 	}

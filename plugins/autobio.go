@@ -1,5 +1,5 @@
 // AutoBio command – automatically updates the bot's WhatsApp status bio every minute with current time and inspirational quotes.
-package commands
+package plugins
 
 import (
 	"context"

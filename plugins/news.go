@@ -1,5 +1,5 @@
 // News command – fetches latest news headlines for a country from AP News.
-package commands
+package plugins
 
 import (
 	"fmt"

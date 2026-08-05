@@ -1,5 +1,4 @@
-// Loader handles animated loading status messages that edit continuously while a task executes.
-package sender
+package send
 
 import (
 	"fmt"
@@ -15,7 +14,7 @@ var loaderFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 
 // Loader represents an active background text animation editing a WhatsApp message.
 type Loader struct {
-	ctx      *Context
+	ctx      *PluginContext
 	msgID    types.MessageID
 	baseText string
 	stopChan chan struct{}
@@ -25,7 +24,7 @@ type Loader struct {
 
 // StartLoader sends an initial status message and starts a background goroutine
 // that periodically edits the message with an animated loader frame.
-func (ctx *Context) StartLoader(initialText string) *Loader {
+func (ctx *PluginContext) StartLoader(initialText string) *Loader {
 	loader := &Loader{
 		ctx:      ctx,
 		baseText: initialText,

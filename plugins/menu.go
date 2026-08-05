@@ -1,5 +1,5 @@
 // Menu command – lists all available commands with descriptions.
-package commands
+package plugins
 
 import (
 	"context"

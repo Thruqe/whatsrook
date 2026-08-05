@@ -1,5 +1,5 @@
 // CPU command – displays CPU usage and core information.
-package commands
+package plugins
 
 import (
 	"bufio"

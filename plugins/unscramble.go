@@ -1,5 +1,5 @@
 // Word Guessing Game (WCG) – Command handler using utils/wcg_game.go engine.
-package commands
+package plugins
 
 import (
 	"fmt"

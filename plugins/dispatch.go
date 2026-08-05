@@ -1,6 +1,6 @@
 // Event dispatcher – parses incoming messages, matches command prefixes, runs
 // moderation, and routes commands to their handlers.
-package commands
+package plugins
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	waSender "whatsrook/sender"
+	waSender "whatsrook/send"
 	"whatsrook/store/sqlstore"
 	"whatsrook/utils"
 

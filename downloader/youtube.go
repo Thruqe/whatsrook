@@ -101,7 +101,9 @@ func (c *Client) DownloadYouTubeMedia(ctx context.Context, rawURL string, isAudi
 		ext = "m4a"
 	}
 
-	out, err := c.runYtDlp(ctx, "--no-warnings", "-f", formatSpec,
+	out, err := c.runYtDlp(ctx, "--no-warnings",
+		"--extractor-args", "youtube:player_client=android",
+		"-f", formatSpec,
 		"--print", "%(urls)s",
 		"--print", "%(title)s",
 		"--print", "%(uploader)s",

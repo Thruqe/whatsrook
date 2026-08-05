@@ -1,5 +1,5 @@
 // Font command – change the text style for messages (monospace, fancy, etc.).
-package commands
+package plugins
 
 import (
 	"fmt"

@@ -1,5 +1,5 @@
 // Business command – query WhatsApp Business profile, catalog, and product details.
-package commands
+package plugins
 
 import (
 	"fmt"
