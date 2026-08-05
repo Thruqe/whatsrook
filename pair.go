@@ -1,4 +1,3 @@
-// Pair-code and QR-code authentication flows for device registration.
 package main
 
 import (
@@ -12,7 +11,6 @@ import (
 )
 
 func (b *Bot) runPairCode(ctx context.Context) error {
-	// Cleaner, cron job, hehe
 	go startTempJanitor()
 
 	slog.Info("requesting pair code", "phone", b.cli.Session)
@@ -75,28 +73,5 @@ func (b *Bot) runPairCode(ctx context.Context) error {
 		}
 	}()
 
-	return nil
-}
-
-func (b *Bot) runQR(ctx context.Context) error {
-	qrChan, _ := b.client.GetQRChannel(ctx)
-	if !b.client.IsConnected() {
-		if err := b.client.Connect(); err != nil {
-			return err
-		}
-	}
-	for evt := range qrChan {
-		if evt.Event == "code" {
-			if b.cli.QRCode {
-				fmt.Println("QR code:", evt.Code)
-			}
-			b.hub.Broadcast(EventMessage{
-				Kind:    EventPairQR,
-				Payload: PairQRPayload{Code: evt.Code},
-			})
-		} else {
-			slog.Debug("qr channel event", "event", evt.Event)
-		}
-	}
 	return nil
 }
