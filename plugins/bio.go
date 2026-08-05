@@ -22,10 +22,14 @@ func handleBio(ctx *Context) error {
 	}
 
 	if len(ctx.Args) == 0 {
-		return ctx.Reply("Usage: .bio <new WhatsApp status bio text>\n\nExample: .bio Available | WhatsRook AI Bot")
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage: %sbio <new WhatsApp status bio text>\n\nExample: %sbio Available | WhatsRook AI Bot", p, p))
 	}
 
 	newBio := ctx.RawArgs
+	loader := ctx.StartLoader("Updating status bio...")
+	defer loader.Delete()
+
 	err := ctx.Client.SetStatusMessage(ctx.Ctx, newBio)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf("Failed to update status bio: %v", err))

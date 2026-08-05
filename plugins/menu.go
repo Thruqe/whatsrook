@@ -4,15 +4,17 @@ package plugins
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math"
 	"os"
-	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 
 	"whatsrook/store/sqlstore"
+	"whatsrook/updater"
 	"whatsrook/utils"
 
 	"go.mau.fi/whatsmeow"
@@ -21,7 +23,7 @@ import (
 
 var (
 	menuThumbPromptsMu      sync.RWMutex
-	pendingMenuThumbPrompts = make(map[string]bool) // key: "chatJID:senderJID" -> active
+	pendingMenuThumbPrompts = make(map[string]time.Time) // key: "chatJID:senderJID" -> timestamp
 )
 
 func init() {
@@ -40,36 +42,23 @@ func HandlePendingMenuMediaReply(ctx context.Context, client *whatsmeow.Client, 
 		return false
 	}
 
-	key := fmt.Sprintf("%s:%s", evt.Info.Chat.String(), evt.Info.Sender.String())
+	key := fmt.Sprintf("%s:%s", evt.Info.Chat.ToNonAD().String(), evt.Info.Sender.ToNonAD().String())
 	menuThumbPromptsMu.RLock()
-	active := pendingMenuThumbPrompts[key]
+	promptTime, active := pendingMenuThumbPrompts[key]
 	menuThumbPromptsMu.RUnlock()
+
+	if active && time.Since(promptTime) > 5*time.Minute {
+		menuThumbPromptsMu.Lock()
+		delete(pendingMenuThumbPrompts, key)
+		menuThumbPromptsMu.Unlock()
+		active = false
+	}
 
 	if !active {
 		return false
 	}
 
-	imgMsg := evt.Message.GetImageMessage()
-	vidMsg := evt.Message.GetVideoMessage()
-
-	// Check if quoted message contains image or video
-	if imgMsg == nil && vidMsg == nil && evt.Message.ExtendedTextMessage != nil && evt.Message.ExtendedTextMessage.ContextInfo != nil {
-		quoted := evt.Message.ExtendedTextMessage.ContextInfo.QuotedMessage
-		if quoted != nil {
-			imgMsg = quoted.GetImageMessage()
-			vidMsg = quoted.GetVideoMessage()
-		}
-	}
-
-	if imgMsg == nil && vidMsg == nil {
-		return false
-	}
-
-	// Delete pending prompt
-	menuThumbPromptsMu.Lock()
-	delete(pendingMenuThumbPrompts, key)
-	menuThumbPromptsMu.Unlock()
-
+	text := utils.ExtractMessageText(evt)
 	fakeCtx := &Context{
 		Ctx:    ctx,
 		Client: client,
@@ -78,50 +67,57 @@ func HandlePendingMenuMediaReply(ctx context.Context, client *whatsmeow.Client, 
 		Evt:    evt,
 	}
 
-	loader := fakeCtx.StartLoader("Processing custom thumbnail...")
-	defer loader.Delete()
-
-	var data []byte
-	var err error
-	isVideo := false
-
-	if vidMsg != nil {
-		data, err = client.Download(ctx, vidMsg)
-		isVideo = true
-	} else if imgMsg != nil {
-		data, err = client.Download(ctx, imgMsg)
+	// Bypass prompt if user types a command
+	var prefixes []string
+	if client != nil {
+		prefixes = activePrefixes(ctx, client)
+	} else {
+		prefixes = []string{DefaultPrefix}
+	}
+	if text != "" {
+		for _, pref := range prefixes {
+			if pref != "" && strings.HasPrefix(text, pref) {
+				menuThumbPromptsMu.Lock()
+				delete(pendingMenuThumbPrompts, key)
+				menuThumbPromptsMu.Unlock()
+				return false
+			}
+		}
 	}
 
+	downloadable, isVideo, mime := ExtractMediaFromEvent(evt)
+	if downloadable == nil {
+		return false
+	}
+
+	// Delete pending prompt
+	menuThumbPromptsMu.Lock()
+	delete(pendingMenuThumbPrompts, key)
+	menuThumbPromptsMu.Unlock()
+
+	slog.Info("HandlePendingMenuMediaReply: Downloading custom menu media", "chat", key, "mime", mime, "isVideo", isVideo)
+	loader := fakeCtx.StartLoader("Processing custom thumbnail...")
+	data, err := client.Download(ctx, downloadable)
+	loader.Delete()
+
 	if err != nil || len(data) == 0 {
+		slog.Error("HandlePendingMenuMediaReply: Download failed", "chat", key, "err", err)
 		_ = fakeCtx.Reply("Failed to download media for menu thumbnail.")
 		return true
 	}
 
-	_ = os.MkdirAll("tmp/songs", 0755)
-	targetPath := "tmp/songs/custom_menu_thumbnail.mp4"
-
-	if isVideo {
-		if err := os.WriteFile(targetPath, data, 0644); err != nil {
-			_ = fakeCtx.Reply("Failed to save video thumbnail: " + err.Error())
-			return true
-		}
-	} else {
-		tmpImg := fmt.Sprintf("/tmp/thumb_%d.jpg", time.Now().UnixNano())
-		_ = os.WriteFile(tmpImg, data, 0644)
-		defer os.Remove(tmpImg)
-
-		cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-loop", "1", "-i", tmpImg, "-c:v", "libx264", "-t", "2", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", targetPath)
-		if err := cmd.Run(); err != nil {
-			targetPath = "tmp/songs/custom_menu_thumbnail.jpg"
-			_ = os.WriteFile(targetPath, data, 0644)
-		}
+	authDir := GetSessionAuthDir(client)
+	targetPath, errProc := ProcessAndSaveThumbnail(ctx, authDir, data, isVideo)
+	if errProc != nil {
+		_ = fakeCtx.Reply(fmt.Sprintf("Failed to process menu thumbnail: %v", errProc))
+		return true
 	}
 
 	if s, ok := client.Store.Identities.(*sqlstore.SQLStore); ok {
 		_ = s.PutSetting(ctx, "menu_thumbnail_path", targetPath)
 	}
 
-	_ = fakeCtx.Reply("Bot menu thumbnail updated successfully! Type .menu to view your custom thumbnail.")
+	_ = fakeCtx.Reply(fmt.Sprintf("Bot menu thumbnail updated successfully! Type %smenu to view your custom thumbnail.", fakeCtx.GetPrefix()))
 	return true
 }
 
@@ -129,24 +125,28 @@ func handleMenu(ctx *Context) error {
 	args := strings.Fields(ctx.RawArgs)
 	if len(args) > 0 {
 		sub := strings.ToLower(args[0])
+		if sub == "reconfigure" || sub == "reconfig" || sub == "wizard" || sub == "setup" {
+			return handleReconfigure(ctx)
+		}
 		if sub == "customize" || sub == "custom" {
-			key := fmt.Sprintf("%s:%s", ctx.Chat.String(), ctx.Sender.String())
+			key := fmt.Sprintf("%s:%s", ctx.Chat.ToNonAD().String(), ctx.Sender.ToNonAD().String())
 			menuThumbPromptsMu.Lock()
-			pendingMenuThumbPrompts[key] = true
+			pendingMenuThumbPrompts[key] = time.Now()
 			menuThumbPromptsMu.Unlock()
 			return ctx.Reply("Upload or reply with an image (.jpg/.png) or video (.mp4) to set it as the custom bot menu thumbnail.\n\nTo restore default: " + ctx.GetPrefix() + "menu reset")
 		}
 		if sub == "reset" {
-			key := fmt.Sprintf("%s:%s", ctx.Chat.String(), ctx.Sender.String())
+			key := fmt.Sprintf("%s:%s", ctx.Chat.ToNonAD().String(), ctx.Sender.ToNonAD().String())
 			menuThumbPromptsMu.Lock()
 			delete(pendingMenuThumbPrompts, key)
 			menuThumbPromptsMu.Unlock()
 
+			authDir := GetSessionAuthDir(ctx.Client)
 			if s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore); ok {
 				_ = s.PutSetting(ctx.Ctx, "menu_thumbnail_path", "")
 			}
-			_ = os.Remove("tmp/songs/custom_menu_thumbnail.mp4")
-			_ = os.Remove("tmp/songs/custom_menu_thumbnail.jpg")
+			_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.mp4"))
+			_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.jpg"))
 			return ctx.Reply("Bot menu thumbnail reset to default (whatsrook.mp4).")
 		}
 	}
@@ -156,7 +156,16 @@ func handleMenu(ctx *Context) error {
 	categories := map[string][]entry{}
 	seenCat := map[string]bool{}
 
+	hiddenCmds := map[string]bool{
+		"menu":     true,
+		"netpause": true,
+	}
+
+	displayedCount := 0
 	for _, cmd := range Visible() {
+		if hiddenCmds[strings.ToLower(cmd.Name)] {
+			continue
+		}
 		cat := cmd.Category
 		if cat == "" {
 			cat = "misc"
@@ -166,6 +175,7 @@ func handleMenu(ctx *Context) error {
 			categoryOrder = append(categoryOrder, cat)
 		}
 		categories[cat] = append(categories[cat], entry{name: cmd.Name, desc: cmd.Description})
+		displayedCount++
 	}
 
 	uptime := menuRuntime(time.Since(startTime).Seconds())
@@ -173,7 +183,6 @@ func handleMenu(ctx *Context) error {
 	runtime.ReadMemStats(&ms)
 	usedRAM := ms.Alloc
 	platform := runtime.GOOS
-	total := len(Visible())
 
 	user := ctx.Evt.Info.PushName
 	if user == "" {
@@ -181,16 +190,10 @@ func handleMenu(ctx *Context) error {
 	}
 
 	botMode := "public"
-	buildChannel := "Stable"
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if ok {
 		if rawMode, err := s.GetSetting(ctx.Ctx, "mode"); err == nil && rawMode != "" {
 			botMode = rawMode
-		}
-		if rawCh, err := s.GetSetting(ctx.Ctx, "update_channel"); err == nil && rawCh != "" {
-			if strings.EqualFold(rawCh, "beta") {
-				buildChannel = "Beta"
-			}
 		}
 	}
 
@@ -198,13 +201,12 @@ func handleMenu(ctx *Context) error {
 	fmt.Fprintf(&sb, "╭━━━〔 %s 〕━━━\n", toFancy(ctx.GetBotName()))
 	fmt.Fprintf(&sb, "│╭──────────────\n")
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("User    : %s", user)))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Os: %s", platform)))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Usage   : %s", formatBytes(usedRAM))))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Plugins : %d", total)))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Build   : %s", buildChannel)))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Os      : %s", platform)))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Mem     : %s", formatBytes(usedRAM))))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Plugins : %d", displayedCount)))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Mode    : %s", botMode)))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Uptime : %s", uptime)))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Version : %s", "4.0.0")))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Uptime  : %s", uptime)))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Version : %s", updater.GetAppVersion())))
 	fmt.Fprintf(&sb, "│╰──────────────\n")
 	fmt.Fprintf(&sb, "╰━━━━━━━━━━━━━━━\n")
 
@@ -240,16 +242,22 @@ func handleMenu(ctx *Context) error {
 	}
 
 	if menuStyle == "video" {
-		videoPath := "tmp/songs/custom_menu_thumbnail.mp4"
+		authDir := GetSessionAuthDir(ctx.Client)
+		videoPath := filepath.Join(authDir, "custom_menu_thumbnail.mp4")
 		if ok {
 			if custom, err := s.GetSetting(ctx.Ctx, "menu_thumbnail_path"); err == nil && custom != "" {
 				videoPath = custom
 			}
 		}
 		if _, err := os.Stat(videoPath); err != nil {
-			videoPath = "resources/songs/whatsrook.mp4"
-			if _, err := os.Stat(videoPath); err != nil {
-				videoPath = "resources/songs/intro.mp4"
+			jpgPath := filepath.Join(authDir, "custom_menu_thumbnail.jpg")
+			if _, errJpg := os.Stat(jpgPath); errJpg == nil {
+				videoPath = jpgPath
+			} else {
+				videoPath = "resources/songs/whatsrook.mp4"
+				if _, err := os.Stat(videoPath); err != nil {
+					videoPath = "resources/songs/intro.mp4"
+				}
 			}
 		}
 
@@ -258,7 +266,11 @@ func handleMenu(ctx *Context) error {
 			if strings.HasSuffix(videoPath, ".jpg") || strings.HasSuffix(videoPath, ".jpeg") {
 				return ctx.ReplyWithImage(videoData, "image/jpeg", menuText)
 			}
-			return ctx.ReplyWithVideoGif(videoData, mType, menuText)
+			errSend := ctx.ReplyWithVideoGif(videoData, mType, menuText)
+			if errSend != nil {
+				return sendText(ctx, menuText)
+			}
+			return nil
 		}
 	}
 

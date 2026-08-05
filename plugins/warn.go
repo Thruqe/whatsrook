@@ -224,7 +224,8 @@ func handleWarns(ctx *Context) error {
 		return ctx.ReplyWithMentions(fmt.Sprintf("Participant @%s has %d/%d warnings.", username, currentWarns, maxLimit), []types.JID{resolvedJID})
 	}
 
-	return ctx.Reply(fmt.Sprintf("Max Warning Threshold for this chat: %d warnings.\nUsage: .warns @user to check specific participant warnings.", maxLimit))
+	p := ctx.GetPrefix()
+	return ctx.Reply(fmt.Sprintf("Max Warning Threshold for this chat: %d warnings.\nUsage: %swarns @user to check specific participant warnings.", maxLimit, p))
 }
 
 func handleSetWarn(ctx *Context) error {
@@ -235,7 +236,8 @@ func handleSetWarn(ctx *Context) error {
 
 	args := strings.Fields(ctx.RawArgs)
 	if len(args) == 0 {
-		return ctx.Reply("Usage: .setwarn <count> (e.g. .setwarn 3)")
+		p := ctx.GetPrefix()
+		return ctx.Reply(fmt.Sprintf("Usage: %ssetwarn <count> (e.g. %ssetwarn 3)", p, p))
 	}
 
 	num, err := strconv.Atoi(args[0])

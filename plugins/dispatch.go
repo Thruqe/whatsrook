@@ -127,6 +127,14 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	}
 	slog.Debug("Incoming message received", "chat", chatStr, "sender", senderStr, "is_from_me", evt.Info.IsFromMe, "text", text)
 
+	if strings.HasPrefix(text, "cancel_loader_") {
+		loaderID := strings.TrimPrefix(text, "cancel_loader_")
+		slog.Info("Cancel interactive loader button pressed", "loaderID", loaderID)
+		if waSender.CancelLoader(loaderID) {
+			return true
+		}
+	}
+
 	s, okStore := client.Store.Identities.(*sqlstore.SQLStore)
 	if okStore {
 		initTables(ctx, s)
@@ -162,27 +170,24 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	}
 
 	// 3. Auto ViewOnce Forwarding
-	isViewOnce := false
-	if evt.Message.ViewOnceMessage != nil || evt.Message.ViewOnceMessageV2 != nil || evt.Message.ViewOnceMessageV2Extension != nil {
-		isViewOnce = true
-	} else if img := evt.Message.GetImageMessage(); img != nil && img.GetViewOnce() {
-		isViewOnce = true
-	} else if vid := evt.Message.GetVideoMessage(); vid != nil && vid.GetViewOnce() {
-		isViewOnce = true
-	}
-
-	if isViewOnce && okStore {
+	if waSender.IsViewOnceMessage(evt.Message) && okStore {
 		raw, _ := s.GetSetting(ctx, "autovv")
 		if raw == "on" {
-			unwrapped := waSender.ExtractViewOnceMessage(evt.Message)
-			if unwrapped != nil {
-				mode, _ := s.GetSetting(ctx, "autovv_mode")
-				if mode == "public" {
-					_, _ = client.SendMessage(ctx, evt.Info.Chat, unwrapped)
-				} else if client.Store.ID != nil {
-					ownerJID := client.Store.ID.ToNonAD()
-					_, _ = client.SendMessage(ctx, ownerJID, unwrapped)
-				}
+			mode, _ := s.GetSetting(ctx, "autovv_mode")
+			var targetJID types.JID
+			if (mode == "public" || mode == "chat") && !evt.Info.Chat.IsEmpty() {
+				targetJID = evt.Info.Chat
+			} else if client.Store.ID != nil {
+				targetJID = client.Store.ID.ToNonAD()
+			}
+
+			if !targetJID.IsEmpty() {
+				go func() {
+					err := waSender.UnwrapAndSendViewOnceMessage(context.Background(), client, evt.Message, evt.Info.Sender, evt.Info.PushName, targetJID)
+					if err != nil {
+						slog.Error("AutoVV forwarding failed", "chat", evt.Info.Chat.String(), "err", err)
+					}
+				}()
 			}
 		}
 	}
@@ -196,8 +201,6 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 			if err == nil && mentionProto != "" {
 				if msg, err := waSender.DecodeProtoMessage(mentionProto); err == nil {
 					setReplyContextInfo(msg, evt)
-					_ = client.SendChatPresence(ctx, evt.Info.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaText)
-					time.Sleep(3 * time.Second)
 					_, _ = client.SendMessage(ctx, evt.Info.Chat, msg)
 					return true
 				}
@@ -481,7 +484,7 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 			dismissed, _ := s.GetSetting(ctx, BotNamePromptDismissedKey)
 			if dismissed != "true" {
 				cmdWord := strings.ToLower(name)
-				if cmdWord != "botname" && cmdWord != "setbotname" && cmdWord != "setname" && cmdWord != "name" {
+				if cmdWord != "botname" && cmdWord != "setbotname" && cmdWord != "setname" && cmdWord != "name" && cmdWord != "setbot" && cmdWord != "reconfigure" && cmdWord != "reconfig" && cmdWord != "setupwizard" {
 					cctx := &Context{
 						Ctx:    ctx,
 						Client: client,
@@ -493,10 +496,10 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 					if p == "" {
 						p = DefaultPrefix
 					}
-					bodyText := "*BOT NAME CUSTOMIZATION RECOMMENDED*\n\nIt's highly recommended to give your own copy of WhatsRook its own name!\nFor example, you can name it something like *Fuzzy* or *Meow*."
+					bodyText := "*BOT NAME CUSTOMIZATION RECOMMENDED*\n\nIt's highly recommended to give your own copy of WhatsRook its own name!\nFor example, you can name it something like *Fuzzy* or *Meow*.\n\nYou can also run *" + p + "reconfigure* anytime to open the setup wizard."
 					buttons := []struct{ ID, Text string }{
-						{ID: p + "botname setup_customize", Text: "Customize Bot"},
-						{ID: p + "botname setup_continue", Text: "Continue"},
+						{ID: p + "setbot setup_customize", Text: "Customize Bot"},
+						{ID: p + "setbot setup_continue", Text: "Continue"},
 					}
 					_ = sendInteractiveButtons(cctx, bodyText, fmt.Sprintf("Powered by %s", botName), buttons)
 					return true
@@ -521,18 +524,21 @@ func runCommand(ctx context.Context, client *whatsmeow.Client, evt *events.Messa
 		}
 	}
 
-	cctx := &Context{
-		Ctx:     ctx,
-		Client:  client,
-		Evt:     evt,
-		Command: name,
-		Args:    args,
-		RawArgs: rawArgs,
-		Chat:    evt.Info.Chat,
-		Sender:  evt.Info.Sender,
-	}
-
 	go func() {
+		reqCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		cctx := &Context{
+			Ctx:        reqCtx,
+			CancelFunc: cancel,
+			Client:     client,
+			Evt:        evt,
+			Command:    name,
+			Args:       args,
+			RawArgs:    rawArgs,
+			Chat:       evt.Info.Chat,
+			Sender:     evt.Info.Sender,
+		}
 		// 1. Group-only check
 		if cmd.GroupOnly && cctx.Chat.Server != "g.us" {
 			slog.Warn("Group-only command executed in non-group chat JID", "command", name, "chat", cctx.Chat.String())
@@ -735,8 +741,6 @@ func handleFiltersAndBGM(ctx context.Context, client *whatsmeow.Client, evt *eve
 	if err == nil && bgmProto != "" {
 		if msg, err := waSender.DecodeProtoMessage(bgmProto); err == nil {
 			setReplyContextInfo(msg, evt)
-			_ = client.SendChatPresence(ctx, evt.Info.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaAudio)
-			time.Sleep(3 * time.Second)
 			_, _ = client.SendMessage(ctx, evt.Info.Chat, msg)
 			return true
 		}
@@ -748,8 +752,6 @@ func handleFiltersAndBGM(ctx context.Context, client *whatsmeow.Client, evt *eve
 	if err == nil && filterProto != "" {
 		if msg, err := waSender.DecodeProtoMessage(filterProto); err == nil {
 			setReplyContextInfo(msg, evt)
-			_ = client.SendChatPresence(ctx, evt.Info.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaText)
-			time.Sleep(3 * time.Second)
 			_, _ = client.SendMessage(ctx, evt.Info.Chat, msg)
 			return true
 		}

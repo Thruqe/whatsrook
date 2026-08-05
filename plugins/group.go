@@ -190,6 +190,9 @@ func handleKick(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("Usage:\n- %skick @user\n- %skick 1234567890\n- Reply to a user's message with %skick", p, p, p))
 	}
 
+	loader := ctx.StartLoader("Removing participant...")
+	defer loader.Delete()
+
 	var kicked []string
 	var kickedJIDs []types.JID
 	for _, target := range targets {
@@ -229,6 +232,9 @@ func handleAdd(ctx *Context) error {
 		p := ctx.GetPrefix()
 		return ctx.Reply(fmt.Sprintf("Usage:\n- %sadd 1234567890\n- %sadd 1234567890 9876543210", p, p))
 	}
+
+	loader := ctx.StartLoader("Adding participant...")
+	defer loader.Delete()
 
 	var added []string
 	var addedJIDs []types.JID
@@ -270,6 +276,9 @@ func handlePromote(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("Usage:\n- %spromote @user\n- %spromote 1234567890\n- Reply to a user's message with %spromote", p, p, p))
 	}
 
+	loader := ctx.StartLoader("Promoting participant...")
+	defer loader.Delete()
+
 	var promoted []string
 	var promotedJIDs []types.JID
 	for _, target := range targets {
@@ -309,6 +318,9 @@ func handleDemote(ctx *Context) error {
 		p := ctx.GetPrefix()
 		return ctx.Reply(fmt.Sprintf("Usage:\n- %sdemote @user\n- %sdemote 1234567890\n- Reply to a user's message with %sdemote", p, p, p))
 	}
+
+	loader := ctx.StartLoader("Demoting participant...")
+	defer loader.Delete()
 
 	var demoted []string
 	var demotedJIDs []types.JID

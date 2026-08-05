@@ -120,7 +120,8 @@ func handleAudioDownload(ctx context.Context, client *whatsmeow.Client, cctx *Co
 		return
 	}
 
-	if err := os.MkdirAll(audioDir, 0755); err != nil {
+	targetAudioDir := filepath.Join(GetSessionAuthDir(client), "media", "call-audio")
+	if err := os.MkdirAll(targetAudioDir, 0755); err != nil {
 		slog.Error("Failed creating audio directory", "err", err)
 		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to prepare storage: %v", err)); sendErr != nil {
 			slog.Error("failed to notify user", "sendErr", sendErr)
@@ -129,7 +130,7 @@ func handleAudioDownload(ctx context.Context, client *whatsmeow.Client, cctx *Co
 	}
 
 	ext := utils.ExtensionFor(audioMsg.GetMimetype())
-	path := filepath.Join(audioDir, utils.SanitizeJID(sender.String())+ext)
+	path := filepath.Join(targetAudioDir, utils.SanitizeJID(sender.String())+ext)
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		slog.Error("File save failed", "err", err)
 		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to save audio: %v", err)); sendErr != nil {
@@ -173,7 +174,8 @@ func handleVideoDownload(ctx context.Context, client *whatsmeow.Client, cctx *Co
 		return
 	}
 
-	if err := os.MkdirAll(videoDir, 0755); err != nil {
+	targetVideoDir := filepath.Join(GetSessionAuthDir(client), "media", "call-video")
+	if err := os.MkdirAll(targetVideoDir, 0755); err != nil {
 		slog.Error("Failed creating video directory", "err", err)
 		if sendErr := sendTextRaw(ctx, client, evt.Info.Chat, fmt.Sprintf("failed to prepare storage: %v", err)); sendErr != nil {
 			slog.Error("failed to notify user", "sendErr", sendErr)

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -23,13 +24,38 @@ type MediaInfo struct {
 }
 
 type SearchResult struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
-	URL   string `json:"webpage_url"`
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	URL        string `json:"url"`
+	WebpageURL string `json:"webpage_url"`
+}
+
+func (s *SearchResult) GetURL() string {
+	if s.WebpageURL != "" && strings.HasPrefix(s.WebpageURL, "http") {
+		return s.WebpageURL
+	}
+	if s.URL != "" && strings.HasPrefix(s.URL, "http") {
+		return s.URL
+	}
+	if s.ID != "" {
+		return "https://www.youtube.com/watch?v=" + s.ID
+	}
+	if s.URL != "" {
+		return "https://www.youtube.com/watch?v=" + s.URL
+	}
+	return ""
 }
 
 func (c *Client) runYtDlp(ctx context.Context, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "yt-dlp", args...)
+	var finalArgs []string
+	if c.CookieFile != "" {
+		if _, err := os.Stat(c.CookieFile); err == nil {
+			finalArgs = append(finalArgs, "--cookies", c.CookieFile)
+		}
+	}
+	finalArgs = append(finalArgs, args...)
+
+	cmd := exec.CommandContext(ctx, "yt-dlp", finalArgs...)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

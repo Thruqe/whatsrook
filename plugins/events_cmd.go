@@ -57,7 +57,7 @@ func handleEventsCmd(ctx *Context) error {
 		return sendEventsCustomizeGuide(ctx)
 
 	default:
-		return ctx.Reply("Usage: .events [on|off|toggle|customize]")
+		return ctx.Reply(fmt.Sprintf("Usage: %sevents [on|off|toggle|customize]", ctx.GetPrefix()))
 	}
 }
 

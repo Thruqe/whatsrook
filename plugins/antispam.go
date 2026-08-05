@@ -74,11 +74,11 @@ func handleAntiSpam(ctx *Context) error {
 			if curr == "" {
 				curr = "delete"
 			}
-			return ctx.Reply("Current AntiSpam action: " + curr + "\nUsage: .antispam action [delete|warn|kick]")
+			return ctx.Reply(fmt.Sprintf("Current AntiSpam action: %s\nUsage: %santispam action [delete|warn|kick]", curr, ctx.GetPrefix()))
 		}
 		act := strings.ToLower(args[1])
 		if act != "delete" && act != "warn" && act != "kick" {
-			return ctx.Reply("Invalid action. Usage: .antispam action [delete|warn|kick]")
+			return ctx.Reply(fmt.Sprintf("Invalid action. Usage: %santispam action [delete|warn|kick]", ctx.GetPrefix()))
 		}
 		if err := s.PutSetting(ctx.Ctx, actionKey, act); err != nil {
 			return ctx.Reply("Failed to update AntiSpam action.")
@@ -91,7 +91,7 @@ func handleAntiSpam(ctx *Context) error {
 			if curr == "" {
 				curr = "5"
 			}
-			return ctx.Reply("Current AntiSpam message limit: " + curr + " msgs/5s\nUsage: .antispam max [number]")
+			return ctx.Reply(fmt.Sprintf("Current AntiSpam message limit: %s msgs/5s\nUsage: %santispam max [number]", curr, ctx.GetPrefix()))
 		}
 		num, err := strconv.Atoi(args[1])
 		if err != nil || num < 2 || num > 30 {
@@ -103,7 +103,7 @@ func handleAntiSpam(ctx *Context) error {
 		return ctx.Reply("AntiSpam message limit set to " + strconv.Itoa(num) + " messages per 5 seconds.")
 
 	default:
-		return ctx.Reply("Usage: .antispam [on|off|toggle|customize|action|max]")
+		return ctx.Reply(fmt.Sprintf("Usage: %santispam [on|off|toggle|customize|action|max]", ctx.GetPrefix()))
 	}
 }
 

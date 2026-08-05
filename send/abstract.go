@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
 
 	"whatsrook/store/sqlstore"
 	"whatsrook/utils"
@@ -16,6 +15,26 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"google.golang.org/protobuf/proto"
 )
+
+// CreateInteractiveButtonMessage constructs a waE2E.Message containing interactive response buttons.
+func CreateInteractiveButtonMessage(bodyText string, buttons []struct{ ID, Text string }) *waE2E.Message {
+	var btnList []*waE2E.ButtonsMessage_Button
+	for _, b := range buttons {
+		btnList = append(btnList, &waE2E.ButtonsMessage_Button{
+			ButtonID:   proto.String(b.ID),
+			ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: proto.String(b.Text)},
+			Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
+		})
+	}
+
+	return &waE2E.Message{
+		ButtonsMessage: &waE2E.ButtonsMessage{
+			ContentText: proto.String(bodyText),
+			HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
+			Buttons:     btnList,
+		},
+	}
+}
 
 // FormatTextResponseRaw formats a text response with monospace format, removing asterisks and emojis unless it's already formatted.
 func FormatTextResponseRaw(text string) string {
@@ -30,21 +49,8 @@ func (ctx *PluginContext) formatTextResponse(text string) string {
 	return FormatTextResponseRaw(text)
 }
 
-// simulateTyping simulates text typing presence for 3 seconds
-func (ctx *PluginContext) simulateTyping() {
-	_ = ctx.Client.SendChatPresence(ctx.Ctx, ctx.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaText)
-	time.Sleep(2 * time.Second)
-}
-
-// simulateRecording simulates audio recording presence for 3 seconds
-func (ctx *PluginContext) simulateRecording() {
-	_ = ctx.Client.SendChatPresence(ctx.Ctx, ctx.Chat, types.ChatPresenceComposing, types.ChatPresenceMediaAudio)
-	time.Sleep(3 * time.Second)
-}
-
-// SendText sends a simple text message to the current chat (with typing simulation and monospace format).
+// SendText sends a simple text message to the current chat (with monospace format).
 func (ctx *PluginContext) SendText(text string) error {
-	ctx.simulateTyping()
 	formatted := ctx.formatTextResponse(text)
 	slog.Debug("Building SendText", "text", text, "formatted", formatted)
 	slog.Debug("Sending SendText", "chat", ctx.Chat.String())
@@ -122,7 +128,6 @@ func (ctx *PluginContext) Reply(text string) error {
 
 // ReplyWithID sends a text message replying to the current message and returns the sent MessageID.
 func (ctx *PluginContext) ReplyWithID(text string) (types.MessageID, error) {
-	ctx.simulateTyping()
 	formatted := ctx.formatTextResponse(text)
 	cinfo := ctx.replyContextInfo()
 	slog.Debug("Building Reply", "text", text, "formatted", formatted, "context_info", cinfo)
@@ -765,9 +770,8 @@ func (ctx *PluginContext) extractMediaFromMessage(msg *waE2E.Message) ([]byte, s
 	return data, mimetype, true
 }
 
-// SendAudio uploads and sends an audio file (with recording simulation).
+// SendAudio uploads and sends an audio file.
 func (ctx *PluginContext) SendAudio(data []byte, mimetype string) error {
-	ctx.simulateRecording()
 	if mimetype == "" {
 		slog.Warn("SendAudio: mimetype is empty, defaulting to audio/mp4")
 		mimetype = "audio/mp4"
@@ -800,9 +804,8 @@ func (ctx *PluginContext) SendAudio(data []byte, mimetype string) error {
 	return err
 }
 
-// ReplyWithAudio uploads and sends an audio file as a reply (with recording simulation).
+// ReplyWithAudio uploads and sends an audio file as a reply.
 func (ctx *PluginContext) ReplyWithAudio(data []byte, mimetype string) error {
-	ctx.simulateRecording()
 	if mimetype == "" {
 		slog.Warn("ReplyWithAudio: mimetype is empty, defaulting to audio/mp4")
 		mimetype = "audio/mp4"
@@ -839,7 +842,6 @@ func (ctx *PluginContext) ReplyWithAudio(data []byte, mimetype string) error {
 
 // SendTextWithMentions sends a text message with WhatsApp mentions.
 func (ctx *PluginContext) SendTextWithMentions(text string, jids []types.JID) error {
-	ctx.simulateTyping()
 	formatted := ctx.formatMentionTextResponse(text)
 	var mentioned []string
 	for _, j := range jids {
@@ -867,7 +869,6 @@ func (ctx *PluginContext) SendTextWithMentions(text string, jids []types.JID) er
 
 // ReplyWithMentions sends a text message with WhatsApp mentions replying to the current message.
 func (ctx *PluginContext) ReplyWithMentions(text string, jids []types.JID) error {
-	ctx.simulateTyping()
 	formatted := ctx.formatMentionTextResponse(text)
 	var mentioned []string
 	for _, j := range jids {
@@ -911,7 +912,6 @@ func (ctx *PluginContext) ResolveMention(jid types.JID) (types.JID, string) {
 
 // SendTextWithGroupMention sends a text message featuring WhatsApp's native @all group mention via NonJIDMentions.
 func (ctx *PluginContext) SendTextWithGroupMention(text string) error {
-	ctx.simulateTyping()
 	formatted := ctx.formatMentionTextResponse(text)
 
 	var nonJID uint32 = 1
@@ -934,7 +934,6 @@ func (ctx *PluginContext) SendTextWithGroupMention(text string) error {
 
 // ReplyWithGroupMention sends a text message featuring WhatsApp's native @all group mention replying to the current message.
 func (ctx *PluginContext) ReplyWithGroupMention(text string) error {
-	ctx.simulateTyping()
 	formatted := ctx.formatMentionTextResponse(text)
 
 	var nonJID uint32 = 1
@@ -992,10 +991,42 @@ func DecodeProtoMessage(encoded string) (*waE2E.Message, error) {
 	return &msg, nil
 }
 
+// IsViewOnceMessage returns true if the message is a ViewOnce container or contains a ViewOnce media attachment.
+func IsViewOnceMessage(msg *waE2E.Message) bool {
+	if msg == nil {
+		return false
+	}
+
+	if msg.EphemeralMessage != nil && msg.EphemeralMessage.Message != nil {
+		msg = msg.EphemeralMessage.Message
+	}
+
+	if msg.ViewOnceMessage != nil || msg.ViewOnceMessageV2 != nil || msg.ViewOnceMessageV2Extension != nil {
+		return true
+	}
+	if img := msg.GetImageMessage(); img != nil && img.GetViewOnce() {
+		return true
+	}
+	if vid := msg.GetVideoMessage(); vid != nil && vid.GetViewOnce() {
+		return true
+	}
+	if aud := msg.GetAudioMessage(); aud != nil && aud.GetViewOnce() {
+		return true
+	}
+	if doc := msg.GetDocumentWithCaptionMessage(); doc != nil && doc.Message != nil {
+		return IsViewOnceMessage(doc.Message)
+	}
+	return false
+}
+
 // ExtractViewOnceMessage unwraps any ViewOnce message container and clears the ViewOnce flag.
 func ExtractViewOnceMessage(msg *waE2E.Message) *waE2E.Message {
 	if msg == nil {
 		return nil
+	}
+
+	if msg.EphemeralMessage != nil && msg.EphemeralMessage.Message != nil {
+		msg = msg.EphemeralMessage.Message
 	}
 
 	var inner *waE2E.Message
@@ -1005,6 +1036,8 @@ func ExtractViewOnceMessage(msg *waE2E.Message) *waE2E.Message {
 		inner = msg.ViewOnceMessageV2.Message
 	} else if msg.ViewOnceMessageV2Extension != nil && msg.ViewOnceMessageV2Extension.Message != nil {
 		inner = msg.ViewOnceMessageV2Extension.Message
+	} else if msg.DocumentWithCaptionMessage != nil && msg.DocumentWithCaptionMessage.Message != nil {
+		inner = msg.DocumentWithCaptionMessage.Message
 	} else {
 		inner = msg
 	}
@@ -1022,6 +1055,130 @@ func ExtractViewOnceMessage(msg *waE2E.Message) *waE2E.Message {
 	}
 
 	return cloned
+}
+
+// UnwrapAndSendViewOnceMessage downloads the encrypted ViewOnce media, re-uploads it with fresh media keys (preventing "media unavailable" CDN expiry), and sends to target JID.
+func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client, msg *waE2E.Message, senderJID types.JID, pushName string, targetJID types.JID) error {
+	if msg == nil || client == nil {
+		return fmt.Errorf("invalid arguments")
+	}
+
+	unwrapped := ExtractViewOnceMessage(msg)
+	if unwrapped == nil {
+		return fmt.Errorf("failed to extract inner ViewOnce message")
+	}
+
+	senderUser := senderJID.ToNonAD().User
+	if pushName == "" {
+		pushName = senderUser
+	}
+
+	headerCaption := fmt.Sprintf("🔓 *UNWRAPPED VIEWONCE MEDIA*\n\nFrom: %s (@%s)", pushName, senderUser)
+
+	var mediaData []byte
+	var mediaType whatsmeow.MediaType
+	var mimeType string
+	var caption string
+
+	if img := unwrapped.GetImageMessage(); img != nil {
+		data, err := client.Download(ctx, img)
+		if err == nil && len(data) > 0 {
+			mediaData = data
+			mediaType = whatsmeow.MediaImage
+			mimeType = img.GetMimetype()
+			if mimeType == "" {
+				mimeType = "image/jpeg"
+			}
+			if img.GetCaption() != "" {
+				caption = fmt.Sprintf("%s\n\nCaption: %s", headerCaption, img.GetCaption())
+			} else {
+				caption = headerCaption
+			}
+		}
+	} else if vid := unwrapped.GetVideoMessage(); vid != nil {
+		data, err := client.Download(ctx, vid)
+		if err == nil && len(data) > 0 {
+			mediaData = data
+			mediaType = whatsmeow.MediaVideo
+			mimeType = vid.GetMimetype()
+			if mimeType == "" {
+				mimeType = "video/mp4"
+			}
+			if vid.GetCaption() != "" {
+				caption = fmt.Sprintf("%s\n\nCaption: %s", headerCaption, vid.GetCaption())
+			} else {
+				caption = headerCaption
+			}
+		}
+	} else if aud := unwrapped.GetAudioMessage(); aud != nil {
+		data, err := client.Download(ctx, aud)
+		if err == nil && len(data) > 0 {
+			mediaData = data
+			mediaType = whatsmeow.MediaAudio
+			mimeType = aud.GetMimetype()
+			if mimeType == "" {
+				mimeType = "audio/ogg; codecs=opus"
+			}
+			caption = headerCaption
+		}
+	}
+
+	// If media download succeeded, re-upload to CDN to ensure fresh media keys!
+	if len(mediaData) > 0 {
+		uploaded, errUp := client.Upload(ctx, mediaData, mediaType)
+		if errUp == nil {
+			var freshMsg *waE2E.Message
+			if mediaType == whatsmeow.MediaImage {
+				freshMsg = &waE2E.Message{
+					ImageMessage: &waE2E.ImageMessage{
+						URL:           &uploaded.URL,
+						DirectPath:    &uploaded.DirectPath,
+						MediaKey:      uploaded.MediaKey,
+						Mimetype:      &mimeType,
+						FileEncSHA256: uploaded.FileEncSHA256,
+						FileSHA256:    uploaded.FileSHA256,
+						FileLength:    proto.Uint64(uint64(len(mediaData))),
+						Caption:       &caption,
+					},
+				}
+			} else if mediaType == whatsmeow.MediaVideo {
+				freshMsg = &waE2E.Message{
+					VideoMessage: &waE2E.VideoMessage{
+						URL:           &uploaded.URL,
+						DirectPath:    &uploaded.DirectPath,
+						MediaKey:      uploaded.MediaKey,
+						Mimetype:      &mimeType,
+						FileEncSHA256: uploaded.FileEncSHA256,
+						FileSHA256:    uploaded.FileSHA256,
+						FileLength:    proto.Uint64(uint64(len(mediaData))),
+						Caption:       &caption,
+					},
+				}
+			} else if mediaType == whatsmeow.MediaAudio {
+				freshMsg = &waE2E.Message{
+					AudioMessage: &waE2E.AudioMessage{
+						URL:           &uploaded.URL,
+						DirectPath:    &uploaded.DirectPath,
+						MediaKey:      uploaded.MediaKey,
+						Mimetype:      &mimeType,
+						FileEncSHA256: uploaded.FileEncSHA256,
+						FileSHA256:    uploaded.FileSHA256,
+						FileLength:    proto.Uint64(uint64(len(mediaData))),
+						PTT:           proto.Bool(true),
+					},
+				}
+			}
+
+			if freshMsg != nil {
+				_, errSend := client.SendMessage(ctx, targetJID, freshMsg)
+				return errSend
+			}
+		}
+	}
+
+	// Fallback to sending unwrapped raw proto
+	_, err := client.SendMessage(ctx, targetJID, unwrapped)
+	return err
 }
 
 // IsAdminRaw checks if a specific JID is a group admin.

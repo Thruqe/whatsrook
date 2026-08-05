@@ -15,7 +15,6 @@ import (
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
-	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -56,10 +55,18 @@ func init() {
 	})
 	Register(&Command{
 		Name:        "unblock",
-		Description: "Unblock the target contact or current private chat JID",
+		Description: "Unblock a user (must provide phone number, tag, or reply)",
 		Category:    "chats",
 		IsPublic:    false,
 		Handler:     handleUnblock,
+	})
+	Register(&Command{
+		Name:        "blocklist",
+		Aliases:     []string{"blocks", "listblocked", "blockedlist"},
+		Description: "Display list of all currently blocked contacts",
+		Category:    "owner",
+		IsPublic:    false,
+		Handler:     handleBlocklist,
 	})
 	Register(&Command{
 		Name:        "clear",
@@ -252,10 +259,35 @@ func handleBlock(ctx *Context) error {
 		return ctx.Reply("Cannot block a group JID. Block commands only apply to users.")
 	}
 
-	_, err := ctx.Client.UpdateBlocklist(ctx.Ctx, target, events.BlocklistChangeActionBlock)
-	if err != nil {
-		return ctx.Reply("Failed to block user: " + err.Error())
+	loader := ctx.StartLoader("Blocking contact...")
+	defer loader.Delete()
+
+	bare := target.ToNonAD()
+	jidsToBlock := []types.JID{bare}
+
+	if uMap, err := ctx.Client.GetUserInfo(ctx.Ctx, []types.JID{bare}); err == nil && uMap != nil {
+		if uInfo, ok := uMap[bare]; ok {
+			if !uInfo.LID.IsEmpty() && uInfo.LID != bare {
+				jidsToBlock = append(jidsToBlock, uInfo.LID.ToNonAD())
+			}
+		}
 	}
+
+	var lastErr error
+	blockedAny := false
+	for _, j := range jidsToBlock {
+		_, err := ctx.Client.UpdateBlocklist(ctx.Ctx, j, events.BlocklistChangeActionBlock)
+		if err == nil {
+			blockedAny = true
+		} else {
+			lastErr = err
+		}
+	}
+
+	if !blockedAny && lastErr != nil {
+		return ctx.Reply("Failed to block user: " + lastErr.Error())
+	}
+
 	resolvedJID, username := ctx.ResolveMention(target)
 	return ctx.ReplyWithMentions(fmt.Sprintf("Blocked @%s.", username), []types.JID{resolvedJID})
 }
@@ -274,12 +306,70 @@ func handleUnblock(ctx *Context) error {
 		return ctx.Reply("Cannot unblock a group. Unblock commands only apply to users.")
 	}
 
-	_, err := ctx.Client.UpdateBlocklist(ctx.Ctx, target, events.BlocklistChangeActionUnblock)
-	if err != nil {
-		return ctx.Reply("Failed to unblock user: " + err.Error())
+	loader := ctx.StartLoader("Unblocking contact...")
+	defer loader.Delete()
+
+	bare := target.ToNonAD()
+	jidsToUnblock := []types.JID{bare}
+
+	if uMap, err := ctx.Client.GetUserInfo(ctx.Ctx, []types.JID{bare}); err == nil && uMap != nil {
+		if uInfo, ok := uMap[bare]; ok {
+			if !uInfo.LID.IsEmpty() && uInfo.LID != bare {
+				jidsToUnblock = append(jidsToUnblock, uInfo.LID.ToNonAD())
+			}
+		}
 	}
+
+	var lastErr error
+	unblockedAny := false
+	for _, j := range jidsToUnblock {
+		_, err := ctx.Client.UpdateBlocklist(ctx.Ctx, j, events.BlocklistChangeActionUnblock)
+		if err == nil {
+			unblockedAny = true
+		} else {
+			lastErr = err
+		}
+	}
+
+	if !unblockedAny && lastErr != nil {
+		return ctx.Reply("Failed to unblock user: " + lastErr.Error())
+	}
+
 	resolvedJID, username := ctx.ResolveMention(target)
 	return ctx.ReplyWithMentions(fmt.Sprintf("Unblocked @%s.", username), []types.JID{resolvedJID})
+}
+
+func handleBlocklist(ctx *Context) error {
+	if !ctx.IsSudo() {
+		return ctx.Reply("Restricted to sudoers only.")
+	}
+
+	loader := ctx.StartLoader("Fetching blocklist...")
+	defer loader.Delete()
+
+	bl, err := ctx.Client.GetBlocklist(ctx.Ctx)
+	if err != nil || bl == nil {
+		return ctx.Reply(fmt.Sprintf("Failed to fetch blocklist: %v", err))
+	}
+
+	if len(bl.JIDs) == 0 {
+		return ctx.Reply("Your blocklist is currently empty.")
+	}
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "*BLOCKED CONTACTS (%d total)*\n\n", len(bl.JIDs))
+
+	var mentions []types.JID
+	for i, jid := range bl.JIDs {
+		bare := jid.ToNonAD()
+		mentions = append(mentions, bare)
+		fmt.Fprintf(&sb, "%d. +%s (@%s)\n", i+1, bare.User, bare.User)
+	}
+
+	p := ctx.GetPrefix()
+	fmt.Fprintf(&sb, "\nTo unblock a contact: %sunblock @user", p)
+
+	return ctx.ReplyWithMentions(sb.String(), mentions)
 }
 
 func handleClear(ctx *Context) error {
@@ -364,6 +454,11 @@ func isJIDSudo(ctx *Context, jid types.JID) bool {
 func handleReport(ctx *Context) error {
 	if !ctx.IsSudo() {
 		return ctx.Reply("Restricted to sudoers only.")
+	}
+
+	p := ctx.GetPrefix()
+	if len(ctx.Args) == 0 && ctx.GetQuotedMessage() == nil {
+		return ctx.Reply(fmt.Sprintf("⚠️ *WARNING*: The %sreport command reports a target user or chat directly to WhatsApp for spam and terms violations.\n\nUsage:\n- Reply to a message with %sreport\n- %sreport @user\n- %sreport <count>x", p, p, p, p))
 	}
 
 	targetJID := ctx.Chat
@@ -507,7 +602,7 @@ func handleVV(ctx *Context) error {
 				_ = s.PutSetting(ctx.Ctx, "vv_destination", val)
 				return ctx.Reply(fmt.Sprintf("ViewOnce media destination updated to: %s", val))
 			}
-			return ctx.Reply("Usage: .vv dest chat | owner | <phone_number> | <group_jid>")
+			return ctx.Reply(fmt.Sprintf("Usage: %svv dest chat | owner | <phone_number> | <group_jid>", ctx.GetPrefix()))
 		}
 	}
 
@@ -516,70 +611,8 @@ func handleVV(ctx *Context) error {
 		return sendVVMenu(ctx, s)
 	}
 
-	isViewOnce := false
-	if quoted.ViewOnceMessage != nil || quoted.ViewOnceMessageV2 != nil || quoted.ViewOnceMessageV2Extension != nil {
-		isViewOnce = true
-	} else if img := quoted.GetImageMessage(); img != nil && img.GetViewOnce() {
-		isViewOnce = true
-	} else if vid := quoted.GetVideoMessage(); vid != nil && vid.GetViewOnce() {
-		isViewOnce = true
-	}
-
-	if !isViewOnce {
+	if !send.IsViewOnceMessage(quoted) {
 		return ctx.Reply("The replied message is not a ViewOnce message.")
-	}
-
-	unwrapped := send.ExtractViewOnceMessage(quoted)
-	if unwrapped == nil {
-		return ctx.Reply("Failed to unwrap ViewOnce message.")
-	}
-
-	// Link back to the original ViewOnce message as a quote/reply
-	var quotedStanzaID string
-	var quotedParticipant string
-	if ext := ctx.Evt.Message.GetExtendedTextMessage(); ext != nil {
-		if ci := ext.GetContextInfo(); ci != nil {
-			if ci.StanzaID != nil {
-				quotedStanzaID = *ci.StanzaID
-			}
-			if ci.Participant != nil {
-				quotedParticipant = *ci.Participant
-			}
-		}
-	}
-
-	if quotedStanzaID != "" && quotedParticipant != "" {
-		quotedClone := proto.Clone(quoted).(*waE2E.Message)
-
-		if quotedClone.ImageMessage != nil {
-			quotedClone.ImageMessage.ContextInfo = nil
-		}
-		if quotedClone.VideoMessage != nil {
-			quotedClone.VideoMessage.ContextInfo = nil
-		}
-		if quotedClone.AudioMessage != nil {
-			quotedClone.AudioMessage.ContextInfo = nil
-		}
-
-		ci := &waE2E.ContextInfo{
-			StanzaID:      &quotedStanzaID,
-			Participant:   &quotedParticipant,
-			QuotedMessage: quotedClone,
-		}
-
-		if unwrapped.ImageMessage != nil {
-			newImg := proto.Clone(unwrapped.ImageMessage).(*waE2E.ImageMessage)
-			newImg.ContextInfo = ci
-			unwrapped.ImageMessage = newImg
-		} else if unwrapped.VideoMessage != nil {
-			newVid := proto.Clone(unwrapped.VideoMessage).(*waE2E.VideoMessage)
-			newVid.ContextInfo = ci
-			unwrapped.VideoMessage = newVid
-		} else if unwrapped.AudioMessage != nil {
-			newAud := proto.Clone(unwrapped.AudioMessage).(*waE2E.AudioMessage)
-			newAud.ContextInfo = ci
-			unwrapped.AudioMessage = newAud
-		}
 	}
 
 	targetJID := ctx.Chat
@@ -589,7 +622,7 @@ func handleVV(ctx *Context) error {
 		switch {
 		case dest == "" || dest == "chat":
 			targetJID = ctx.Chat
-		case dest == "owner" || dest == "me" || dest == "pm":
+		case dest == "owner" || dest == "me" || dest == "pm" || dest == "dm":
 			if ctx.Client.Store.ID != nil {
 				targetJID = ctx.Client.Store.ID.ToNonAD()
 			}
@@ -602,8 +635,25 @@ func handleVV(ctx *Context) error {
 		}
 	}
 
-	_, err := ctx.Client.SendMessage(ctx.Ctx, targetJID, unwrapped)
-	return err
+	var senderJID types.JID
+	var pushName string
+	if ext := ctx.Evt.Message.GetExtendedTextMessage(); ext != nil && ext.GetContextInfo() != nil {
+		if part := ext.GetContextInfo().Participant; part != nil {
+			senderJID, _ = types.ParseJID(*part)
+		}
+	}
+	if senderJID.IsEmpty() {
+		senderJID = ctx.Sender
+	}
+
+	loader := ctx.StartLoader("Unwrapping ViewOnce media...")
+	defer loader.Delete()
+
+	err := send.UnwrapAndSendViewOnceMessage(ctx.Ctx, ctx.Client, quoted, senderJID, pushName, targetJID)
+	if err != nil {
+		return ctx.Reply("Failed to unwrap ViewOnce message: " + err.Error())
+	}
+	return nil
 }
 
 func sendVVMenu(ctx *Context, s *sqlstore.SQLStore) error {

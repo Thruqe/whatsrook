@@ -132,13 +132,15 @@ func handleUnscramble(ctx *Context) error {
 	}
 
 	// Start sub-command
+	p := ctx.GetPrefix()
+
 	if arg0 == "start" || arg0 == "create" {
 		if existingGame != nil {
 			existingGame.Mu.Lock()
 			if existingGame.State == utils.UnscrambleStateLobby {
 				if len(existingGame.Players) == 0 {
 					existingGame.Mu.Unlock()
-					return ctx.Reply("No players in lobby yet! Type .unscramble join to join first.")
+					return ctx.Reply(fmt.Sprintf("No players in lobby yet! Type %sunscramble join to join first.", p))
 				}
 				if existingGame.LobbyTimer != nil {
 					existingGame.LobbyTimer.Stop()
@@ -157,7 +159,7 @@ func handleUnscramble(ctx *Context) error {
 		existingGame.Mu.Lock()
 		defer existingGame.Mu.Unlock()
 		if existingGame.State == utils.UnscrambleStateLobby {
-			return ctx.Reply(fmt.Sprintf("Unscramble Lobby Open! (%d players)\nType .unscramble join to join or .unscramble start to begin!", len(existingGame.Players)))
+			return ctx.Reply(fmt.Sprintf("Unscramble Lobby Open! (%d players)\nType %sunscramble join to join or %sunscramble start to begin!", len(existingGame.Players), p, p))
 		}
 		return ctx.Reply("An Unscramble game is already in progress in this chat!")
 	}
@@ -190,7 +192,7 @@ func handleUnscramble(ctx *Context) error {
 
 	err := sendUnscrambleInteractiveMenu(ctx, hostTag, hostMention)
 	if err != nil {
-		textMsg := fmt.Sprintf("UNSCRAMBLE GAME\n\nHosted by: %s\n\nLobby is open for 30 SECONDS!\nType '.unscramble join' to join\nType '.unscramble start' to begin now\nType '.unscramble lb' for Leaderboard", hostTag)
+		textMsg := fmt.Sprintf("UNSCRAMBLE GAME\n\nHosted by: %s\n\nLobby is open for 30 SECONDS!\nType '%sunscramble join' to join\nType '%sunscramble start' to begin now\nType '%sunscramble lb' for Leaderboard", hostTag, p, p, p)
 		return ctx.ReplyWithMentions(textMsg, []types.JID{hostMention})
 	}
 
@@ -379,7 +381,7 @@ func handleUnscrambleLeaderboard(ctx *Context) error {
 
 	game := utils.GetUnscrambleGame(chatKey)
 	if game == nil {
-		return ctx.Reply("No active Unscramble game in this chat. Start one with .unscramble")
+		return ctx.Reply(fmt.Sprintf("No active Unscramble game in this chat. Start one with %sunscramble", ctx.GetPrefix()))
 	}
 
 	sorted := game.GetSortedPlayers()

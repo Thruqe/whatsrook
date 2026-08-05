@@ -177,6 +177,9 @@ func runSession(ctx context.Context, cli Arguments, sessionDir, dbPath, waLevel 
 	if err != nil {
 		return fmt.Errorf("failed to get device: %w", err)
 	}
+	if sqlStore, ok := deviceStore.Identities.(*sqlstore.SQLStore); ok {
+		sqlStore.SessionDir = sessionDir
+	}
 
 	clientLog := logger.WhatsmeowStyle("Client", "INFO", true)
 	client := whatsmeow.NewClient(deviceStore, clientLog)

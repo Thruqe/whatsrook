@@ -88,7 +88,7 @@ func handleGroupGreetingConfig(ctx *Context, kind string) error {
 		}
 		mode := strings.ToLower(args[1])
 		if mode != "on" && mode != "true" && mode != "off" && mode != "false" && mode != "toggle" {
-			return ctx.Reply("Usage: ." + kind + " tag [on|off|toggle]")
+			return ctx.Reply("Usage: " + ctx.GetPrefix() + kind + " tag [on|off|toggle]")
 		}
 		return applyToggle(ctx, s, tagKey, mode, label+" participant tagging")
 
@@ -99,7 +99,7 @@ func handleGroupGreetingConfig(ctx *Context, kind string) error {
 		}
 		mode := strings.ToLower(args[1])
 		if mode != "on" && mode != "true" && mode != "off" && mode != "false" && mode != "toggle" {
-			return ctx.Reply("Usage: ." + kind + " desc [on|off|toggle]")
+			return ctx.Reply("Usage: " + ctx.GetPrefix() + kind + " desc [on|off|toggle]")
 		}
 		return applyToggle(ctx, s, descKey, mode, label+" group description inclusion")
 
@@ -138,7 +138,7 @@ func handleGroupGreetingConfig(ctx *Context, kind string) error {
 		return ctx.Reply(label + " media URL saved.")
 
 	default:
-		return ctx.Reply("Usage: ." + kind + " [on|off|toggle|customize|tag|desc|msg|media]")
+		return ctx.Reply("Usage: " + ctx.GetPrefix() + kind + " [on|off|toggle|customize|tag|desc|msg|media]")
 	}
 }
 

@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	currentStyle = "small-caps"
+	currentStyle = "normal"
 	mu           sync.RWMutex
 )
 

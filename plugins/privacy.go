@@ -31,6 +31,9 @@ func handlePrivacy(ctx *Context) error {
 	}
 
 	// Fetch current privacy settings
+	loader := ctx.StartLoader("Fetching privacy settings...")
+	defer loader.Delete()
+
 	privacy, err := ctx.Client.TryFetchPrivacySettings(ctx.Ctx, false)
 	if err != nil {
 		pSettings := ctx.Client.GetPrivacySettings(ctx.Ctx)

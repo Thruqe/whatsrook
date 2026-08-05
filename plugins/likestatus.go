@@ -59,7 +59,7 @@ func handleLikeStatusCmd(ctx *Context) error {
 		return sendLikeStatusCustomizeGuide(ctx)
 
 	default:
-		return ctx.Reply("Usage: .likestatus [on|off|toggle|customize]")
+		return ctx.Reply(fmt.Sprintf("Usage: %slikestatus [on|off|toggle|customize]", ctx.GetPrefix()))
 	}
 }
 

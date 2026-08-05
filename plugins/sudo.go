@@ -332,7 +332,12 @@ func handleAutoVV(ctx *Context) error {
 			mode = "dm"
 		}
 		p := ctx.GetPrefix()
-		bodyText := fmt.Sprintf("╭━━━〔 AUTO-VIEWONCE FORWARDING 〕━━━\n│ Status : %s\n│ Mode   : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAutomatically forwards unwrapped ViewOnce media to your DM or directly in the chat.", strings.ToUpper(curr), strings.ToUpper(mode))
+		modeText := "DM (Private to Owner)"
+		if mode == "public" || mode == "chat" {
+			modeText = "Public (Same Chat)"
+		}
+
+		bodyText := fmt.Sprintf("╭━━━〔 AUTO-VIEWONCE SETTINGS 〕━━━\n│ Status : %s\n│ Mode   : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAutomatically intercepts incoming ViewOnce media and re-uploads fresh non-expiring media.\n\nModes:\n• Private (DM): Unwrapped media is saved & sent privately to your DM.\n• Public (Chat): Unwrapped media is posted in the chat where it was received.", strings.ToUpper(curr), modeText)
 		var actionButton struct{ ID, Text string }
 		if curr == "on" {
 			actionButton = struct{ ID, Text string }{ID: p + "autovv off", Text: "Deactivate"}
@@ -340,30 +345,30 @@ func handleAutoVV(ctx *Context) error {
 			actionButton = struct{ ID, Text string }{ID: p + "autovv on", Text: "Activate"}
 		}
 		var modeButton struct{ ID, Text string }
-		if mode == "public" {
-			modeButton = struct{ ID, Text string }{ID: p + "autovv dm", Text: "Switch to DM"}
+		if mode == "public" || mode == "chat" {
+			modeButton = struct{ ID, Text string }{ID: p + "autovv dm", Text: "Switch to DM (Private)"}
 		} else {
-			modeButton = struct{ ID, Text string }{ID: p + "autovv public", Text: "Switch to Public"}
+			modeButton = struct{ ID, Text string }{ID: p + "autovv public", Text: "Switch to Public (Chat)"}
 		}
 		buttons := []struct{ ID, Text string }{
 			actionButton,
 			modeButton,
-			{ID: p + "autovv customize", Text: "Customize"},
+			{ID: p + "autovv customize", Text: "Guide"},
 		}
-		return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s AutoVV", ctx.GetBotName()), buttons)
+		return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s AutoVV Settings", ctx.GetBotName()), buttons)
 	}
 
 	sub := strings.ToLower(args[0])
 	switch sub {
 	case "on", "enable":
 		_ = s.PutSetting(ctx.Ctx, "autovv", "on")
-		return ctx.Reply("Auto ViewOnce forwarding ENABLED.\n\nNote: This feature requires Android or iOS client mode.")
+		return ctx.Reply("Auto ViewOnce forwarding ENABLED.")
 	case "off", "disable":
 		_ = s.PutSetting(ctx.Ctx, "autovv", "off")
 		return ctx.Reply("Auto ViewOnce forwarding DISABLED.")
 	case "dm", "private":
 		_ = s.PutSetting(ctx.Ctx, "autovv_mode", "dm")
-		return ctx.Reply("Auto ViewOnce delivery mode set to DM (Private).")
+		return ctx.Reply("Auto ViewOnce delivery mode set to PRIVATE (Owner DM).")
 	case "public", "chat":
 		_ = s.PutSetting(ctx.Ctx, "autovv_mode", "public")
 		return ctx.Reply("Auto ViewOnce delivery mode set to PUBLIC (Same Chat).")
@@ -377,9 +382,9 @@ func handleAutoVV(ctx *Context) error {
 		return ctx.Reply("Auto ViewOnce forwarding ENABLED.")
 	case "customize", "custom", "help":
 		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("╭━━━〔 AUTOVV GUIDE 〕━━━\n\nCommands:\n• %sautovv on\n• %sautovv off\n• %sautovv dm\n• %sautovv public\n• %sautovv toggle\n\nAutomatically intercepts ViewOnce media sent in chats and forwards unwrapped media to your DM or the public chat.", p, p, p, p, p))
+		return ctx.Reply(fmt.Sprintf("╭━━━〔 AUTOVV GUIDE 〕━━━\n\nCommands:\n• %sautovv on\n• %sautovv off\n• %sautovv dm (Private DM)\n• %sautovv public (Group/Chat)\n• %sautovv toggle\n\nAutomatically intercepts ViewOnce media sent in chats, downloads media bytes immediately to prevent CDN expiry, and forwards clean unwrapped media to your DM or the public chat.", p, p, p, p, p))
 	default:
-		return ctx.Reply("Usage: .autovv [on|off|dm|public|toggle|customize]")
+		return ctx.Reply(fmt.Sprintf("Usage: %sautovv [on|off|dm|public|toggle|customize]", ctx.GetPrefix()))
 	}
 }
 
@@ -434,7 +439,7 @@ func handleAutoStatusSave(ctx *Context) error {
 		p := ctx.GetPrefix()
 		return ctx.Reply(fmt.Sprintf("╭━━━〔 AUTOSTATUS GUIDE 〕━━━\n\nCommands:\n• %sautostatus on\n• %sautostatus off\n• %sautostatus toggle\n\nAutomatically intercepts contacts' status broadcasts and forwards them to your DM.", p, p, p))
 	default:
-		return ctx.Reply("Usage: .autostatus [on|off|toggle|customize]")
+		return ctx.Reply(fmt.Sprintf("Usage: %sautostatus [on|off|toggle|customize]", ctx.GetPrefix()))
 	}
 }
 

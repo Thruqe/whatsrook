@@ -584,7 +584,7 @@ func handleWCGChainLeaderboard(ctx *Context) error {
 
 	game := utils.GetWCGGame(chatKey)
 	if game == nil {
-		return ctx.Reply("No active WCG game in this chat. Start one with .wcg")
+		return ctx.Reply(fmt.Sprintf("No active WCG game in this chat. Start one with %swcg", ctx.GetPrefix()))
 	}
 
 	sorted := game.GetSortedPlayers()

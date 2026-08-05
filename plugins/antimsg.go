@@ -120,7 +120,7 @@ func handleAntiMsg(ctx *Context) error {
 		return ctx.Reply("Cleared AntiMsg target list for this group.")
 
 	default:
-		return ctx.Reply("Usage: .antimsg [on|off|toggle|customize|add|del|list|clear]")
+		return ctx.Reply(fmt.Sprintf("Usage: %santimsg [on|off|toggle|customize|add|del|list|clear]", ctx.GetPrefix()))
 	}
 }
 

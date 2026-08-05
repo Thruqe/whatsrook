@@ -12,9 +12,10 @@ import (
 
 // PluginContext is passed to every command handler.
 type PluginContext struct {
-	Ctx    context.Context
-	Client *whatsmeow.Client
-	Evt    *events.Message
+	Ctx        context.Context
+	CancelFunc context.CancelFunc
+	Client     *whatsmeow.Client
+	Evt        *events.Message
 
 	Command string   // the command word itself, e.g. "ping"
 	Args    []string // remaining whitespace-split args
@@ -22,6 +23,13 @@ type PluginContext struct {
 
 	Chat   types.JID
 	Sender types.JID
+}
+
+// Cancel invokes the context cancel function if set.
+func (c *PluginContext) Cancel() {
+	if c.CancelFunc != nil {
+		c.CancelFunc()
+	}
 }
 
 // GetPrefix returns the primary active command prefix from the database settings, or "." default.

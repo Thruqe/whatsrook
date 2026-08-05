@@ -47,6 +47,9 @@ type SQLStore struct {
 	// JID is the user's JID string that identifies which session these records belong to.
 	JID string
 
+	// SessionDir is the filesystem directory path where session files for this account are stored (e.g. auth/1234567890).
+	SessionDir string
+
 	preKeyLock sync.Mutex
 
 	contactCache     map[types.JID]*types.ContactInfo

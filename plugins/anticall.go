@@ -27,6 +27,7 @@ func handleAntiCall(ctx *Context) error {
 		return ctx.Reply("Database store not available.")
 	}
 
+	p := ctx.GetPrefix()
 	args := strings.Fields(ctx.RawArgs)
 	if len(args) == 0 {
 		return sendAntiCallMenu(ctx, s)
@@ -74,9 +75,9 @@ func handleAntiCall(ctx *Context) error {
 				return ctx.Reply("AntiCall contacts only restriction disabled.")
 			}
 			_ = s.PutSetting(ctx.Ctx, "anticall_contacts_only", "true")
-			return ctx.Reply("AntiCall set to allow calls from contacts only.")
+			return ctx.Reply(fmt.Sprintf("AntiCall set to allow calls from contacts only."))
 		}
-		return ctx.Reply("Usage: .anticall contacts [on|off|toggle]")
+		return ctx.Reply(fmt.Sprintf("Usage: %santicall contacts [on|off|toggle]", p))
 
 	case "cc":
 		if len(args) < 2 {
@@ -90,7 +91,7 @@ func handleAntiCall(ctx *Context) error {
 		switch action {
 		case "add":
 			if len(args) < 3 {
-				return ctx.Reply("Usage: .anticall cc add <country_code>")
+				return ctx.Reply(fmt.Sprintf("Usage: %santicall cc add <country_code>", p))
 			}
 			cc := strings.TrimPrefix(args[2], "+")
 			allowed, _ := s.GetSetting(ctx.Ctx, "anticall_allowed_cc")
@@ -103,7 +104,7 @@ func handleAntiCall(ctx *Context) error {
 
 		case "del", "remove":
 			if len(args) < 3 {
-				return ctx.Reply("Usage: .anticall cc del <country_code>")
+				return ctx.Reply(fmt.Sprintf("Usage: %santicall cc del <country_code>", p))
 			}
 			cc := strings.TrimPrefix(args[2], "+")
 			allowed, _ := s.GetSetting(ctx.Ctx, "anticall_allowed_cc")
@@ -122,7 +123,7 @@ func handleAntiCall(ctx *Context) error {
 			return ctx.Reply("Cleared allowed country codes list.")
 
 		default:
-			return ctx.Reply("Usage: .anticall cc [add|del|clear]")
+			return ctx.Reply(fmt.Sprintf("Usage: %santicall cc [add|del|clear]", p))
 		}
 
 	case "warn", "warnings":
@@ -141,7 +142,7 @@ func handleAntiCall(ctx *Context) error {
 		return ctx.Reply("Call warning threshold set to " + strconv.Itoa(num))
 
 	default:
-		return ctx.Reply("Usage: .anticall [on|off|toggle|customize|contacts|cc|warn]")
+		return ctx.Reply(fmt.Sprintf("Usage: %santicall [on|off|toggle|customize|contacts|cc|warn]", p))
 	}
 }
 

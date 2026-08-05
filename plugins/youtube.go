@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -52,8 +53,14 @@ func handleYTV(ctx *Context) error {
 	defer loader.Delete()
 
 	dl := downloader.NewClient()
+	cookiePath := filepath.Join(GetSessionAuthDir(ctx.Client), "cookies.txt")
+	dl.CookieFile = cookiePath
+
 	res, err := dl.DownloadYouTubeMedia(ctx.Ctx, targetURL, false)
 	if err != nil {
+		if isBotDetectionError(err.Error()) {
+			return SendYTCookieHelp(ctx)
+		}
 		return ctx.Reply("YouTube video download failed: " + err.Error())
 	}
 
@@ -90,8 +97,14 @@ func handleYTA(ctx *Context) error {
 	defer loader.Delete()
 
 	dl := downloader.NewClient()
+	cookiePath := filepath.Join(GetSessionAuthDir(ctx.Client), "cookies.txt")
+	dl.CookieFile = cookiePath
+
 	res, err := dl.DownloadYouTubeMedia(ctx.Ctx, targetURL, true)
 	if err != nil {
+		if isBotDetectionError(err.Error()) {
+			return SendYTCookieHelp(ctx)
+		}
 		return ctx.Reply("YouTube audio download failed: " + err.Error())
 	}
 
@@ -105,8 +118,8 @@ func handleYTA(ctx *Context) error {
 		return ctx.Reply("Failed to fetch media stream.")
 	}
 
-	tmpIn := fmt.Sprintf("/tmp/yt_in_%d.bin", time.Now().UnixNano())
-	tmpOut := fmt.Sprintf("/tmp/yt_out_%d.m4a", time.Now().UnixNano())
+	tmpIn := filepath.Join(os.TempDir(), fmt.Sprintf("yt_in_%d.bin", time.Now().UnixNano()))
+	tmpOut := filepath.Join(os.TempDir(), fmt.Sprintf("yt_out_%d.m4a", time.Now().UnixNano()))
 
 	if err := os.WriteFile(tmpIn, data, 0644); err != nil {
 		return ctx.Reply("Failed to write temporary media file.")
@@ -124,6 +137,10 @@ func handleYTA(ctx *Context) error {
 	}
 
 	thumb := fetchThumbnailBytes(ctx, res.Thumbnail)
+	if len(thumb) == 0 && res.ID != "" {
+		fallbackURL := fmt.Sprintf("https://img.youtube.com/vi/%s/hqdefault.jpg", res.ID)
+		thumb = fetchThumbnailBytes(ctx, fallbackURL)
+	}
 
 	return replyWithMusicAudio(ctx, audioBytes, mimetype, res, thumb)
 }
@@ -200,9 +217,12 @@ func replyWithMusicAudio(ctx *Context, data []byte, mimetype string, res *downlo
 		title = "YouTube Audio"
 	}
 
+	mediaType := waE2E.ContextInfo_ExternalAdReplyInfo_IMAGE.Enum()
+
 	adInfo := &waE2E.ContextInfo_ExternalAdReplyInfo{
 		Title:                 proto.String(title),
 		SourceURL:             proto.String("https://www.youtube.com/watch?v=" + res.ID),
+		MediaType:             mediaType,
 		RenderLargerThumbnail: proto.Bool(true),
 		ShowAdAttribution:     proto.Bool(false),
 	}
@@ -210,7 +230,12 @@ func replyWithMusicAudio(ctx *Context, data []byte, mimetype string, res *downlo
 		adInfo.Body = proto.String(res.Author)
 	}
 	if len(thumb) > 0 {
-		adInfo.Thumbnail = thumb
+		jpegData, errConv := ensureJPEG(ctx.Ctx, thumb)
+		if errConv == nil && len(jpegData) > 0 {
+			adInfo.Thumbnail = jpegData
+		} else {
+			adInfo.Thumbnail = thumb
+		}
 	}
 
 	cinfo := &waE2E.ContextInfo{

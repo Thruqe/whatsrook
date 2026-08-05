@@ -405,6 +405,9 @@ func renderMovieSearchResults(ctx *Context, query string, page int) error {
 }
 
 func handleMovieSelect(ctx *Context, sourceStr, subjectID, detailPath string) error {
+	loader := ctx.StartLoader("Fetching movie details...")
+	defer loader.Delete()
+
 	unescapedDetailPath, _ := url.QueryUnescape(detailPath)
 	unescapedSubjectID, _ := url.QueryUnescape(subjectID)
 

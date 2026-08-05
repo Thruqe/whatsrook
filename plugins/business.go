@@ -39,6 +39,9 @@ func handleBusinessProfile(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("Usage:\n- %sbusiness @user\n- %sbusiness 1234567890\n- Reply to a business user's message with %sbusiness", p, p, p))
 	}
 
+	loader := ctx.StartLoader("Fetching business profile...")
+	defer loader.Delete()
+
 	profile, err := ctx.Client.GetBusinessProfile(ctx.Ctx, targetJID)
 	if err != nil || profile == nil {
 		return ctx.Reply(fmt.Sprintf("Could not fetch business profile for @%s. Ensure the target is a WhatsApp Business account.", targetJID.User))
@@ -79,6 +82,9 @@ func handleBusinessCatalog(ctx *Context) error {
 		p := ctx.GetPrefix()
 		return ctx.Reply(fmt.Sprintf("Usage:\n- %scatalog @user\n- %scatalog 1234567890\n- Reply to a business user's message with %scatalog", p, p, p))
 	}
+
+	loader := ctx.StartLoader("Fetching catalog...")
+	defer loader.Delete()
 
 	profile, err := ctx.Client.GetBusinessProfile(ctx.Ctx, targetJID)
 	if err != nil || profile == nil {

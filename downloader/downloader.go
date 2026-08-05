@@ -35,6 +35,7 @@ type Result struct {
 
 type Client struct {
 	HTTPClient *http.Client
+	CookieFile string
 }
 
 func NewClient() *Client {
