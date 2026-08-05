@@ -158,6 +158,11 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		logGroupMessage(ctx, client, evt.Info.Chat, evt.Info.Sender)
 	}
 
+	// 2. Group moderation (antimsg / antispam / anti-link / anti-word)
+	if handleGroupModeration(ctx, client, evt, text) {
+		return true
+	}
+
 	// 2. Auto Status Save
 	if evt.Info.Chat.String() == "status@broadcast" {
 		if okStore {
@@ -210,11 +215,6 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 	if text == "" {
 		return false
-	}
-
-	// 4. Group moderation (anti-link / anti-word)
-	if handleGroupModeration(ctx, client, evt, text) {
-		return true
 	}
 
 	// 5. Check BGM / general filters (auto-response)
@@ -805,9 +805,16 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 		if rawAntiMsgUsers != "" {
 			targetUsers := strings.Split(rawAntiMsgUsers, ",")
 			senderStr := sender.String()
-			for _, u := range targetUsers {
-				u = strings.TrimSpace(u)
-				if u != "" && (u == senderStr || u == sender.User+"@s.whatsapp.net") {
+			for _, uStr := range targetUsers {
+				uStr = strings.TrimSpace(uStr)
+				if uStr == "" {
+					continue
+				}
+				uJID, err := types.ParseJID(uStr)
+				if err != nil {
+					continue
+				}
+				if waSender.IsSameUserRaw(ctx, client, uJID, evt.Info.Sender) {
 					slog.Debug("antimsg: deleting message from targeted participant", "chat", chatStr, "sender", senderStr)
 					_, _ = client.SendMessage(ctx, evt.Info.Chat, client.BuildRevoke(evt.Info.Chat, evt.Info.Sender, evt.Info.ID))
 					return true

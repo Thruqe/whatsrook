@@ -3,6 +3,7 @@ package plugins
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -19,10 +20,13 @@ func init() {
 func handlePing(ctx *Context) error {
 	start := time.Now()
 
-	loader := ctx.StartLoader("Ponging")
-	defer loader.Stop()
+	msgID, err := ctx.ReplyWithID("⚡ Ping...")
+	if err != nil {
+		return err
+	}
 
-	elapsed := time.Since(start)
+	end := time.Now()
+	elapsed := end.Sub(start)
 
 	var latency string
 	if elapsed < time.Millisecond {
@@ -33,14 +37,25 @@ func handlePing(ctx *Context) error {
 		latency = fmt.Sprintf("%.2f s", elapsed.Seconds())
 	}
 
-	text := fmt.Sprintf("Pong!\nResponse Time: %s", latency)
+	startTimeStr := start.Format("15:04:05.000")
+	endTimeStr := end.Format("15:04:05.000")
+
+	var sb strings.Builder
+	sb.WriteString("🏓 *Pong!*\n\n")
+	fmt.Fprintf(&sb, "• Start  : `%s`\n", startTimeStr)
+	fmt.Fprintf(&sb, "• End    : `%s`\n", endTimeStr)
+	fmt.Fprintf(&sb, "• Latency: `%s`", latency)
+
 	if ctx.Evt != nil && !ctx.Evt.Info.Timestamp.IsZero() {
 		msgLag := start.Sub(ctx.Evt.Info.Timestamp)
 		if msgLag > 0 {
-			text += fmt.Sprintf("\nIncoming Lag: %d ms", msgLag.Milliseconds())
+			fmt.Fprintf(&sb, "\n• Lag    : `%d ms`", msgLag.Milliseconds())
 		}
 	}
 
-	_, err := ctx.Edit(loader.MessageID(), text)
-	return err
+	_, editErr := ctx.Edit(msgID, sb.String())
+	if editErr != nil {
+		_ = ctx.Reply(sb.String())
+	}
+	return nil
 }
