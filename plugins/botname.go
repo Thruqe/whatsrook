@@ -607,4 +607,3 @@ func sendWizardSummaryCard(ctx *Context) error {
 
 	return ctx.Reply(sb.String())
 }
-
