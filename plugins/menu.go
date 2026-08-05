@@ -178,7 +178,7 @@ func handleMenu(ctx *Context) error {
 		displayedCount++
 	}
 
-	uptime := menuRuntime(time.Since(startTime).Seconds())
+	uptime := utils.FormatUptime(time.Since(startTime).Seconds())
 	var ms runtime.MemStats
 	runtime.ReadMemStats(&ms)
 	usedRAM := ms.Alloc
@@ -202,7 +202,7 @@ func handleMenu(ctx *Context) error {
 	fmt.Fprintf(&sb, "│╭──────────────\n")
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("User    : %s", user)))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Os      : %s", platform)))
-	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Mem     : %s", formatBytes(usedRAM))))
+	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Mem     : %s", utils.FormatBytes(usedRAM))))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Plugins : %d", displayedCount)))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Mode    : %s", botMode)))
 	fmt.Fprintf(&sb, "││ %s\n", toFancy(fmt.Sprintf("Uptime  : %s", uptime)))

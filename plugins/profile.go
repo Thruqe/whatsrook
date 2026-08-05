@@ -2,20 +2,11 @@
 package plugins
 
 import (
-	"bytes"
-	"context"
 	"fmt"
-	"image"
-	_ "image/gif"
-	"image/jpeg"
-	_ "image/png"
 	"log/slog"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"time"
 
 	"whatsrook/send"
+	"whatsrook/utils"
 
 	"go.mau.fi/whatsmeow/types"
 )
@@ -59,7 +50,7 @@ func handleSetBotPP(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("Failed to download image: %v", err))
 	}
 
-	jpegData, errConv := ensureJPEG(ctx.Ctx, rawBytes)
+	jpegData, errConv := utils.EnsureJPEG(ctx.Ctx, rawBytes)
 	if errConv != nil || len(jpegData) == 0 {
 		return ctx.Reply(fmt.Sprintf("Failed to process profile image format: %v", errConv))
 	}
@@ -106,7 +97,7 @@ func handleSetGroupPP(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("Failed to download image: %v", err))
 	}
 
-	jpegData, errConv := ensureJPEG(ctx.Ctx, rawBytes)
+	jpegData, errConv := utils.EnsureJPEG(ctx.Ctx, rawBytes)
 	if errConv != nil || len(jpegData) == 0 {
 		return ctx.Reply(fmt.Sprintf("Failed to process group photo format: %v", errConv))
 	}
@@ -119,33 +110,4 @@ func handleSetGroupPP(ctx *Context) error {
 	}
 
 	return ctx.Reply(fmt.Sprintf("Group profile photo updated successfully! (Picture ID: %s)", picID))
-}
-
-func ensureJPEG(ctx context.Context, inputBytes []byte) ([]byte, error) {
-	img, _, err := image.Decode(bytes.NewReader(inputBytes))
-	if err == nil {
-		var buf bytes.Buffer
-		if errEnc := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90}); errEnc == nil && buf.Len() > 0 {
-			return buf.Bytes(), nil
-		}
-	}
-
-	// Fallback via ffmpeg for WebP / HEIC / MP4 / etc.
-	tmpIn := filepath.Join(os.TempDir(), fmt.Sprintf("pfp_in_%d.bin", time.Now().UnixNano()))
-	tmpOut := filepath.Join(os.TempDir(), fmt.Sprintf("pfp_out_%d.jpg", time.Now().UnixNano()))
-
-	if err := os.WriteFile(tmpIn, inputBytes, 0644); err != nil {
-		return inputBytes, nil
-	}
-	defer os.Remove(tmpIn)
-	defer os.Remove(tmpOut)
-
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-i", tmpIn, "-vframes", "1", "-q:v", "2", tmpOut)
-	if err := cmd.Run(); err == nil {
-		if converted, errRead := os.ReadFile(tmpOut); errRead == nil && len(converted) > 0 {
-			return converted, nil
-		}
-	}
-
-	return inputBytes, nil
 }

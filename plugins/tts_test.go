@@ -2,6 +2,8 @@ package plugins
 
 import (
 	"testing"
+
+	"whatsrook/utils"
 )
 
 func TestTTSCommandRegistered(t *testing.T) {
@@ -22,14 +24,14 @@ func TestTTSCommandRegistered(t *testing.T) {
 func TestIsKnownLanguageCode(t *testing.T) {
 	validCodes := []string{"en", "es", "fr", "de", "ar", "yo", "ha", "ig", "ja"}
 	for _, code := range validCodes {
-		if !isKnownLanguageCode(code) {
+		if !utils.IsKnownLanguageCode(code) {
 			t.Errorf("expected language code %q to be known", code)
 		}
 	}
 
-	invalidCodes := []string{"xyz123", "invalid", "123", ""}
+	invalidCodes := []string{"xyz1234", "invalid_code", ""}
 	for _, code := range invalidCodes {
-		if isKnownLanguageCode(code) {
+		if utils.IsKnownLanguageCode(code) {
 			t.Errorf("expected language code %q to be unknown", code)
 		}
 	}

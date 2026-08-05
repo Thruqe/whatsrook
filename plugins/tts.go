@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"whatsrook/utils"
 )
 
 func init() {
@@ -36,7 +38,7 @@ func handleTTS(ctx *Context) error {
 	textToSpeak := ctx.RawArgs
 
 	firstWord := strings.ToLower(ctx.Args[0])
-	if len(firstWord) >= 2 && len(firstWord) <= 5 && isKnownLanguageCode(firstWord) && len(ctx.Args) > 1 {
+	if len(firstWord) >= 2 && len(firstWord) <= 5 && utils.IsKnownLanguageCode(firstWord) && len(ctx.Args) > 1 {
 		lang = firstWord
 		textToSpeak = strings.TrimSpace(ctx.RawArgs[len(ctx.Args[0]):])
 	}
@@ -119,22 +121,4 @@ func convertMP3ToOpus(ctx context.Context, mp3Bytes []byte) ([]byte, error) {
 	}
 
 	return os.ReadFile(tempOpus)
-}
-
-func isKnownLanguageCode(code string) bool {
-	known := map[string]bool{
-		"af": true, "ar": true, "bn": true, "bs": true, "ca": true,
-		"cs": true, "da": true, "de": true, "el": true, "en": true,
-		"eo": true, "es": true, "et": true, "fi": true, "fr": true,
-		"gu": true, "ha": true, "hi": true, "hr": true, "hu": true,
-		"hy": true, "id": true, "ig": true, "is": true, "it": true,
-		"ja": true, "jw": true, "km": true, "kn": true, "ko": true,
-		"la": true, "lv": true, "mk": true, "ml": true, "mr": true,
-		"my": true, "ne": true, "nl": true, "no": true, "pl": true,
-		"pt": true, "ro": true, "ru": true, "si": true, "sk": true,
-		"sq": true, "sr": true, "su": true, "sv": true, "sw": true,
-		"ta": true, "te": true, "th": true, "tl": true, "tr": true,
-		"uk": true, "ur": true, "vi": true, "yo": true, "zh": true,
-	}
-	return known[strings.ToLower(code)]
 }

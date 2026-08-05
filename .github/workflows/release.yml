@@ -37,6 +37,7 @@ jobs:
             echo "changed=false" >> $GITHUB_OUTPUT
             echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           fi
+
   build:
     name: Build Binaries (${{ matrix.target.os }}-${{ matrix.target.arch }})
     needs: [check-version]
@@ -47,6 +48,12 @@ jobs:
           - os: linux
             arch: amd64
             ext: ""
+          - os: linux
+            arch: arm64
+            ext: ""
+          - os: windows
+            arch: amd64
+            ext: ".exe"
           - os: darwin
             arch: amd64
             ext: ""
@@ -60,18 +67,10 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install Cross Compilers (GCC / CGO)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc gcc-aarch64-linux-gnu
       - name: Build Binary
         run: |
           BIN_NAME="whatsrook${{ matrix.target.ext }}"
-          if [ "${{ matrix.target.os }}" = "darwin" ]; then
-            CGO_ENABLED=0 GOOS=darwin GOARCH=${{ matrix.target.arch }} go build -o $BIN_NAME .
-          else
-            CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o $BIN_NAME .
-          fi
+          CGO_ENABLED=0 GOOS=${{ matrix.target.os }} GOARCH=${{ matrix.target.arch }} go build -o $BIN_NAME .
       - name: Package Asset
         run: |
           mkdir staging
@@ -81,12 +80,17 @@ jobs:
           cp LICENSE staging/ 2>/dev/null || true
           cp README.md staging/ 2>/dev/null || true
           cp version.toml staging/ 2>/dev/null || true
-          tar -czf whatsrook-${{ matrix.target.os }}-${{ matrix.target.arch }}.tar.gz -C staging .
+          if [ "${{ matrix.target.os }}" = "windows" ]; then
+            zip -r whatsrook-${{ matrix.target.os }}-${{ matrix.target.arch }}.zip staging/*
+          else
+            tar -czf whatsrook-${{ matrix.target.os }}-${{ matrix.target.arch }}.tar.gz -C staging .
+          fi
       - name: Upload Intermediary Artifact
         uses: actions/upload-artifact@v4
         with:
           name: whatsrook-${{ matrix.target.os }}-${{ matrix.target.arch }}
-          path: whatsrook-${{ matrix.target.os }}-${{ matrix.target.arch }}.tar.gz
+          path: whatsrook-${{ matrix.target.os }}-${{ matrix.target.arch }}.*
+
   alpha-release:
     name: Alpha Nightly Per-Commit Release
     needs: [check-version, build]
@@ -118,9 +122,10 @@ jobs:
             **Commit:** ${{ github.sha }}
           prerelease: true
           make_latest: false
-          files: artifacts/*/*.tar.gz
+          files: artifacts/*/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   production-release:
     name: Production Release
     needs: [check-version, build]
@@ -136,20 +141,6 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Update CHANGELOG.md for New Version
-        id: update-changelog
-        run: |
-          VERSION="${{ needs.check-version.outputs.version }}"
-          DATE=$(date +'%Y-%m-%d')
-
-          sed -i "s/## \[Unreleased\]/## [Unreleased]\n\n## [${VERSION}] - ${DATE}/g" CHANGELOG.md
-
-          if ! git diff --quiet CHANGELOG.md; then
-            git add CHANGELOG.md
-            git commit -m "chore(changelog): release v${VERSION} [skip ci]"
-            git push origin master
-          fi
 
       - name: Download Artifacts
         uses: actions/download-artifact@v4
@@ -169,6 +160,6 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: false
-          files: artifacts/*/*.tar.gz
+          files: artifacts/*/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

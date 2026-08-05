@@ -2,13 +2,11 @@
 package plugins
 
 import (
-	"context"
 	"fmt"
-	"io"
 	"log/slog"
-	"net/http"
 	"strings"
-	"time"
+
+	"whatsrook/utils"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
@@ -85,28 +83,11 @@ func handleUserInfo(ctx *Context) error {
 	ppInfo, errPP := ctx.Client.GetProfilePictureInfo(ctx.Ctx, targetJID, &whatsmeow.GetProfilePictureParams{})
 	if errPP == nil && ppInfo != nil && ppInfo.URL != "" {
 		slog.Info("handleUserInfo: Downloading profile photo", "url", ppInfo.URL)
-		imgData, errDownload := fetchURLBytes(ctx.Ctx, ppInfo.URL)
+		imgData, errDownload := utils.FetchURLBytes(ctx.Ctx, ppInfo.URL)
 		if errDownload == nil && len(imgData) > 0 {
 			return ctx.ReplyWithImage(imgData, "image/jpeg", infoText)
 		}
 	}
 
 	return ctx.Reply(infoText)
-}
-
-func fetchURLBytes(ctx context.Context, targetURL string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP status %d", resp.StatusCode)
-	}
-	return io.ReadAll(resp.Body)
 }

@@ -230,7 +230,7 @@ func replyWithMusicAudio(ctx *Context, data []byte, mimetype string, res *downlo
 		adInfo.Body = proto.String(res.Author)
 	}
 	if len(thumb) > 0 {
-		jpegData, errConv := ensureJPEG(ctx.Ctx, thumb)
+		jpegData, errConv := utils.EnsureJPEG(ctx.Ctx, thumb)
 		if errConv == nil && len(jpegData) > 0 {
 			adInfo.Thumbnail = jpegData
 		} else {

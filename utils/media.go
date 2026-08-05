@@ -10,13 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nonibytes/ffgo"
 	"github.com/tcolgate/mp3"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 )
 
-// TranscodeToMP3 converts input audio to MP3.
-// Kept on ffmpeg CLI since ffgo's audio encoding is not yet fully implemented.
+// TranscodeToMP3 converts input audio to MP3 via ffmpeg CLI.
 func TranscodeToMP3(inputPath string) (string, error) {
 	outputPath := strings.TrimSuffix(inputPath, filepath.Ext(inputPath)) + ".mp3"
 	actualOut := outputPath
@@ -41,68 +39,22 @@ func TranscodeToMP3(inputPath string) (string, error) {
 	return outputPath, nil
 }
 
-// PrepareCallVideo converts video to audio (.mp3) via ffmpeg and Annex-B H.264 video stream via ffgo.
+// PrepareCallVideo converts video to audio (.mp3) and Annex-B H.264 video stream (.h264) via ffmpeg CLI.
 func PrepareCallVideo(inputPath string) (string, string, error) {
 	basePath := strings.TrimSuffix(inputPath, filepath.Ext(inputPath))
 	mp3Path := basePath + ".mp3"
 	h264Path := basePath + ".h264"
 
-	// 1. Audio Extraction (ffmpeg CLI fallback due to incomplete audio encoding in ffgo)
+	// 1. Audio Extraction
 	audioCmd := exec.Command("ffmpeg", "-y", "-i", inputPath, "-vn", "-ar", "16000", "-ac", "1", "-b:a", "64k", mp3Path)
 	if out, err := audioCmd.CombinedOutput(); err != nil {
 		log.Printf("[WARN] ffmpeg audio extraction failed for %s: %v (%s)", inputPath, err, string(out))
 	}
 
-	// 2. Video Transcode via ffgo
-	decoder, err := ffgo.NewDecoder(inputPath)
-	if err != nil {
-		return "", "", fmt.Errorf("ffgo new decoder failed for %s: %w", inputPath, err)
-	}
-	defer decoder.Close()
-
-	videoStream := decoder.VideoStream()
-	width := 640
-	height := 480
-	if videoStream != nil {
-		width = videoStream.Width
-		height = videoStream.Height
-	}
-
-	cfg := ffgo.EncoderConfig{
-		Width:       width,
-		Height:      height,
-		PixelFormat: ffgo.PixelFormatYUV420P,
-		CodecID:     ffgo.CodecIDH264,
-		BitRate:     2000000,
-		FrameRate:   15,
-		GOPSize:     15,
-		MaxBFrames:  0,
-	}
-
-	videoEncoder, err := ffgo.NewEncoder(h264Path, cfg)
-	if err != nil {
-		return "", "", fmt.Errorf("ffgo video encoder setup failed: %w", err)
-	}
-
-	for {
-		frame, err := decoder.ReadFrame()
-		if err != nil {
-			return "", "", fmt.Errorf("decode error: %w", err)
-		}
-		if frame == nil {
-			break
-		}
-
-		if frame.MediaType() == ffgo.MediaTypeVideo {
-			if err := videoEncoder.WriteFrame(frame.Raw()); err != nil {
-				videoEncoder.Close()
-				return "", "", fmt.Errorf("write video frame failed: %w", err)
-			}
-		}
-	}
-
-	if err := videoEncoder.Close(); err != nil {
-		return "", "", fmt.Errorf("close video encoder failed: %w", err)
+	// 2. Video Transcode to Annex-B H.264 via ffmpeg CLI
+	videoCmd := exec.Command("ffmpeg", "-y", "-i", inputPath, "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", "15", "-g", "15", "-bsf:v", "h264_mp4toannexb", "-f", "h264", h264Path)
+	if out, err := videoCmd.CombinedOutput(); err != nil {
+		return "", "", fmt.Errorf("ffmpeg video transcode failed for %s: %w (%s)", inputPath, err, string(out))
 	}
 
 	return mp3Path, h264Path, nil
