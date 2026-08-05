@@ -182,5 +182,3 @@ func (b *Bot) notifyOwnerConnected() {
 		slog.Info("sent connection metadata notification to owner DM", "owner", ownerJID.String())
 	}
 }
-
-
