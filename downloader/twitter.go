@@ -2,11 +2,13 @@ package downloader
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"math"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -41,11 +43,28 @@ func (c *Client) DownloadTwitter(ctx context.Context, rawURL string) (*Result, e
 		return nil, fmt.Errorf("could not parse tweet ID from URL: %s", rawURL)
 	}
 
-	// Try Syndication API
+	canonicalURL := fmt.Sprintf("https://twitter.com/i/status/%s", tweetID)
+
+	// Strategy 1: Syndication API
 	res, err := c.fetchTwitterSyndication(ctx, tweetID)
 	if err == nil && res != nil && len(res.Items) > 0 {
 		return res, nil
 	}
+	mainLog.Debugf("Syndication API failed for tweet %s: %v", tweetID, err)
+
+	// Strategy 2: Twitsave extractor
+	resTwit, errTwit := c.fetchTwitterTwitsave(ctx, canonicalURL, tweetID)
+	if errTwit == nil && resTwit != nil && len(resTwit.Items) > 0 {
+		return resTwit, nil
+	}
+	mainLog.Debugf("Twitsave extractor failed for tweet %s: %v", tweetID, errTwit)
+
+	// Strategy 3: SSSTwitter fallback
+	resSSS, errSSS := c.fetchTwitterSSSTwitter(ctx, canonicalURL, tweetID)
+	if errSSS == nil && resSSS != nil && len(resSSS.Items) > 0 {
+		return resSSS, nil
+	}
+	mainLog.Debugf("SSSTwitter fallback failed for tweet %s: %v", tweetID, errSSS)
 
 	return nil, fmt.Errorf("failed to extract media for tweet ID %s", tweetID)
 }
@@ -156,6 +175,176 @@ func (c *Client) fetchTwitterSyndication(ctx context.Context, tweetID string) (*
 		Author:  author,
 		Items:   items,
 		IsPhoto: isPhoto,
+	}, nil
+}
+
+func (c *Client) fetchTwitterTwitsave(ctx context.Context, rawURL, tweetID string) (*Result, error) {
+	canonicalURL := fmt.Sprintf("https://twitter.com/i/status/%s", tweetID)
+	apiURL := "https://twitsave.com/info?url=" + url.QueryEscape(canonicalURL)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", DefaultUserAgent)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("twitsave HTTP status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	html := string(body)
+
+	var items []MediaItem
+	seen := make(map[string]bool)
+
+	// 1. Direct <video src="...">
+	videoSrcRegex := regexp.MustCompile(`<video[^>]*src="([^"]+)"`)
+	m := videoSrcRegex.FindStringSubmatch(html)
+	if len(m) > 1 && strings.HasPrefix(m[1], "http") {
+		uStr := m[1]
+		seen[uStr] = true
+		items = append(items, MediaItem{
+			URL:      uStr,
+			Type:     "video",
+			Filename: fmt.Sprintf("twitter_%s.mp4", tweetID),
+		})
+	}
+
+	// 2. Base64 encoded download links: href="https://twitsave.com/download?file=..."
+	dlRegex := regexp.MustCompile(`href="https://twitsave\.com/download\?file=([^"]+)"`)
+	matches := dlRegex.FindAllStringSubmatch(html, -1)
+	for i, match := range matches {
+		if len(match) > 1 {
+			decodedBytes, errDec := base64.StdEncoding.DecodeString(match[1])
+			if errDec == nil {
+				decodedURL := string(decodedBytes)
+				if strings.HasPrefix(decodedURL, "http") && !seen[decodedURL] {
+					seen[decodedURL] = true
+					items = append(items, MediaItem{
+						URL:      decodedURL,
+						Type:     "video",
+						Filename: fmt.Sprintf("twitter_%s_%d.mp4", tweetID, i+1),
+					})
+				}
+			}
+		}
+	}
+
+	if len(items) == 0 {
+		return nil, fmt.Errorf("no media items found in twitsave response")
+	}
+
+	return &Result{
+		Service: "twitter",
+		ID:      tweetID,
+		Items:   items,
+	}, nil
+}
+
+func (c *Client) fetchTwitterSSSTwitter(ctx context.Context, rawURL, tweetID string) (*Result, error) {
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	client := &http.Client{
+		Jar:     jar,
+		Timeout: c.HTTPClient.Timeout,
+	}
+
+	formData := url.Values{}
+	formData.Set("id", rawURL)
+	formData.Set("locale", "en")
+	formData.Set("source", "form")
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://ssstwitter.com/", strings.NewReader(formData.Encode()))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("User-Agent", DefaultUserAgent)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+	req.Header.Set("hx-request", "true")
+	req.Header.Set("hx-target", "target")
+	req.Header.Set("hx-current-url", "https://ssstwitter.com/")
+	req.Header.Set("origin", "https://ssstwitter.com")
+	req.Header.Set("referer", "https://ssstwitter.com/")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ssstwitter HTTP status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	html := string(body)
+
+	// Extract direct download URLs or href download links
+	var items []MediaItem
+	hrefRegex := regexp.MustCompile(`(?:href|data-directurl)="([^"]+)"`)
+	matches := hrefRegex.FindAllStringSubmatch(html, -1)
+
+	seen := make(map[string]bool)
+	for i, m := range matches {
+		if len(m) < 2 {
+			continue
+		}
+		dlURL := m[1]
+		if dlURL == "" || seen[dlURL] {
+			continue
+		}
+		if !strings.HasPrefix(dlURL, "http://") && !strings.HasPrefix(dlURL, "https://") {
+			continue
+		}
+		if strings.Contains(dlURL, "ssstwitter.com") || strings.Contains(dlURL, "reelsvideo.io") ||
+			strings.Contains(dlURL, "ssstik.io") || strings.Contains(dlURL, "getmyfb.com") ||
+			strings.Contains(dlURL, "googlesyndication.com") || strings.Contains(dlURL, "google.com") ||
+			strings.Contains(dlURL, "play.google.com") {
+			continue
+		}
+		seen[dlURL] = true
+
+		itemType := "video"
+		ext := "mp4"
+		if strings.Contains(dlURL, ".jpg") || strings.Contains(dlURL, ".png") || strings.Contains(dlURL, ".webp") {
+			itemType = "photo"
+			ext = "jpg"
+		}
+
+		items = append(items, MediaItem{
+			URL:      dlURL,
+			Type:     itemType,
+			Filename: fmt.Sprintf("twitter_%s_%d.%s", tweetID, i+1, ext),
+		})
+	}
+
+	if len(items) == 0 {
+		return nil, fmt.Errorf("no downloadable links found in ssstwitter response")
+	}
+
+	return &Result{
+		Service: "twitter",
+		ID:      tweetID,
+		Items:   items,
 	}, nil
 }
 

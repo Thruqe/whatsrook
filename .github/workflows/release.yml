@@ -59,18 +59,73 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
       - name: Setup Go Toolchain
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          # Disable the shared actions/setup-go cache. With 5 matrix legs
+          # building concurrently from the same repo, a cache key collision
+          # (or a race populating GOCACHE) can let one target's linked
+          # binary get replaced by another target's cached-but-unlinked
+          # object/archive output. Building clean removes that failure mode.
+          cache: false
+
       - name: Build Binary
+        env:
+          CGO_ENABLED: 0
+          GOOS: ${{ matrix.target.os }}
+          GOARCH: ${{ matrix.target.arch }}
+          # Give every matrix leg its own isolated build cache directory so
+          # there is no way for GOOS/GOARCH-specific compiled objects to be
+          # reused across targets even if Go's own cache keying misbehaves.
+          GOCACHE: ${{ github.workspace }}/.gocache-${{ matrix.target.os }}-${{ matrix.target.arch }}
         run: |
           BIN_NAME="whatsrook${{ matrix.target.ext }}"
-          CGO_ENABLED=0 GOOS=${{ matrix.target.os }} GOARCH=${{ matrix.target.arch }} go build -o $BIN_NAME .
+          go build -o "$BIN_NAME" ./cli
+          echo "BIN_NAME=$BIN_NAME" >> "$GITHUB_ENV"
+
+      - name: Verify Binary
+        run: |
+          echo "Inspecting build output for ${{ matrix.target.os }}-${{ matrix.target.arch }}:"
+          file "$BIN_NAME"
+
+          case "${{ matrix.target.os }}" in
+            windows)
+              # Expect an MZ/PE header (bytes "4d 5a")
+              HEADER=$(head -c 2 "$BIN_NAME" | xxd -p)
+              if [ "$HEADER" != "4d5a" ]; then
+                echo "::error::Build produced an invalid PE binary for ${{ matrix.target.os }}-${{ matrix.target.arch }}. First bytes: $HEADER"
+                exit 1
+              fi
+              ;;
+            darwin)
+              # Expect Mach-O magic (feedface, feedfacf, cafebabe for fat binaries)
+              HEADER=$(head -c 4 "$BIN_NAME" | xxd -p)
+              case "$HEADER" in
+                feedface|feedfacf|cafebabe|cffaedfe|cefaedfe) ;;
+                *)
+                  echo "::error::Build produced an invalid Mach-O binary for ${{ matrix.target.os }}-${{ matrix.target.arch }}. First bytes: $HEADER"
+                  exit 1
+                  ;;
+              esac
+              ;;
+            linux)
+              # Expect ELF magic (7f 45 4c 46 = "\x7fELF")
+              HEADER=$(head -c 4 "$BIN_NAME" | xxd -p)
+              if [ "$HEADER" != "7f454c46" ]; then
+                echo "::error::Build produced an invalid ELF binary for ${{ matrix.target.os }}-${{ matrix.target.arch }}. First bytes: $HEADER (this is the '!<arch>'/__.PKGDEF signature of an unlinked Go archive object, not a linked executable, if it decodes to '213c61' etc.)"
+                exit 1
+              fi
+              ;;
+          esac
+
+          echo "Verified: $BIN_NAME is a valid native executable for ${{ matrix.target.os }}-${{ matrix.target.arch }}."
+
       - name: Package Asset
         run: |
           mkdir staging
-          cp whatsrook${{ matrix.target.ext }} staging/
+          cp "$BIN_NAME" staging/
           cp -r resources staging/ 2>/dev/null || true
           cp -r prompts staging/ 2>/dev/null || true
           cp LICENSE staging/ 2>/dev/null || true
@@ -81,6 +136,7 @@ jobs:
           else
             tar -czf whatsrook-${{ matrix.target.os }}-${{ matrix.target.arch }}.tar.gz -C staging .
           fi
+
       - name: Upload Intermediary Artifact
         uses: actions/upload-artifact@v4
         with:

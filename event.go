@@ -52,7 +52,6 @@ func (b *Bot) WAEventHandler(evt any) {
 
 		// Skip messages sent before the bot started running
 		if b.cli.SkipOldMessages && v.Info.Timestamp.Before(b.startupTime) {
-			slog.Debug("skipping old message", "timestamp", v.Info.Timestamp, "startup", b.startupTime)
 			return
 		}
 

@@ -135,6 +135,23 @@ func TestTwitterExtractor(t *testing.T) {
 	}
 }
 
+func TestTwitterSSSTwitterFallback(t *testing.T) {
+	client := downloader.NewClient()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	res, err := client.DownloadTwitter(ctx, "https://x.com/i/status/2084652239524696166")
+	if err != nil {
+		t.Fatalf("SSSTwitter fallback returned error: %v", err)
+	}
+	if res.Service != "twitter" {
+		t.Errorf("expected service 'twitter', got %s", res.Service)
+	}
+	if len(res.Items) == 0 {
+		t.Errorf("expected at least 1 media item")
+	}
+}
+
 func TestTikTokExtractor(t *testing.T) {
 	client := downloader.NewClient()
 
