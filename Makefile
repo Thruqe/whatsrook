@@ -26,7 +26,7 @@ install: ## Download and tidy Go module dependencies
 	go mod tidy
 
 format: ## Format all Go source files
-	go fmt ./...
+	go fmt ./... && gofmt -w -s .
 
 vet: ## Run go vet static code analysis
 	go vet ./...
