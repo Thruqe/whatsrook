@@ -66,8 +66,11 @@ func handleYTV(ctx *Context) error {
 	cookiePath := filepath.Join(GetSessionAuthDir(ctx.Client), "cookies.txt")
 	dl.CookieFile = cookiePath
 
+	slog.Debug("handleYTV: Initiating YouTube video download", "url", targetURL, "cookiePath", cookiePath)
+
 	res, err := dl.DownloadYouTubeMedia(ctx.Ctx, targetURL, false)
 	if err != nil {
+		slog.Warn("handleYTV: DownloadYouTubeMedia failed", "url", targetURL, "err", err)
 		if isBotDetectionError(err.Error()) {
 			return SendYTCookieHelp(ctx)
 		}
@@ -75,14 +78,18 @@ func handleYTV(ctx *Context) error {
 	}
 
 	if len(res.Items) == 0 {
+		slog.Warn("handleYTV: No items returned in result", "url", targetURL)
 		return ctx.Reply("No downloadable video stream found.")
 	}
 
 	item := res.Items[0]
+	slog.Debug("handleYTV: Fetching video stream bytes", "itemURL", item.URL, "type", item.Type)
 	data, err := fetchStreamBytes(ctx, item)
 	if err != nil || len(data) == 0 {
+		slog.Error("handleYTV: Failed to fetch stream bytes", "err", err, "size", len(data))
 		return ctx.Reply("Failed to fetch video stream.")
 	}
+	slog.Debug("handleYTV: Successfully fetched video stream bytes", "size", len(data))
 
 	caption := res.Title
 	if caption == "" {
@@ -110,8 +117,11 @@ func handleYTA(ctx *Context) error {
 	cookiePath := filepath.Join(GetSessionAuthDir(ctx.Client), "cookies.txt")
 	dl.CookieFile = cookiePath
 
+	slog.Debug("handleYTA: Initiating YouTube audio download", "url", targetURL, "cookiePath", cookiePath)
+
 	res, err := dl.DownloadYouTubeMedia(ctx.Ctx, targetURL, true)
 	if err != nil {
+		slog.Warn("handleYTA: DownloadYouTubeMedia failed", "url", targetURL, "err", err)
 		if isBotDetectionError(err.Error()) {
 			return SendYTCookieHelp(ctx)
 		}
@@ -119,31 +129,40 @@ func handleYTA(ctx *Context) error {
 	}
 
 	if len(res.Items) == 0 {
+		slog.Warn("handleYTA: No items returned in result", "url", targetURL)
 		return ctx.Reply("No downloadable audio/video stream found.")
 	}
 
 	item := res.Items[0]
+	slog.Debug("handleYTA: Fetching audio stream bytes", "itemURL", item.URL, "type", item.Type)
 	data, err := fetchStreamBytes(ctx, item)
 	if err != nil || len(data) == 0 {
+		slog.Error("handleYTA: Failed to fetch media stream bytes", "err", err, "size", len(data))
 		return ctx.Reply("Failed to fetch media stream.")
 	}
+	slog.Debug("handleYTA: Successfully fetched raw audio bytes", "size", len(data))
 
 	tmpIn := filepath.Join(os.TempDir(), fmt.Sprintf("yt_in_%d.bin", time.Now().UnixNano()))
 	tmpOut := filepath.Join(os.TempDir(), fmt.Sprintf("yt_out_%d.opus", time.Now().UnixNano()))
 
 	if err := os.WriteFile(tmpIn, data, 0644); err != nil {
+		slog.Error("handleYTA: Failed to write temp input file", "path", tmpIn, "err", err)
 		return ctx.Reply("Failed to write temporary media file.")
 	}
 	defer os.Remove(tmpIn)
 	defer os.Remove(tmpOut)
 
+	slog.Debug("handleYTA: Executing ffmpeg libopus encoding", "tmpIn", tmpIn, "tmpOut", tmpOut)
 	cmd := exec.CommandContext(ctx.Ctx, "ffmpeg", "-y", "-i", tmpIn, "-vn", "-c:a", "libopus", "-b:a", "32k", "-application", "voip", "-f", "ogg", tmpOut)
 	audioBytes := data
 	mimetype := "audio/ogg; codecs=opus"
 	if err := cmd.Run(); err == nil {
 		if converted, rerr := os.ReadFile(tmpOut); rerr == nil && len(converted) > 0 {
 			audioBytes = converted
+			slog.Debug("handleYTA: ffmpeg conversion succeeded", "outputSize", len(audioBytes))
 		}
+	} else {
+		slog.Warn("handleYTA: ffmpeg conversion failed, using raw audio data", "err", err)
 	}
 
 	thumb := fetchThumbnailBytes(ctx, res.Thumbnail)
