@@ -135,37 +135,123 @@ func (c *Client) DownloadYouTubeMedia(ctx context.Context, rawURL string, isAudi
 		return nil, fmt.Errorf("could not extract video ID from URL: %s", rawURL)
 	}
 
-	formatSpec := "best[ext=mp4]/best"
 	mediaType := "video"
 	ext := "mp4"
-
 	if isAudioOnly {
-		formatSpec = "bestaudio[acodec=opus]/bestaudio[ext=webm]/bestaudio/best"
 		mediaType = "audio"
 		ext = "opus"
 	}
 
-	out, err := c.runYtDlp(ctx, "--no-warnings",
-		"--extractor-args", "youtube:player_client=android",
-		"-f", formatSpec,
-		"--print", "%(urls)s",
-		"--print", "%(title)s",
-		"--print", "%(uploader)s",
-		"--print", "%(thumbnail)s",
-		rawURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract YouTube media for video ID %s: %w", videoID, err)
+	// Define format specifications in order of preference
+	var formatSpecs []string
+	if isAudioOnly {
+		formatSpecs = []string{
+			"bestaudio[acodec=opus]/bestaudio[ext=webm]/bestaudio/best/ba/b",
+			"bestaudio/best",
+			"ba/b",
+			"ba*/b*",
+			"best",
+		}
+	} else {
+		formatSpecs = []string{
+			"bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best/bv*+ba*/b*",
+			"best[ext=mp4]/best",
+			"b/bv*+ba*",
+			"best",
+		}
+	}
+
+	// Extractor args configurations:
+	// If cookies are set, default web/mweb clients work best without forcing android client alone.
+	var extractorArgSets [][]string
+	if c.CookieFile != "" {
+		if _, err := os.Stat(c.CookieFile); err == nil {
+			extractorArgSets = [][]string{
+				nil, // No custom extractor args (lets yt-dlp select optimal client with cookies)
+				{"--extractor-args", "youtube:player_client=web,mweb,android"},
+				{"--extractor-args", "youtube:player_client=android,web,mweb"},
+			}
+		} else {
+			extractorArgSets = [][]string{
+				{"--extractor-args", "youtube:player_client=android,web,mweb"},
+				nil,
+			}
+		}
+	} else {
+		extractorArgSets = [][]string{
+			{"--extractor-args", "youtube:player_client=android,web,mweb"},
+			nil,
+		}
+	}
+
+	var lastErr error
+	var out []byte
+
+	// Multi-level retry across extractor args and format specs
+	for _, extArgs := range extractorArgSets {
+		for _, formatSpec := range formatSpecs {
+			args := []string{"--no-warnings"}
+			if len(extArgs) > 0 {
+				args = append(args, extArgs...)
+			}
+			args = append(args,
+				"-f", formatSpec,
+				"--print", "%(urls)s",
+				"--print", "%(title)s",
+				"--print", "%(uploader)s",
+				"--print", "%(thumbnail)s",
+				rawURL,
+			)
+
+			out, lastErr = c.runYtDlp(ctx, args...)
+			if lastErr == nil && len(bytes.TrimSpace(out)) > 0 {
+				lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+				if len(lines) >= 1 && strings.TrimSpace(lines[0]) != "" {
+					break
+				}
+			}
+		}
+		if lastErr == nil && len(bytes.TrimSpace(out)) > 0 {
+			lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+			if len(lines) >= 1 && strings.TrimSpace(lines[0]) != "" {
+				break
+			}
+		}
+	}
+
+	// Final fallback: try yt-dlp without -f format selection or extractor args
+	if lastErr != nil || len(bytes.TrimSpace(out)) == 0 {
+		out, lastErr = c.runYtDlp(ctx, "--no-warnings",
+			"--print", "%(urls)s",
+			"--print", "%(title)s",
+			"--print", "%(uploader)s",
+			"--print", "%(thumbnail)s",
+			rawURL,
+		)
+	}
+
+	if lastErr != nil {
+		return nil, fmt.Errorf("failed to extract YouTube media for video ID %s: %w", videoID, lastErr)
 	}
 
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	if len(lines) < 4 {
+	if len(lines) < 1 || strings.TrimSpace(lines[0]) == "" {
 		return nil, fmt.Errorf("unexpected yt-dlp output for video ID %s", videoID)
 	}
 
 	directURL := strings.TrimSpace(lines[0])
-	title := strings.TrimSpace(lines[1])
-	author := strings.TrimSpace(lines[2])
-	thumbnail := strings.TrimSpace(lines[3])
+	title := ""
+	if len(lines) > 1 {
+		title = strings.TrimSpace(lines[1])
+	}
+	author := ""
+	if len(lines) > 2 {
+		author = strings.TrimSpace(lines[2])
+	}
+	thumbnail := ""
+	if len(lines) > 3 {
+		thumbnail = strings.TrimSpace(lines[3])
+	}
 
 	if directURL == "" {
 		return nil, fmt.Errorf("empty stream URL from yt-dlp for video ID %s", videoID)

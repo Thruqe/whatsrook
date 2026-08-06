@@ -431,3 +431,41 @@ func TestTwitchExtractor(t *testing.T) {
 		})
 	}
 }
+
+func TestYouTubeMediaExtractor(t *testing.T) {
+	client := downloader.NewClient()
+	testURL := "https://www.youtube.com/watch?v=rScwLoES2bM"
+
+	t.Run("AudioOnly", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		res, err := client.DownloadYouTubeMedia(ctx, testURL, true)
+		if err != nil {
+			t.Fatalf("DownloadYouTubeMedia audio failed: %v", err)
+		}
+		if res.Service != "youtube" {
+			t.Errorf("expected service 'youtube', got %s", res.Service)
+		}
+		if len(res.Items) == 0 || res.Items[0].URL == "" {
+			t.Errorf("expected valid stream URL for audio")
+		}
+	})
+
+	t.Run("Video", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+
+		res, err := client.DownloadYouTubeMedia(ctx, testURL, false)
+		if err != nil {
+			t.Fatalf("DownloadYouTubeMedia video failed: %v", err)
+		}
+		if res.Service != "youtube" {
+			t.Errorf("expected service 'youtube', got %s", res.Service)
+		}
+		if len(res.Items) == 0 || res.Items[0].URL == "" {
+			t.Errorf("expected valid stream URL for video")
+		}
+	})
+}
+
