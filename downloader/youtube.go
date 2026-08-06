@@ -162,23 +162,29 @@ func (c *Client) DownloadYouTubeMedia(ctx context.Context, rawURL string, isAudi
 	}
 
 	// Extractor args configurations:
-	// If cookies are set, default web/mweb clients work best without forcing android client alone.
+	// Includes 'tv' client which bypasses YouTube datacenter IP blocks and SABR restrictions.
 	var extractorArgSets [][]string
 	if c.CookieFile != "" {
 		if _, err := os.Stat(c.CookieFile); err == nil {
 			extractorArgSets = [][]string{
+				{"--extractor-args", "youtube:player_client=tv,mweb,android,web"},
+				{"--extractor-args", "youtube:player_client=tv"},
 				nil, // No custom extractor args (lets yt-dlp select optimal client with cookies)
 				{"--extractor-args", "youtube:player_client=web,mweb,android"},
 				{"--extractor-args", "youtube:player_client=android,web,mweb"},
 			}
 		} else {
 			extractorArgSets = [][]string{
+				{"--extractor-args", "youtube:player_client=tv,mweb,android,web"},
+				{"--extractor-args", "youtube:player_client=tv"},
 				{"--extractor-args", "youtube:player_client=android,web,mweb"},
 				nil,
 			}
 		}
 	} else {
 		extractorArgSets = [][]string{
+			{"--extractor-args", "youtube:player_client=tv,mweb,android,web"},
+			{"--extractor-args", "youtube:player_client=tv"},
 			{"--extractor-args", "youtube:player_client=android,web,mweb"},
 			nil,
 		}
