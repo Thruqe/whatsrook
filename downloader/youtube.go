@@ -179,17 +179,12 @@ func (c *Client) DownloadYouTubeMedia(ctx context.Context, rawURL string, isAudi
 	if isAudioOnly {
 		formatSpecs = []string{
 			"bestaudio[acodec=opus]/bestaudio[ext=webm]/bestaudio/best/ba/b",
-			"bestaudio/best",
 			"ba/b",
-			"ba*/b*",
-			"best",
 		}
 	} else {
 		formatSpecs = []string{
 			"bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best/bv*+ba*/b*",
-			"best[ext=mp4]/best",
-			"b/bv*+ba*",
-			"best",
+			"b",
 		}
 	}
 
@@ -198,7 +193,7 @@ func (c *Client) DownloadYouTubeMedia(ctx context.Context, rawURL string, isAudi
 	var extractorArgSets [][]string
 	if c.CookieFile != "" {
 		if _, err := os.Stat(c.CookieFile); err == nil {
-			ytLog.Debugf("Cookie file exists. Setting up extractorArgSets with tv client & cookie preference")
+			ytLog.Debugf("Cookie file exists (%s). Setting up extractorArgSets with tv client & cookie preference", c.CookieFile)
 			extractorArgSets = [][]string{
 				{"--extractor-args", "youtube:player_client=tv,mweb,android,web"},
 				{"--extractor-args", "youtube:player_client=tv"},
@@ -207,7 +202,7 @@ func (c *Client) DownloadYouTubeMedia(ctx context.Context, rawURL string, isAudi
 				{"--extractor-args", "youtube:player_client=android,web,mweb"},
 			}
 		} else {
-			ytLog.Warnf("CookieFile set but file missing on disk. Using standard extractorArgSets")
+			ytLog.Warnf("CookieFile set (%s) but file missing on disk. Using standard extractorArgSets", c.CookieFile)
 			extractorArgSets = [][]string{
 				{"--extractor-args", "youtube:player_client=tv,mweb,android,web"},
 				{"--extractor-args", "youtube:player_client=tv"},
@@ -231,6 +226,7 @@ func (c *Client) DownloadYouTubeMedia(ctx context.Context, rawURL string, isAudi
 	// Multi-level retry across extractor args and format specs
 	ytLog.Debugf("Starting multi-level extraction loop for video ID %s (%d extractorArgSets x %d formatSpecs)", videoID, len(extractorArgSets), len(formatSpecs))
 
+	stopLoop := false
 	for i, extArgs := range extractorArgSets {
 		for j, formatSpec := range formatSpecs {
 			ytLog.Debugf("[Attempt Set %d.%d] Trying extArgs: %v | formatSpec: %q", i+1, j+1, extArgs, formatSpec)
@@ -253,23 +249,25 @@ func (c *Client) DownloadYouTubeMedia(ctx context.Context, rawURL string, isAudi
 				lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 				if len(lines) >= 1 && strings.TrimSpace(lines[0]) != "" {
 					ytLog.Debugf("[Attempt Set %d.%d SUCCESS] Extracted direct stream URL: %s", i+1, j+1, strings.TrimSpace(lines[0]))
+					stopLoop = true
 					break
 				}
 			} else {
 				ytLog.Debugf("[Attempt Set %d.%d FAILED] err: %v", i+1, j+1, lastErr)
+				if lastErr != nil && IsBotDetectionError(lastErr) {
+					ytLog.Warnf("Detected YouTube bot detection block. Stopping retries immediately: %v", lastErr)
+					stopLoop = true
+					break
+				}
 			}
 		}
-		if lastErr == nil && len(bytes.TrimSpace(out)) > 0 {
-			lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-			if len(lines) >= 1 && strings.TrimSpace(lines[0]) != "" {
-				ytLog.Debugf("Breaking outer loop on Set %d success", i+1)
-				break
-			}
+		if stopLoop {
+			break
 		}
 	}
 
-	// Final fallback: try yt-dlp without -f format selection or extractor args
-	if lastErr != nil || len(bytes.TrimSpace(out)) == 0 {
+	// Final fallback: try yt-dlp without -f format selection or extractor args ONLY if not bot detection blocked
+	if (lastErr != nil || len(bytes.TrimSpace(out)) == 0) && !IsBotDetectionError(lastErr) {
 		ytLog.Warnf("All extractorArg and formatSpec attempts failed for video ID %s. Executing final fallback yt-dlp call without -f or --extractor-args...", videoID)
 		out, lastErr = c.runYtDlp(ctx, "--no-warnings",
 			"--print", "%(urls)s",
@@ -281,7 +279,7 @@ func (c *Client) DownloadYouTubeMedia(ctx context.Context, rawURL string, isAudi
 	}
 
 	if lastErr != nil {
-		ytLog.Errorf("Failed to extract YouTube media for video ID %s after all attempts: %v", videoID, lastErr)
+		ytLog.Errorf("Failed to extract YouTube media for video ID %s: %v", videoID, lastErr)
 		return nil, fmt.Errorf("failed to extract YouTube media for video ID %s: %w", videoID, lastErr)
 	}
 
@@ -358,4 +356,17 @@ func extractYouTubeID(rawURL string) string {
 	id := u.Query().Get("v")
 	ytLog.Debugf("extractYouTubeID matched query param 'v' -> ID: %s", id)
 	return id
+}
+
+// IsBotDetectionError checks if an error indicates YouTube bot detection or login requirements.
+func IsBotDetectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	lower := strings.ToLower(err.Error())
+	return strings.Contains(lower, "sign in to confirm") ||
+		strings.Contains(lower, "bot") ||
+		strings.Contains(lower, "captcha") ||
+		strings.Contains(lower, "use --cookies") ||
+		strings.Contains(lower, "exporting youtube cookies")
 }
