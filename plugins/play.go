@@ -134,12 +134,13 @@ func processYouTubeAudioDownload(ctx *Context, targetURL string) error {
 	defer os.Remove(tmpIn)
 	defer os.Remove(tmpOut)
 
-	cmd := exec.CommandContext(ctx.Ctx, "ffmpeg", "-y", "-i", tmpIn, "-vn", "-c:a", "libopus", "-b:a", "32k", "-application", "voip", "-f", "ogg", tmpOut)
+	cmd := exec.CommandContext(ctx.Ctx, "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", tmpIn, "-vn", "-ac", "1", "-ar", "48000", "-c:a", "libopus", "-b:a", "32k", "-application", "voip", "-f", "ogg", tmpOut)
 	audioBytes := data
-	mimetype := "audio/ogg; codecs=opus"
+	mimetype := "audio/mp4"
 	if err := cmd.Run(); err == nil {
 		if converted, rerr := os.ReadFile(tmpOut); rerr == nil && len(converted) > 0 {
 			audioBytes = converted
+			mimetype = "audio/ogg; codecs=opus"
 		}
 	}
 

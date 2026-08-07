@@ -797,14 +797,21 @@ func (ctx *PluginContext) extractMediaFromMessage(msg *waE2E.Message) ([]byte, s
 	return data, mimetype, true
 }
 
-// SendAudio uploads and sends an audio file as an opus/ptt voice note.
+// SendAudio uploads and sends an audio file (converted to Opus PTT voice note if supported, or standard audio track if raw format).
 func (ctx *PluginContext) SendAudio(data []byte, mimetype string) error {
 	meta, errMeta := utils.EnsureOpusPTT(ctx.Ctx, data)
-	if errMeta == nil && meta != nil && len(meta.Data) > 0 {
+	isPTT := false
+	if errMeta == nil && meta != nil && meta.Converted && len(meta.Data) > 0 {
 		data = meta.Data
+		mimetype = "audio/ogg; codecs=opus"
+		isPTT = true
+	} else {
+		if mimetype == "" || strings.Contains(mimetype, "opus") {
+			mimetype = "audio/mp4"
+		}
 	}
-	mimetype = "audio/ogg; codecs=opus"
-	slog.Debug("Building SendAudio", "data_len", len(data), "mimetype", mimetype)
+
+	slog.Debug("Building SendAudio", "data_len", len(data), "mimetype", mimetype, "isPTT", isPTT)
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaAudio)
 	if err != nil {
 		slog.Error("SendAudio: upload failed", "err", err)
@@ -819,10 +826,10 @@ func (ctx *PluginContext) SendAudio(data []byte, mimetype string) error {
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
 			FileLength:    proto.Uint64(uint64(len(data))),
-			PTT:           proto.Bool(true),
+			PTT:           proto.Bool(isPTT),
 		},
 	}
-	if meta != nil {
+	if isPTT && meta != nil {
 		if meta.Seconds > 0 {
 			msg.AudioMessage.Seconds = proto.Uint32(meta.Seconds)
 		}
@@ -840,15 +847,22 @@ func (ctx *PluginContext) SendAudio(data []byte, mimetype string) error {
 	return err
 }
 
-// ReplyWithAudio uploads and sends an audio file as an opus/ptt voice note reply.
+// ReplyWithAudio uploads and sends an audio file reply.
 func (ctx *PluginContext) ReplyWithAudio(data []byte, mimetype string) error {
 	meta, errMeta := utils.EnsureOpusPTT(ctx.Ctx, data)
-	if errMeta == nil && meta != nil && len(meta.Data) > 0 {
+	isPTT := false
+	if errMeta == nil && meta != nil && meta.Converted && len(meta.Data) > 0 {
 		data = meta.Data
+		mimetype = "audio/ogg; codecs=opus"
+		isPTT = true
+	} else {
+		if mimetype == "" || strings.Contains(mimetype, "opus") {
+			mimetype = "audio/mp4"
+		}
 	}
-	mimetype = "audio/ogg; codecs=opus"
+
 	cinfo := ctx.replyContextInfo()
-	slog.Debug("Building ReplyWithAudio", "data_len", len(data), "mimetype", mimetype, "context_info", cinfo)
+	slog.Debug("Building ReplyWithAudio", "data_len", len(data), "mimetype", mimetype, "isPTT", isPTT, "context_info", cinfo)
 	uploaded, err := ctx.Client.Upload(ctx.Ctx, data, whatsmeow.MediaAudio)
 	if err != nil {
 		slog.Error("ReplyWithAudio: upload failed", "err", err)
@@ -863,11 +877,11 @@ func (ctx *PluginContext) ReplyWithAudio(data []byte, mimetype string) error {
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
 			FileLength:    proto.Uint64(uint64(len(data))),
-			PTT:           proto.Bool(true),
+			PTT:           proto.Bool(isPTT),
 			ContextInfo:   cinfo,
 		},
 	}
-	if meta != nil {
+	if isPTT && meta != nil {
 		if meta.Seconds > 0 {
 			msg.AudioMessage.Seconds = proto.Uint32(meta.Seconds)
 		}

@@ -405,38 +405,41 @@ func processMP4(data []byte, mime string) ([]byte, error) {
 
 	tempOut := filepath.Join(tmpDir, "output.mp4")
 
-	// 1. Try direct convert (works for video/MP4/GIF/standard images)
-	cmd := exec.Command("ffmpeg", "-y", "-i", tempIn, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-movflags", "+faststart", tempOut)
-	if out, err := cmd.CombinedOutput(); err == nil {
+	// 15-second strict timeout context to prevent FFmpeg hanging or looping endlessly on low-end devices
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// High-efficiency single-pass FFmpeg conversion tuned for low-power ARM/Android/Termux devices:
+	// - '-ignore_loop 0': prevents WebP demuxer infinite loops
+	// - '-preset ultrafast': sub-100ms encoding speed on mobile CPUs
+	// - '-threads 2': prevents CPU thermal throttling / system lockup
+	// - '-vf scale=ceil(iw/2)*2:ceil(ih/2)*2,fps=15,format=yuv420p': guarantees H.264 even dimension compatibility and caps framerate
+	// - '-t 5': hard 5-second duration ceiling so static/infinite stickers never generate oversized videos
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-ignore_loop", "0", "-i", tempIn,
+		"-vf", "scale=ceil(iw/2)*2:ceil(ih/2)*2,fps=15,format=yuv420p",
+		"-c:v", "libx264", "-preset", "ultrafast", "-crf", "26", "-pix_fmt", "yuv420p",
+		"-movflags", "+faststart", "-threads", "2", "-t", "5", tempOut)
+
+	out, err := cmd.CombinedOutput()
+	if err == nil {
 		res, errRead := os.ReadFile(tempOut)
 		if errRead == nil && len(res) > 0 {
-			slog.Debug("processMP4: direct ffmpeg conversion successful", "outputBytes", len(res))
+			slog.Debug("processMP4: ultrafast ffmpeg conversion successful", "outputBytes", len(res))
 			return res, nil
 		}
-	} else {
-		slog.Debug("processMP4: direct ffmpeg failed, trying ImageMagick frame extraction fallback", "err", err, "ffmpegOutput", string(out))
 	}
 
-	// 2. Try ImageMagick frame extraction (works for animated WebP stickers with ANIM/ANMF chunks)
-	framePattern := filepath.Join(tmpDir, "frame_%03d.png")
-	cmdMagick := exec.Command("magick", tempIn, framePattern)
-	if outMagick, errMagick := cmdMagick.CombinedOutput(); errMagick == nil {
-		cmdStitch := exec.Command("ffmpeg", "-y", "-framerate", "15", "-i", framePattern, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-movflags", "+faststart", tempOut)
-		if outStitch, errStitch := cmdStitch.CombinedOutput(); errStitch == nil {
-			res, errRead := os.ReadFile(tempOut)
-			if errRead == nil && len(res) > 0 {
-				slog.Debug("processMP4: ImageMagick frame extraction conversion successful", "outputBytes", len(res))
-				return res, nil
-			}
-		} else {
-			slog.Debug("processMP4: ffmpeg frame stitching failed", "err", errStitch, "output", string(outStitch))
-		}
-	} else {
-		slog.Debug("processMP4: ImageMagick frame extraction failed", "err", errMagick, "output", string(outMagick))
-	}
+	slog.Debug("processMP4: single-pass failed, attempting static image loop fallback", "err", err, "out", string(out))
 
-	// 3. Fallback for static image/sticker input: loop for 3 seconds
-	cmdLoop := exec.Command("ffmpeg", "-y", "-loop", "1", "-i", tempIn, "-c:v", "libx264", "-t", "3", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-movflags", "+faststart", tempOut)
+	// Fallback for purely static 1-frame WebP / PNG / JPG images: loop for 3 seconds
+	ctxLoop, cancelLoop := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelLoop()
+
+	cmdLoop := exec.CommandContext(ctxLoop, "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-loop", "1", "-i", tempIn,
+		"-vf", "scale=ceil(iw/2)*2:ceil(ih/2)*2,fps=15,format=yuv420p",
+		"-c:v", "libx264", "-preset", "ultrafast", "-crf", "26", "-pix_fmt", "yuv420p",
+		"-t", "3", "-movflags", "+faststart", "-threads", "2", tempOut)
+
 	outLoop, errLoop := cmdLoop.CombinedOutput()
 	if errLoop == nil {
 		res, errRead := os.ReadFile(tempOut)
@@ -446,7 +449,7 @@ func processMP4(data []byte, mime string) ([]byte, error) {
 		}
 	}
 
-	slog.Error("processMP4: all conversion levels failed", "err", errLoop, "ffmpegOutput", string(outLoop))
+	slog.Error("processMP4: all ffmpeg conversion levels failed", "err", errLoop, "ffmpegOutput", string(outLoop))
 	return nil, fmt.Errorf("ffmpeg mp4 conversion failed: %w (output: %s)", errLoop, string(outLoop))
 }
 

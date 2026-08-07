@@ -18,16 +18,17 @@ import (
 
 // AudioPTTMeta contains converted Opus OGG data, duration in seconds, and 64-bin amplitude waveform bytes.
 type AudioPTTMeta struct {
-	Data     []byte
-	Seconds  uint32
-	Waveform []byte
+	Data      []byte
+	Seconds   uint32
+	Waveform  []byte
+	Converted bool
 }
 
 // EnsureOpusPTT converts audio bytes (MP3, WAV, AAC, M4A, etc.) to WhatsApp-compatible Opus OGG format using ffmpeg,
 // and extracts duration in seconds and 64-bin normalized amplitude waveform bytes.
 func EnsureOpusPTT(ctx context.Context, audioBytes []byte) (*AudioPTTMeta, error) {
 	if len(audioBytes) == 0 {
-		return &AudioPTTMeta{Data: audioBytes}, nil
+		return &AudioPTTMeta{Data: audioBytes, Converted: false}, nil
 	}
 
 	tempDir := os.TempDir()
@@ -37,30 +38,31 @@ func EnsureOpusPTT(ctx context.Context, audioBytes []byte) (*AudioPTTMeta, error
 	tempPcm := filepath.Join(tempDir, fmt.Sprintf("audio_pcm_%d.raw", nowNano))
 
 	if err := os.WriteFile(tempIn, audioBytes, 0644); err != nil {
-		return &AudioPTTMeta{Data: audioBytes}, fmt.Errorf("failed to write temp audio file: %w", err)
+		return &AudioPTTMeta{Data: audioBytes, Converted: false}, fmt.Errorf("failed to write temp audio file: %w", err)
 	}
 	defer os.Remove(tempIn)
 	defer os.Remove(tempOut)
 	defer os.Remove(tempPcm)
 
-	// 1. Transcode audio to Opus OGG
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-i", tempIn, "-c:a", "libopus", "-b:a", "32k", "-application", "voip", "-f", "ogg", tempOut)
+	// 1. Transcode audio to Opus OGG (specifying 1 channel & 48000Hz required by libopus on mobile FFmpeg builds)
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", tempIn, "-ac", "1", "-ar", "48000", "-c:a", "libopus", "-b:a", "32k", "-application", "voip", "-f", "ogg", tempOut)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		log.Printf("[WARN] EnsureOpusPTT: ffmpeg conversion failed: %v (%s)", err, string(out))
-		return &AudioPTTMeta{Data: audioBytes}, nil
+		return &AudioPTTMeta{Data: audioBytes, Converted: false}, nil
 	}
 
 	converted, err := os.ReadFile(tempOut)
 	if err != nil || len(converted) == 0 {
-		return &AudioPTTMeta{Data: audioBytes}, nil
+		return &AudioPTTMeta{Data: audioBytes, Converted: false}, nil
 	}
 
 	meta := &AudioPTTMeta{
-		Data: converted,
+		Data:      converted,
+		Converted: true,
 	}
 
 	// 2. Decode raw PCM to compute seconds & waveform samples matching WhatsApp waveform spec
-	cmdPcm := exec.CommandContext(ctx, "ffmpeg", "-y", "-i", tempIn, "-ac", "1", "-ar", "8000", "-f", "s16le", tempPcm)
+	cmdPcm := exec.CommandContext(ctx, "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", tempIn, "-ac", "1", "-ar", "8000", "-f", "s16le", tempPcm)
 	if errPcm := cmdPcm.Run(); errPcm == nil {
 		pcmBytes, rErr := os.ReadFile(tempPcm)
 		if rErr == nil && len(pcmBytes) >= 2 {

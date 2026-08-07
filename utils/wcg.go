@@ -3,6 +3,7 @@ package utils
 
 import (
 	crand "crypto/rand"
+	"math/big"
 	"math/rand"
 	"strings"
 	"sync"
@@ -13,14 +14,14 @@ import (
 	"go.mau.fi/whatsmeow/types"
 )
 
-// GetRandomStartingLetter returns a cryptographically random uppercase letter from A to Z.
+// GetRandomStartingLetter returns a cryptographically random uppercase letter from A to Z with uniform distribution.
 func GetRandomStartingLetter() rune {
-	var b [1]byte
-	_, err := crand.Read(b[:])
+	letters := []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	n, err := crand.Int(crand.Reader, big.NewInt(int64(len(letters))))
 	if err != nil {
-		return rune('A' + rand.Intn(26))
+		return letters[rand.Intn(len(letters))]
 	}
-	return rune('A' + (int(b[0]) % 26))
+	return letters[n.Int64()]
 }
 
 type WCGState int
@@ -43,25 +44,26 @@ type WCGPlayer struct {
 }
 
 type WCGGame struct {
-	Mu             sync.Mutex
-	ChatKey        string
-	State          WCGState
-	HostLID        types.JID
-	HostMention    types.JID
-	HostTag        string
-	Players        []*WCGPlayer
-	CurrentTurnIdx int
-	RequiredChar   rune
-	MinLength      int
-	RoundCount     int
-	AnswersInRound int
-	UsedWords      map[string]bool
-	TurnStartTime  time.Time
-	LobbyTimer     *time.Timer
-	TurnTimer      *time.Timer
-	GameStartTime  time.Time
-	Client         *whatsmeow.Client
-	ChatJID        types.JID
+	Mu                sync.Mutex
+	ChatKey           string
+	State             WCGState
+	HostLID           types.JID
+	HostMention       types.JID
+	HostTag           string
+	Players           []*WCGPlayer
+	CurrentTurnIdx    int
+	RequiredChar      rune
+	LetterRepeatCount int
+	MinLength         int
+	RoundCount        int
+	AnswersInRound    int
+	UsedWords         map[string]bool
+	TurnStartTime     time.Time
+	LobbyTimer        *time.Timer
+	TurnTimer         *time.Timer
+	GameStartTime     time.Time
+	Client            *whatsmeow.Client
+	ChatJID           types.JID
 }
 
 var (
@@ -277,15 +279,30 @@ func (g *WCGGame) ProcessGuess(word string, senderLID types.JID) (correct bool, 
 	currentPlayer.CorrectGuesses++
 
 	// Next required starting character is the last character of the submitted word (in uppercase)
-	g.RequiredChar = unicode.ToUpper(rune(word[len(word)-1]))
+	nextChar := unicode.ToUpper(rune(word[len(word)-1]))
+	if nextChar == g.RequiredChar {
+		g.LetterRepeatCount++
+	} else {
+		g.LetterRepeatCount = 0
+	}
+
+	// Break repetitive letter loops (e.g. L -> L -> L or Y -> Y -> Y)
+	if g.LetterRepeatCount >= 2 {
+		g.RequiredChar = GetRandomStartingLetter()
+		g.LetterRepeatCount = 0
+	} else {
+		g.RequiredChar = nextChar
+	}
 
 	g.AnswersInRound++
 	activeCount := len(g.GetActivePlayers())
-	// After all active players have answered in the current round, increase word length and start next round
+	// After all active players have answered in the current round, increase word length and start next round with a fresh letter
 	if g.AnswersInRound >= activeCount {
 		g.AnswersInRound = 0
 		g.RoundCount++
 		g.MinLength++
+		g.RequiredChar = GetRandomStartingLetter()
+		g.LetterRepeatCount = 0
 	}
 
 	g.advanceTurnUnsafe()
