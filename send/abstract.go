@@ -16,6 +16,10 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+func ptr[T any](v T) *T {
+	return &v
+}
+
 // CreateInteractiveButtonMessage constructs a waE2E.Message containing interactive response buttons.
 func CreateInteractiveButtonMessage(bodyText string, buttons []struct{ ID, Text string }) *waE2E.Message {
 	var btnList []*waE2E.ButtonsMessage_Button
@@ -259,12 +263,12 @@ func (ctx *PluginContext) sendVideoInternal(data []byte, mimetype, caption strin
 			Mimetype:      &mimetype,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    new(uint64(len(data))),
+			FileLength:    ptr(uint64(len(data))),
 			Caption:       &caption,
 		},
 	}
 	if gifPlayback {
-		msg.VideoMessage.GifPlayback = new(true)
+		msg.VideoMessage.GifPlayback = ptr(true)
 	}
 	slog.Debug("Sending SendVideo", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
@@ -305,13 +309,13 @@ func (ctx *PluginContext) replyVideoInternal(data []byte, mimetype, caption stri
 			Mimetype:      &mimetype,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    new(uint64(len(data))),
+			FileLength:    ptr(uint64(len(data))),
 			Caption:       &caption,
 			ContextInfo:   cinfo,
 		},
 	}
 	if gifPlayback {
-		msg.VideoMessage.GifPlayback = new(true)
+		msg.VideoMessage.GifPlayback = ptr(true)
 	}
 	slog.Debug("Sending replyVideoInternal", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
