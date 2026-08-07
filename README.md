@@ -9,11 +9,12 @@ Real-time WhatsApp API built on [whatsmeow](https://github.com/tulir/whatsmeow).
 
 Connect your app to WhatsApp and receive live events — messages, groups, stories, channels — then send actions back programmatically.
 
-[![Go Code Quality & Tests](https://github.com/Thruqe/whatsrook/actions/workflows/go-checks.yml/badge.svg)](https://github.com/Thruqe/whatsrook/actions/workflows/go-checks.yml)
-[![Go Version](https://badgen.net/badge/Go/1.26.4/blue)](https://github.com/Thruqe/whatsrook/blob/master/go.mod)
-[![Release](https://badgen.net/badge/Release/v4.0.0/orange)](https://github.com/Thruqe/whatsrook/releases)
-[![License](https://badgen.net/badge/License/MIT/yellow)](LICENSE)
-[![Join WhatsApp Channel](https://img.shields.io/badge/WhatsApp-Support%20Channel-25D366?style=flat&logo=whatsapp&logoColor=white)](https://whatsapp.com/channel/0029Vb8Vo0k0bIdsTOTF1G2o)
+[![Go Code Quality & Tests](https://img.shields.io/github/actions/workflow/status/Thruqe/whatsrook/go-checks.yml?style=for-the-badge&logo=github&label=Go%20Checks)](https://github.com/Thruqe/whatsrook/actions/workflows/go-checks.yml)
+[![Go Version](https://img.shields.io/badge/Go-1.26.4-blue?style=for-the-badge&logo=go&logoColor=white)](https://github.com/Thruqe/whatsrook/blob/master/go.mod)
+[![Release](https://img.shields.io/badge/Release-v4.0.0-orange?style=for-the-badge&logo=github)](https://github.com/Thruqe/whatsrook/releases)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
+[![Join WhatsApp Channel](https://img.shields.io/badge/WhatsApp-Channel-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://whatsapp.com/channel/0029Vb8Vo0k0bIdsTOTF1G2o)
+[![Join Telegram Channel](https://img.shields.io/badge/Telegram-Channel-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/whatsrook)
 
 ## Features
 
