@@ -127,7 +127,7 @@ func (v Version) Compare(other Version) int {
 }
 
 // GetAppVersion attempts to read version from local version.toml,
-// and if unavailable or failing, fetches it from GitHub, with fallback to "5.0.0".
+// and if unavailable or failing, fetches it from GitHub, with fallback to "5.1.0".
 func GetAppVersion() string {
 	if ver, err := ReadLocalVersion(VersionFile); err == nil && strings.TrimSpace(ver) != "" {
 		return strings.TrimSpace(ver)
@@ -135,7 +135,7 @@ func GetAppVersion() string {
 	if remoteVer, err := FetchRemoteVersion(); err == nil && strings.TrimSpace(remoteVer) != "" {
 		return strings.TrimSpace(remoteVer)
 	}
-	return "5.0.0"
+	return "5.1.0"
 }
 
 // ReadLocalVersion reads and parses the version string from a local version.toml file.

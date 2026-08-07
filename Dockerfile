@@ -1,4 +1,4 @@
-FROM golang:1.26-bookworm AS builder
+FROM golang:1.24-bookworm AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
@@ -9,10 +9,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY go.mod go.sum ./
+COPY patch ./patch
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=1 go build -ldflags="-w -s" -o whatsrook .
+RUN CGO_ENABLED=1 go build -ldflags="-w -s" -o whatsrook ./cli
 
 FROM debian:bookworm-slim
 
