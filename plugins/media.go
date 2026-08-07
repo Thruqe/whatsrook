@@ -379,6 +379,48 @@ func processSticker(data []byte, isVideo bool, packName, author, filter string) 
 	return os.ReadFile(finalPath)
 }
 
+func stripWebPMetadataChunks(data []byte) []byte {
+	if len(data) < 12 || !bytes.HasPrefix(data, []byte("RIFF")) || string(data[8:12]) != "WEBP" {
+		return data
+	}
+
+	var buf bytes.Buffer
+	buf.Write(data[:12]) // Keep RIFF header
+
+	offset := 12
+	for offset+8 <= len(data) {
+		chunkID := string(data[offset : offset+4])
+		chunkSize := int(uint32(data[offset+4]) | uint32(data[offset+5])<<8 | uint32(data[offset+6])<<16 | uint32(data[offset+7])<<24)
+		chunkTotal := 8 + chunkSize
+		if chunkSize%2 != 0 {
+			chunkTotal++ // RIFF padding byte
+		}
+
+		if offset+chunkTotal > len(data) {
+			break
+		}
+
+		// Keep image & animation payload chunks (VP8, VP8L, VP8X, ANIM, ANMF, ALPH), strip EXIF/XMP/metadata
+		if chunkID == "VP8 " || chunkID == "VP8L" || chunkID == "VP8X" || chunkID == "ANIM" || chunkID == "ANMF" || chunkID == "ALPH" {
+			buf.Write(data[offset : offset+chunkTotal])
+		}
+
+		offset += chunkTotal
+	}
+
+	result := buf.Bytes()
+	if len(result) > 12 {
+		riffSize := uint32(len(result) - 8)
+		result[4] = byte(riffSize)
+		result[5] = byte(riffSize >> 8)
+		result[6] = byte(riffSize >> 16)
+		result[7] = byte(riffSize >> 24)
+		return result
+	}
+
+	return data
+}
+
 func processMP4(data []byte, mime string) ([]byte, error) {
 	slog.Debug("processMP4: starting conversion", "inputBytes", len(data), "mime", mime)
 	tmpDir, err := os.MkdirTemp("", "whatsrook_mp4_*")
@@ -403,19 +445,34 @@ func processMP4(data []byte, mime string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to write temp input file: %w", err)
 	}
 
+	tempClean := tempIn
+	if ext == ".webp" {
+		cleanPath := filepath.Join(tmpDir, "clean.webp")
+		// 1. Strip EXIF/XMP sticker metadata with webpmux tool if available
+		cmdMux := exec.Command("webpmux", "-strip", tempIn, "-o", cleanPath)
+		if errMux := cmdMux.Run(); errMux == nil {
+			if cleanBytes, errRead := os.ReadFile(cleanPath); errRead == nil && len(cleanBytes) > 0 {
+				tempClean = cleanPath
+				slog.Debug("processMP4: webpmux -strip successful", "cleanBytes", len(cleanBytes))
+			}
+		} else {
+			// 2. Pure Go RIFF WebP metadata stripper fallback
+			if stripped := stripWebPMetadataChunks(data); len(stripped) > 0 {
+				_ = os.WriteFile(cleanPath, stripped, 0644)
+				tempClean = cleanPath
+				slog.Debug("processMP4: Go RIFF WebP metadata stripper applied", "cleanBytes", len(stripped))
+			}
+		}
+	}
+
 	tempOut := filepath.Join(tmpDir, "output.mp4")
 
 	// 15-second strict timeout context to prevent FFmpeg hanging or looping endlessly on low-end devices
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	// High-efficiency single-pass FFmpeg conversion tuned for low-power ARM/Android/Termux devices:
-	// - '-ignore_loop 0': prevents WebP demuxer infinite loops
-	// - '-preset ultrafast': sub-100ms encoding speed on mobile CPUs
-	// - '-threads 2': prevents CPU thermal throttling / system lockup
-	// - '-vf scale=ceil(iw/2)*2:ceil(ih/2)*2,fps=15,format=yuv420p': guarantees H.264 even dimension compatibility and caps framerate
-	// - '-t 5': hard 5-second duration ceiling so static/infinite stickers never generate oversized videos
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-ignore_loop", "0", "-i", tempIn,
+	// High-efficiency single-pass FFmpeg conversion tuned for low-power ARM/Android/Termux devices
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-ignore_loop", "0", "-i", tempClean,
 		"-vf", "scale=ceil(iw/2)*2:ceil(ih/2)*2,fps=15,format=yuv420p",
 		"-c:v", "libx264", "-preset", "ultrafast", "-crf", "26", "-pix_fmt", "yuv420p",
 		"-movflags", "+faststart", "-threads", "2", "-t", "5", tempOut)
@@ -429,13 +486,32 @@ func processMP4(data []byte, mime string) ([]byte, error) {
 		}
 	}
 
-	slog.Debug("processMP4: single-pass failed, attempting static image loop fallback", "err", err, "out", string(out))
+	slog.Debug("processMP4: single-pass failed, attempting dwebp PNG extraction fallback", "err", err, "out", string(out))
+
+	// Try dwebp (Google official WebP decoder) to extract clean PNG frame for static stickers
+	if ext == ".webp" {
+		tempPng := filepath.Join(tmpDir, "frame.png")
+		cmdDwebp := exec.Command("dwebp", tempClean, "-o", tempPng)
+		if errDwebp := cmdDwebp.Run(); errDwebp == nil {
+			cmdPngLoop := exec.CommandContext(ctx, "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-loop", "1", "-i", tempPng,
+				"-vf", "scale=ceil(iw/2)*2:ceil(ih/2)*2,fps=15,format=yuv420p",
+				"-c:v", "libx264", "-preset", "ultrafast", "-crf", "26", "-pix_fmt", "yuv420p",
+				"-t", "3", "-movflags", "+faststart", "-threads", "2", tempOut)
+			if errPng := cmdPngLoop.Run(); errPng == nil {
+				res, errRead := os.ReadFile(tempOut)
+				if errRead == nil && len(res) > 0 {
+					slog.Debug("processMP4: dwebp -> png -> ffmpeg mp4 conversion successful", "outputBytes", len(res))
+					return res, nil
+				}
+			}
+		}
+	}
 
 	// Fallback for purely static 1-frame WebP / PNG / JPG images: loop for 3 seconds
 	ctxLoop, cancelLoop := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelLoop()
 
-	cmdLoop := exec.CommandContext(ctxLoop, "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-loop", "1", "-i", tempIn,
+	cmdLoop := exec.CommandContext(ctxLoop, "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-loop", "1", "-i", tempClean,
 		"-vf", "scale=ceil(iw/2)*2:ceil(ih/2)*2,fps=15,format=yuv420p",
 		"-c:v", "libx264", "-preset", "ultrafast", "-crf", "26", "-pix_fmt", "yuv420p",
 		"-t", "3", "-movflags", "+faststart", "-threads", "2", tempOut)
