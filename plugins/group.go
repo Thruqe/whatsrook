@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -395,83 +396,308 @@ func handleGroup(ctx *Context) error {
 func handleAntiLink(ctx *Context) error {
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to get group info: %v", err))
+		return ctx.Reply(fmt.Sprintf("Failed to get group info: %v", err))
 	}
 	if !ctx.IsSenderAdmin(info) {
 		return ctx.Reply("Only group admins can change anti-link settings.")
 	}
 
-	if len(ctx.Args) == 0 {
-		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage:\n- %santilink on\n- %santilink off", p, p))
-	}
-
-	state := strings.ToLower(ctx.Args[0])
-	if state != "on" && state != "off" {
-		return ctx.Reply("Invalid state. Usage: antilink [on/off]")
-	}
-
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
 
-	err = s.PutSetting(ctx.Ctx, "antilink:"+ctx.Chat.String(), state)
-	if err != nil {
-		return ctx.Reply("Failed to save anti-link setting.")
+	groupName := info.Name
+	if groupName == "" {
+		groupName = ctx.Chat.String()
 	}
 
-	return ctx.Reply(fmt.Sprintf("Anti-link protection turned %s.", state))
+	chatKey := ctx.Chat.String()
+	statusKey := "antilink:" + chatKey
+	modeKey := "antilink_mode:" + chatKey
+	customKey := "antilink_custom:" + chatKey
+
+	args := ctx.Args
+	sub := ""
+	if len(args) > 0 {
+		sub = strings.ToLower(args[0])
+	}
+
+	p := ctx.GetPrefix()
+
+	switch sub {
+	case "on", "enable", "activate":
+		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
+		return sendAntiLinkMenu(ctx, s, "Anti-link protection has been activated for this group.")
+
+	case "off", "disable", "deactivate":
+		_ = s.PutSetting(ctx.Ctx, statusKey, "off")
+		return sendAntiLinkMenu(ctx, s, "Anti-link protection has been deactivated for this group.")
+
+	case "toggle":
+		curr, _ := s.GetSetting(ctx.Ctx, statusKey)
+		if curr == "on" {
+			_ = s.PutSetting(ctx.Ctx, statusKey, "off")
+			return sendAntiLinkMenu(ctx, s, "Anti-link protection has been deactivated for this group.")
+		}
+		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
+		return sendAntiLinkMenu(ctx, s, "Anti-link protection has been activated for this group.")
+
+	case "mode", "customize":
+		bodyText := fmt.Sprintf("╭━━━〔 ANTILINK CUSTOMIZE 〕━━━\n│ Group : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose Anti-Link Protection Mode:\n\n1. *Default Links*: Block all web links (http://, https://, www, .com, etc.)\n2. *Custom URLs*: Block specific domain patterns separated by comma (e.g. `chat.whatsapp.com, t.me`)", groupName)
+		buttons := []struct{ ID, Text string }{
+			{ID: p + "antilink default", Text: "Default Links"},
+			{ID: p + "antilink custom", Text: "Custom URLs"},
+		}
+		return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s AntiLink Settings", ctx.GetBotName()), buttons)
+
+	case "default":
+		_ = s.PutSetting(ctx.Ctx, modeKey, "default")
+		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
+		bodyText := fmt.Sprintf("╭━━━〔 ANTILINK MODE SET 〕━━━\n│ Group : %s\n│ Mode  : DEFAULT (ALL LINKS)\n│ Status: ACTIVE\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAnti-link will now block all web links sent in this group!", groupName)
+		buttons := []struct{ ID, Text string }{
+			{ID: p + "antilink off", Text: "Deactivate"},
+			{ID: p + "antilink mode", Text: "Customize Mode"},
+		}
+		return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s AntiLink Settings", ctx.GetBotName()), buttons)
+
+	case "custom", "set":
+		customInput := ""
+		if len(args) > 1 {
+			customInput = strings.Join(args[1:], " ")
+		} else if len(args) == 1 && sub != "custom" {
+			customInput = args[0]
+		}
+
+		customInput = strings.TrimSpace(customInput)
+		if customInput == "" || customInput == "custom" {
+			_ = s.PutSetting(ctx.Ctx, modeKey, "custom")
+			_ = s.PutSetting(ctx.Ctx, statusKey, "on")
+			currCustom, _ := s.GetSetting(ctx.Ctx, customKey)
+			if currCustom == "" {
+				currCustom = "chat.whatsapp.com"
+				_ = s.PutSetting(ctx.Ctx, customKey, currCustom)
+			}
+			bodyText := fmt.Sprintf("╭━━━〔 ANTILINK CUSTOM MODE 〕━━━\n│ Group   : %s\n│ Mode    : CUSTOM DOMAINS\n│ Status  : ACTIVE\n│ Blocked : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nTo update custom domains, send:\n`%santilink set domain1, domain2`\n\nExample:\n`%santilink set chat.whatsapp.com, t.me, instagram.com`", groupName, currCustom, p, p)
+			buttons := []struct{ ID, Text string }{
+				{ID: p + "antilink default", Text: "Default Links"},
+				{ID: p + "antilink off", Text: "Deactivate"},
+			}
+			return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s AntiLink Settings", ctx.GetBotName()), buttons)
+		}
+
+		rawParts := strings.Split(customInput, ",")
+		var cleaned []string
+		for _, part := range rawParts {
+			part = strings.TrimSpace(strings.ToLower(part))
+			if part != "" {
+				cleaned = append(cleaned, part)
+			}
+		}
+		if len(cleaned) == 0 {
+			return ctx.Reply("Please specify at least one valid domain pattern separated by comma. Example: `chat.whatsapp.com, t.me`")
+		}
+
+		newCustomStr := strings.Join(cleaned, ", ")
+		_ = s.PutSetting(ctx.Ctx, customKey, newCustomStr)
+		_ = s.PutSetting(ctx.Ctx, modeKey, "custom")
+		_ = s.PutSetting(ctx.Ctx, statusKey, "on")
+
+		bodyText := fmt.Sprintf("╭━━━〔 ANTILINK CUSTOMIZED 〕━━━\n│ Group   : %s\n│ Mode    : CUSTOM DOMAINS\n│ Status  : ACTIVE\n│ Blocked : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nAnti-link will now block messages containing these custom domain patterns!", groupName, newCustomStr)
+		buttons := []struct{ ID, Text string }{
+			{ID: p + "antilink off", Text: "Deactivate"},
+			{ID: p + "antilink mode", Text: "Customize Mode"},
+		}
+		return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s AntiLink Settings", ctx.GetBotName()), buttons)
+
+	case "action", "act":
+		if len(args) > 1 {
+			act := strings.ToLower(args[1])
+			if act != "delete" && act != "kick" && act != "warn" {
+				return ctx.Reply("Invalid action. Options: delete, kick, warn")
+			}
+			_ = s.PutSetting(ctx.Ctx, "antilink_action:"+chatKey, act)
+			return sendAntiLinkMenu(ctx, s, fmt.Sprintf("Anti-link action mode updated to *%s*.", strings.ToUpper(act)))
+		}
+		bodyText := fmt.Sprintf("╭━━━〔 ANTILINK ACTION MODE 〕━━━\n│ Group : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose what happens when a non-admin participant sends a link:\n\n1. *Delete*: Delete message only\n2. *Kick*: Delete message & kick participant\n3. *Warn*: Issue warning (default 3 max). Kick upon reaching threshold", groupName)
+		buttons := []struct{ ID, Text string }{
+			{ID: p + "antilink action delete", Text: "Delete Only"},
+			{ID: p + "antilink action kick", Text: "Kick User"},
+			{ID: p + "antilink action warn", Text: "Warn User"},
+		}
+		return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s AntiLink Action", ctx.GetBotName()), buttons)
+
+	case "setwarn", "maxwarn":
+		if len(args) < 2 {
+			return ctx.Reply("Please specify warning limit. Example: `antilink setwarn 5`")
+		}
+		cnt, err := strconv.Atoi(args[1])
+		if err != nil || cnt <= 0 {
+			return ctx.Reply("Invalid warning limit. Must be a positive integer.")
+		}
+		_ = s.PutSetting(ctx.Ctx, "antilink_maxwarn:"+chatKey, strconv.Itoa(cnt))
+		_ = s.PutSetting(ctx.Ctx, "antilink_action:"+chatKey, "warn")
+		return sendAntiLinkMenu(ctx, s, fmt.Sprintf("Anti-link warning limit set to *%d*. Action mode switched to WARN.", cnt))
+
+	default:
+		return sendAntiLinkMenu(ctx, s, "")
+	}
+}
+
+func sendAntiLinkMenu(ctx *Context, s *sqlstore.SQLStore, note string) error {
+	chatKey := ctx.Chat.String()
+	groupName := chatKey
+	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
+	if err == nil && info != nil && info.Name != "" {
+		groupName = info.Name
+	}
+	status, _ := s.GetSetting(ctx.Ctx, "antilink:"+chatKey)
+	if status == "" {
+		status = "off"
+	}
+	mode, _ := s.GetSetting(ctx.Ctx, "antilink_mode:"+chatKey)
+	if mode == "" {
+		mode = "default"
+	}
+	action, _ := s.GetSetting(ctx.Ctx, "antilink_action:"+chatKey)
+	if action == "" {
+		action = "delete"
+	}
+	actionDisplay := strings.ToUpper(action)
+	if action == "warn" {
+		maxWarn, _ := s.GetSetting(ctx.Ctx, "antilink_maxwarn:"+chatKey)
+		if maxWarn == "" {
+			maxWarn = "3"
+		}
+		actionDisplay = fmt.Sprintf("WARN (Max: %s)", maxWarn)
+	}
+
+	custom, _ := s.GetSetting(ctx.Ctx, "antilink_custom:"+chatKey)
+
+	p := ctx.GetPrefix()
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "╭━━━〔 ANTILINK CONFIGURATION 〕━━━\n│ Group  : %s\n│ Status : %s\n│ Mode   : %s\n│ Action : %s\n", groupName, strings.ToUpper(status), strings.ToUpper(mode), actionDisplay)
+	if mode == "custom" && custom != "" {
+		fmt.Fprintf(&sb, "│ Blocked: %s\n", custom)
+	}
+	sb.WriteString("╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
+
+	if note != "" {
+		sb.WriteString(note)
+		sb.WriteString("\n\n")
+	}
+
+	sb.WriteString("Options:\n")
+	fmt.Fprintf(&sb, "• `%santilink mode` - Switch between Default Links & Custom URLs\n", p)
+	fmt.Fprintf(&sb, "• `%santilink action <delete|kick|warn>` - Set action mode\n", p)
+	fmt.Fprintf(&sb, "• `%santilink setwarn 3` - Customize max warnings\n", p)
+
+	var toggleBtn struct{ ID, Text string }
+	if status == "on" {
+		toggleBtn = struct{ ID, Text string }{ID: p + "antilink off", Text: "Deactivate"}
+	} else {
+		toggleBtn = struct{ ID, Text string }{ID: p + "antilink on", Text: "Activate"}
+	}
+
+	buttons := []struct{ ID, Text string }{
+		toggleBtn,
+		{ID: p + "antilink action", Text: "Action Mode"},
+		{ID: p + "antilink mode", Text: "Customize"},
+	}
+
+	return sendInteractiveButtons(ctx, strings.TrimSpace(sb.String()), fmt.Sprintf("%s AntiLink Moderation", ctx.GetBotName()), buttons)
 }
 
 func handleAntiWord(ctx *Context) error {
 	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if err != nil {
-		return ctx.Reply(fmt.Sprintf(" Failed to get group info: %v", err))
+		return ctx.Reply(fmt.Sprintf("Failed to get group info: %v", err))
 	}
 	if !ctx.IsSenderAdmin(info) {
 		return ctx.Reply("Only group admins can change anti-word settings.")
 	}
 
-	if len(ctx.Args) == 0 {
-		p := ctx.GetPrefix()
-		return ctx.Reply(fmt.Sprintf("Usage:\n- %santiword add <word>\n- %santiword del <word>\n- %santiword list\nExamples:\n- %santiword add spamword", p, p, p, p))
-	}
-
-	sub := strings.ToLower(ctx.Args[0])
 	s, ok := ctx.Client.Store.Identities.(*sqlstore.SQLStore)
 	if !ok {
 		return ctx.Reply("Settings store unavailable.")
 	}
 
-	settingKey := "antiword:" + ctx.Chat.String()
+	groupName := info.Name
+	if groupName == "" {
+		groupName = ctx.Chat.String()
+	}
+
+	chatKey := ctx.Chat.String()
+	settingKey := "antiword:" + chatKey
 	raw, _ := s.GetSetting(ctx.Ctx, settingKey)
 	words := strings.Fields(raw)
 
+	args := ctx.Args
+	sub := ""
+	if len(args) > 0 {
+		sub = strings.ToLower(args[0])
+	}
+
+	p := ctx.GetPrefix()
+
 	switch sub {
+	case "on", "enable", "activate":
+		_ = s.PutSetting(ctx.Ctx, "antiword_status:"+chatKey, "on")
+		return sendAntiWordMenu(ctx, s, "Anti-word protection activated.")
+
+	case "off", "disable", "deactivate":
+		_ = s.PutSetting(ctx.Ctx, "antiword_status:"+chatKey, "off")
+		return sendAntiWordMenu(ctx, s, "Anti-word protection deactivated.")
+
+	case "action", "act":
+		if len(args) > 1 {
+			act := strings.ToLower(args[1])
+			if act != "delete" && act != "kick" && act != "warn" {
+				return ctx.Reply("Invalid action. Options: delete, kick, warn")
+			}
+			_ = s.PutSetting(ctx.Ctx, "antiword_action:"+chatKey, act)
+			return sendAntiWordMenu(ctx, s, fmt.Sprintf("Anti-word action mode set to *%s*.", strings.ToUpper(act)))
+		}
+		bodyText := fmt.Sprintf("╭━━━〔 ANTIWORD ACTION MODE 〕━━━\n│ Group : %s\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nChoose what happens when a non-admin participant sends a banned word:\n\n1. *Delete*: Delete message only\n2. *Kick*: Delete message & kick participant\n3. *Warn*: Issue warning (default 3 max). Kick upon reaching threshold", groupName)
+		buttons := []struct{ ID, Text string }{
+			{ID: p + "antiword action delete", Text: "Delete Only"},
+			{ID: p + "antiword action kick", Text: "Kick User"},
+			{ID: p + "antiword action warn", Text: "Warn User"},
+		}
+		return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("%s AntiWord Action", ctx.GetBotName()), buttons)
+
+	case "setwarn", "maxwarn":
+		if len(args) < 2 {
+			return ctx.Reply("Please specify warning limit. Example: `antiword setwarn 5`")
+		}
+		cnt, err := strconv.Atoi(args[1])
+		if err != nil || cnt <= 0 {
+			return ctx.Reply("Invalid warning limit. Must be a positive integer.")
+		}
+		_ = s.PutSetting(ctx.Ctx, "antiword_maxwarn:"+chatKey, strconv.Itoa(cnt))
+		_ = s.PutSetting(ctx.Ctx, "antiword_action:"+chatKey, "warn")
+		return sendAntiWordMenu(ctx, s, fmt.Sprintf("Anti-word warning limit set to *%d*. Action mode switched to WARN.", cnt))
+
 	case "add":
-		if len(ctx.Args) < 2 {
+		if len(args) < 2 {
 			return ctx.Reply("Please specify the word to add.")
 		}
-		wordToAdd := strings.ToLower(ctx.Args[1])
-		exists := slices.Contains(words, wordToAdd)
-		if exists {
+		wordToAdd := strings.ToLower(args[1])
+		if slices.Contains(words, wordToAdd) {
 			return ctx.Reply(fmt.Sprintf("Word %q is already banned.", wordToAdd))
 		}
 		words = append(words, wordToAdd)
-		err = s.PutSetting(ctx.Ctx, settingKey, strings.Join(words, " "))
-		if err != nil {
-			return ctx.Reply("Failed to save anti-word setting.")
-		}
-		return ctx.Reply(fmt.Sprintf("Banned word %q added.", wordToAdd))
+		_ = s.PutSetting(ctx.Ctx, settingKey, strings.Join(words, " "))
+		_ = s.PutSetting(ctx.Ctx, "antiword_status:"+chatKey, "on")
+		return sendAntiWordMenu(ctx, s, fmt.Sprintf("Banned word %q added.", wordToAdd))
 
 	case "del", "remove":
-		if len(ctx.Args) < 2 {
+		if len(args) < 2 {
 			return ctx.Reply("Please specify the word to remove.")
 		}
-		wordToDel := strings.ToLower(ctx.Args[1])
+		wordToDel := strings.ToLower(args[1])
 		found := false
-		newWords := []string{}
+		var newWords []string
 		for _, w := range words {
 			if w == wordToDel {
 				found = true
@@ -482,21 +708,85 @@ func handleAntiWord(ctx *Context) error {
 		if !found {
 			return ctx.Reply(fmt.Sprintf("Word %q was not banned.", wordToDel))
 		}
-		err = s.PutSetting(ctx.Ctx, settingKey, strings.Join(newWords, " "))
-		if err != nil {
-			return ctx.Reply("Failed to save anti-word setting.")
-		}
-		return ctx.Reply(fmt.Sprintf("Banned word %q removed.", wordToDel))
+		_ = s.PutSetting(ctx.Ctx, settingKey, strings.Join(newWords, " "))
+		return sendAntiWordMenu(ctx, s, fmt.Sprintf("Banned word %q removed.", wordToDel))
 
 	case "list":
 		if len(words) == 0 {
 			return ctx.Reply("No banned words configured in this group.")
 		}
-		return ctx.Reply(fmt.Sprintf("Banned Words list:\n- %s", strings.Join(words, "\n- ")))
+		return ctx.Reply(fmt.Sprintf("Banned Words list for %s:\n- %s", groupName, strings.Join(words, "\n- ")))
 
 	default:
-		return ctx.Reply("Invalid action. Usage: antiword <add|del|list>")
+		return sendAntiWordMenu(ctx, s, "")
 	}
+}
+
+func sendAntiWordMenu(ctx *Context, s *sqlstore.SQLStore, note string) error {
+	chatKey := ctx.Chat.String()
+	groupName := chatKey
+	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
+	if err == nil && info != nil && info.Name != "" {
+		groupName = info.Name
+	}
+
+	status, _ := s.GetSetting(ctx.Ctx, "antiword_status:"+chatKey)
+	rawWord, _ := s.GetSetting(ctx.Ctx, "antiword:"+chatKey)
+	words := strings.Fields(rawWord)
+	if status == "" {
+		if len(words) > 0 {
+			status = "on"
+		} else {
+			status = "off"
+		}
+	}
+
+	action, _ := s.GetSetting(ctx.Ctx, "antiword_action:"+chatKey)
+	if action == "" {
+		action = "delete"
+	}
+	actionDisplay := strings.ToUpper(action)
+	if action == "warn" {
+		maxWarn, _ := s.GetSetting(ctx.Ctx, "antiword_maxwarn:"+chatKey)
+		if maxWarn == "" {
+			maxWarn = "3"
+		}
+		actionDisplay = fmt.Sprintf("WARN (Max: %s)", maxWarn)
+	}
+
+	p := ctx.GetPrefix()
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "╭━━━〔 ANTIWORD CONFIGURATION 〕━━━\n│ Group  : %s\n│ Status : %s\n│ Action : %s\n│ Banned : %d word(s)\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n", groupName, strings.ToUpper(status), actionDisplay, len(words))
+
+	if note != "" {
+		sb.WriteString(note)
+		sb.WriteString("\n\n")
+	}
+
+	if len(words) > 0 {
+		fmt.Fprintf(&sb, "Banned Words: %s\n\n", strings.Join(words, ", "))
+	}
+
+	sb.WriteString("Options:\n")
+	fmt.Fprintf(&sb, "• `%santiword add <word>` - Add banned word\n", p)
+	fmt.Fprintf(&sb, "• `%santiword del <word>` - Remove banned word\n", p)
+	fmt.Fprintf(&sb, "• `%santiword action <delete|kick|warn>` - Set action mode\n", p)
+	fmt.Fprintf(&sb, "• `%santiword setwarn 3` - Set warning limit\n", p)
+
+	var toggleBtn struct{ ID, Text string }
+	if status == "on" {
+		toggleBtn = struct{ ID, Text string }{ID: p + "antiword off", Text: "Deactivate"}
+	} else {
+		toggleBtn = struct{ ID, Text string }{ID: p + "antiword on", Text: "Activate"}
+	}
+
+	buttons := []struct{ ID, Text string }{
+		toggleBtn,
+		{ID: p + "antiword action", Text: "Action Mode"},
+		{ID: p + "antiword list", Text: "List Words"},
+	}
+
+	return sendInteractiveButtons(ctx, strings.TrimSpace(sb.String()), fmt.Sprintf("%s AntiWord Moderation", ctx.GetBotName()), buttons)
 }
 
 func handleGStats(ctx *Context) error {

@@ -13,6 +13,7 @@ import (
 	"whatsrook/store/sqlstore"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/types"
 )
 
 var (
@@ -245,7 +246,7 @@ func updateAutoBio(ctx context.Context, client *whatsmeow.Client) (string, error
 	tzStr := getAutoBioTimezone(ctx, s)
 	bioText := generateBioText(tzStr)
 
-	err = client.SetStatusMessage(ctx, bioText)
+	err = client.SetStatusMessage(ctx, types.SetStatusInput{Text: &bioText})
 	if err != nil {
 		slog.Error("[AutoBio] Failed to update WhatsApp status message", "err", err)
 		return "", err

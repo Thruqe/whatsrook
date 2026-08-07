@@ -71,7 +71,7 @@ func (l *Loader) activate() {
 	displayText := fmt.Sprintf("%s %s", l.initialText, frame)
 
 	slog.Debug("StartLoader: sending loader message synchronously", "id", l.id, "text", l.initialText)
-	resp, err := l.ctx.Client.SendMessage(l.ctx.Ctx, l.ctx.Chat, &waE2E.Message{
+	resp, err := l.ctx.Client.SendMessage(l.ctx.GetSendContext(), l.ctx.Chat, &waE2E.Message{
 		Conversation: proto.String(displayText),
 	})
 	if err != nil {

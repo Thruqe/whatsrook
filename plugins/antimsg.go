@@ -4,7 +4,9 @@ package plugins
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
+	"whatsrook/send"
 	"whatsrook/store/sqlstore"
 
 	"go.mau.fi/whatsmeow/types"
@@ -51,12 +53,20 @@ func handleAntiMsg(ctx *Context) error {
 
 		for _, t := range targets {
 			tStr := t.ToNonAD().String()
-			if !containsString(users, tStr) {
-				users = append(users, tStr)
+			isAlreadyTargeted := false
+			for _, uStr := range users {
+				uJID, err := types.ParseJID(uStr)
+				if err == nil && send.IsSameUserRaw(ctx.Ctx, ctx.Client, uJID, t) {
+					isAlreadyTargeted = true
+					break
+				}
 			}
-			resolvedJID, username := ctx.ResolveMention(t)
-			addedMentions = append(addedMentions, resolvedJID)
-			addedUsernames = append(addedUsernames, "@"+username)
+			if !isAlreadyTargeted {
+				users = append(users, tStr)
+				resolvedJID, username := ctx.ResolveMention(t)
+				addedMentions = append(addedMentions, resolvedJID)
+				addedUsernames = append(addedUsernames, "@"+username)
+			}
 		}
 
 		_ = s.PutSetting(ctx.Ctx, usersKey, strings.Join(users, ","))
@@ -110,12 +120,13 @@ func handleAntiMsg(ctx *Context) error {
 		var removedUsernames []string
 
 		for _, t := range targets {
-			tStr := t.ToNonAD().String()
 			newUsers := make([]string, 0, len(users))
-			for _, u := range users {
-				if u != tStr {
-					newUsers = append(newUsers, u)
+			for _, uStr := range users {
+				uJID, err := types.ParseJID(uStr)
+				if err == nil && send.IsSameUserRaw(ctx.Ctx, ctx.Client, uJID, t) {
+					continue
 				}
+				newUsers = append(newUsers, uStr)
 			}
 			users = newUsers
 			resolvedJID, username := ctx.ResolveMention(t)
@@ -162,17 +173,31 @@ func handleAntiMsg(ctx *Context) error {
 
 		var sb strings.Builder
 		var mentions []types.JID
-		fmt.Fprintf(&sb, "╭━━━〔 ANTIMSG TARGETS 〕━━━\n│ Status : %s\n│ Total  : %d targeted user(s)\n╰━━━━━━━━━━━━━━━━━━━━━━\n\nTargeted Participants:\n", strings.ToUpper(status), len(users))
+		var displayUsers []types.JID
 
 		for _, u := range users {
 			uj, err := types.ParseJID(u)
-			if err == nil {
-				resolvedJID, username := ctx.ResolveMention(uj)
-				fmt.Fprintf(&sb, "• @%s\n", username)
-				mentions = append(mentions, resolvedJID)
-			} else {
-				fmt.Fprintf(&sb, "• %s\n", u)
+			if err != nil || uj.IsEmpty() {
+				continue
 			}
+			isDup := false
+			for _, existing := range displayUsers {
+				if send.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, uj) {
+					isDup = true
+					break
+				}
+			}
+			if !isDup {
+				displayUsers = append(displayUsers, uj)
+			}
+		}
+
+		fmt.Fprintf(&sb, "╭━━━〔 ANTIMSG TARGETS 〕━━━\n│ Status : %s\n│ Total  : %d targeted user(s)\n╰━━━━━━━━━━━━━━━━━━━━━━\n\nTargeted Participants:\n", strings.ToUpper(status), len(displayUsers))
+
+		for _, uj := range displayUsers {
+			resolvedJID, username := ctx.ResolveMention(uj)
+			fmt.Fprintf(&sb, "• @%s\n", username)
+			mentions = append(mentions, resolvedJID)
 		}
 
 		var toggleBtn struct{ ID, Text string }
@@ -211,6 +236,11 @@ func handleAntiMsg(ctx *Context) error {
 
 func sendAntiMsgMenu(ctx *Context, s *sqlstore.SQLStore, note string) error {
 	chatKey := ctx.Chat.String()
+	groupName := chatKey
+	info, err := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
+	if err == nil && info != nil && info.Name != "" {
+		groupName = info.Name
+	}
 	status, _ := s.GetSetting(ctx.Ctx, "antimsg_status:"+chatKey)
 	if status == "" {
 		status = "off"
@@ -221,7 +251,7 @@ func sendAntiMsgMenu(ctx *Context, s *sqlstore.SQLStore, note string) error {
 
 	p := ctx.GetPrefix()
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "╭━━━〔 ANTIMSG CONFIGURATION 〕━━━\n│ Group  : %s\n│ Status : %s\n│ Targets: %d user(s)\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n", chatKey, strings.ToUpper(status), len(users))
+	fmt.Fprintf(&sb, "╭━━━〔 ANTIMSG CONFIGURATION 〕━━━\n│ Group  : %s\n│ Status : %s\n│ Targets: %d user(s)\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n", groupName, strings.ToUpper(status), len(users))
 
 	if note != "" {
 		sb.WriteString(note)
@@ -250,20 +280,39 @@ func sendAntiMsgMenu(ctx *Context, s *sqlstore.SQLStore, note string) error {
 	return sendInteractiveButtons(ctx, strings.TrimSpace(sb.String()), fmt.Sprintf("%s AntiMsg Moderation", ctx.GetBotName()), buttons)
 }
 
+func isSubcommand(s string) bool {
+	s = strings.ToLower(s)
+	return s == "add" || s == "del" || s == "remove" || s == "delete" ||
+		s == "on" || s == "off" || s == "toggle" || s == "list" ||
+		s == "clear" || s == "enable" || s == "disable" || s == "status"
+}
+
+func isNumericPhone(s string) bool {
+	if len(s) < 5 || len(s) > 20 {
+		return false
+	}
+	for _, r := range s {
+		if !unicode.IsDigit(r) {
+			return false
+		}
+	}
+	return true
+}
+
 func extractTargetParticipants(ctx *Context, args []string) []types.JID {
 	var targets []types.JID
-	seen := make(map[string]bool)
 
 	addJID := func(j types.JID) {
 		if j.IsEmpty() {
 			return
 		}
 		nonAD := j.ToNonAD()
-		key := nonAD.String()
-		if !seen[key] {
-			seen[key] = true
-			targets = append(targets, nonAD)
+		for _, existing := range targets {
+			if send.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, nonAD) {
+				return
+			}
 		}
+		targets = append(targets, nonAD)
 	}
 
 	// 1. Quoted message sender
@@ -288,21 +337,27 @@ func extractTargetParticipants(ctx *Context, args []string) []types.JID {
 	// 3. Command arguments (@user or phone numbers)
 	for _, arg := range args {
 		arg = strings.TrimSpace(arg)
-		if arg == "" || strings.EqualFold(arg, "add") || strings.EqualFold(arg, "del") ||
-			strings.EqualFold(arg, "remove") || strings.EqualFold(arg, "delete") ||
-			strings.EqualFold(arg, "on") || strings.EqualFold(arg, "off") ||
-			strings.EqualFold(arg, "toggle") || strings.EqualFold(arg, "list") ||
-			strings.EqualFold(arg, "clear") || strings.EqualFold(arg, "enable") ||
-			strings.EqualFold(arg, "disable") {
+		if arg == "" || isSubcommand(arg) {
 			continue
 		}
 		raw := strings.TrimPrefix(arg, "@")
-		if !strings.Contains(raw, "@") {
-			raw = raw + "@s.whatsapp.net"
+		if raw == "" {
+			continue
 		}
-		parsed, err := types.ParseJID(raw)
-		if err == nil && !parsed.IsEmpty() {
-			addJID(parsed)
+
+		if strings.Contains(raw, "@") {
+			parsed, err := types.ParseJID(raw)
+			if err == nil && !parsed.IsEmpty() {
+				addJID(parsed)
+			}
+			continue
+		}
+
+		if isNumericPhone(raw) {
+			parsed, err := types.ParseJID(raw + "@s.whatsapp.net")
+			if err == nil && !parsed.IsEmpty() {
+				addJID(parsed)
+			}
 		}
 	}
 

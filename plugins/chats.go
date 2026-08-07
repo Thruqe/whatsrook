@@ -123,9 +123,13 @@ func handleUnarchive(ctx *Context) error {
 	return ctx.Reply("Chat unarchived.")
 }
 
+func ptr[T any](v T) *T {
+	return &v
+}
+
 func handlePin(ctx *Context) error {
 	ci := ctx.GetContextInfo()
-	if ci != nil && ci.StanzaID != nil {
+	if ci != nil && ci.StanzaID != nil && *ci.StanzaID != "" {
 		// Pin message
 		isAuthorized := ctx.IsSudo()
 		if !isAuthorized && ctx.Chat.Server == "g.us" {
@@ -140,32 +144,34 @@ func handlePin(ctx *Context) error {
 			return ctx.Reply("Only sudoers or group admins can pin messages.")
 		}
 
-		quotedSender, _ := ctx.GetQuotedSender()
+		quotedSender, ok := ctx.GetQuotedSender()
 		quotedFromMe := false
-		if ctx.Client.Store.ID != nil {
-			quotedFromMe = (quotedSender.ToNonAD() == ctx.Client.Store.ID.ToNonAD())
+		if ok && ctx.Client.Store.ID != nil {
+			quotedFromMe = send.IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, *ctx.Client.Store.ID)
 		}
 
 		var participantStr *string
-		if ctx.Chat.Server == "g.us" {
-			participantStr = new(quotedSender.String())
+		if ctx.Chat.Server == "g.us" && !quotedSender.IsEmpty() {
+			participantStr = ptr(quotedSender.ToNonAD().String())
 		}
-		_ = quotedFromMe
 
 		pinMsg := &waE2E.Message{
 			PinInChatMessage: &waE2E.PinInChatMessage{
 				Key: &waCommon.MessageKey{
-					FromMe:      new(quotedFromMe),
+					FromMe:      ptr(quotedFromMe),
 					ID:          ci.StanzaID,
-					RemoteJID:   new(ctx.Chat.String()),
+					RemoteJID:   ptr(ctx.Chat.String()),
 					Participant: participantStr,
 				},
 				Type:              waE2E.PinInChatMessage_PIN_FOR_ALL.Enum(),
-				SenderTimestampMS: new(time.Now().UnixMilli()),
+				SenderTimestampMS: ptr(time.Now().UnixMilli()),
+			},
+			MessageContextInfo: &waE2E.MessageContextInfo{
+				MessageAddOnDurationInSecs: ptr(uint32(604800)), // 7 days (standard WhatsApp pin duration)
 			},
 		}
 
-		_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, pinMsg)
+		_, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, pinMsg)
 		if err != nil {
 			return ctx.Reply("Failed to pin message: " + err.Error())
 		}
@@ -186,7 +192,7 @@ func handlePin(ctx *Context) error {
 
 func handleUnpin(ctx *Context) error {
 	ci := ctx.GetContextInfo()
-	if ci != nil && ci.StanzaID != nil {
+	if ci != nil && ci.StanzaID != nil && *ci.StanzaID != "" {
 		// Unpin message
 		isAuthorized := ctx.IsSudo()
 		if !isAuthorized && ctx.Chat.Server == "g.us" {
@@ -201,32 +207,31 @@ func handleUnpin(ctx *Context) error {
 			return ctx.Reply("Only sudoers or group admins can unpin messages.")
 		}
 
-		quotedSender, _ := ctx.GetQuotedSender()
+		quotedSender, ok := ctx.GetQuotedSender()
 		quotedFromMe := false
-		if ctx.Client.Store.ID != nil {
-			quotedFromMe = (quotedSender.ToNonAD() == ctx.Client.Store.ID.ToNonAD())
+		if ok && ctx.Client.Store.ID != nil {
+			quotedFromMe = send.IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, *ctx.Client.Store.ID)
 		}
 
 		var participantStr *string
-		if ctx.Chat.Server == "g.us" {
-			participantStr = new(quotedSender.String())
+		if ctx.Chat.Server == "g.us" && !quotedSender.IsEmpty() {
+			participantStr = ptr(quotedSender.ToNonAD().String())
 		}
-		_ = quotedFromMe
 
 		unpinMsg := &waE2E.Message{
 			PinInChatMessage: &waE2E.PinInChatMessage{
 				Key: &waCommon.MessageKey{
-					FromMe:      new(quotedFromMe),
+					FromMe:      ptr(quotedFromMe),
 					ID:          ci.StanzaID,
-					RemoteJID:   new(ctx.Chat.String()),
+					RemoteJID:   ptr(ctx.Chat.String()),
 					Participant: participantStr,
 				},
 				Type:              waE2E.PinInChatMessage_UNPIN_FOR_ALL.Enum(),
-				SenderTimestampMS: new(time.Now().UnixMilli()),
+				SenderTimestampMS: ptr(time.Now().UnixMilli()),
 			},
 		}
 
-		_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, unpinMsg)
+		_, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, unpinMsg)
 		if err != nil {
 			return ctx.Reply("Failed to unpin message: " + err.Error())
 		}

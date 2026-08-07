@@ -18,6 +18,7 @@ import (
 	"whatsrook/utils"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
 
@@ -369,7 +370,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 			return false
 		}
 		newBio := strings.TrimSpace(text)
-		_ = client.SetStatusMessage(ctx, newBio)
+		_ = client.SetStatusMessage(ctx, types.SetStatusInput{Text: &newBio})
 
 		botWizardMu.Lock()
 		delete(pendingWizardState, key)
@@ -487,7 +488,7 @@ func handleSetBot(ctx *Context) error {
 				return ctx.Reply(fmt.Sprintf("Usage: %sbio <text>", p))
 			}
 			newBio := strings.Join(args[1:], " ")
-			if err := ctx.Client.SetStatusMessage(ctx.Ctx, newBio); err != nil {
+			if err := ctx.Client.SetStatusMessage(ctx.Ctx, types.SetStatusInput{Text: &newBio}); err != nil {
 				return ctx.Reply("Failed to update status bio: " + err.Error())
 			}
 			return ctx.Reply("Bot status bio updated successfully!")

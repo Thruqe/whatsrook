@@ -881,24 +881,44 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 		return false
 	}
 
-	// Check if sender is admin
+	// Check if sender is admin or sudo user (exempt from AntiLink/AntiWord)
 	info, err := client.GetGroupInfo(ctx, evt.Info.Chat)
 	if err != nil {
 		return false
 	}
 
-	if waSender.IsAdminRaw(ctx, client, info, sender) {
+	if waSender.IsAdminRaw(ctx, client, info, sender) || waSender.IsSudoRaw(ctx, client, sender) {
 		return false
 	}
 
 	violation := false
 	reason := ""
+	violationType := "" // "antilink" or "antiword"
 
 	if antiLinkEnabled {
 		lowerText := strings.ToLower(text)
-		if strings.Contains(lowerText, "http://") || strings.Contains(lowerText, "https://") || strings.Contains(lowerText, "www.") || strings.Contains(lowerText, ".com") || strings.Contains(lowerText, ".net") || strings.Contains(lowerText, ".org") {
-			violation = true
-			reason = "links"
+		mode, _ := s.GetSetting(ctx, "antilink_mode:"+chatStr)
+		if mode == "custom" {
+			customStr, _ := s.GetSetting(ctx, "antilink_custom:"+chatStr)
+			if customStr == "" {
+				customStr = "chat.whatsapp.com"
+			}
+			domains := strings.Split(customStr, ",")
+			for _, d := range domains {
+				d = strings.TrimSpace(strings.ToLower(d))
+				if d != "" && strings.Contains(lowerText, d) {
+					violation = true
+					reason = fmt.Sprintf("banned link (%s)", d)
+					violationType = "antilink"
+					break
+				}
+			}
+		} else {
+			if strings.Contains(lowerText, "http://") || strings.Contains(lowerText, "https://") || strings.Contains(lowerText, "www.") || strings.Contains(lowerText, ".com") || strings.Contains(lowerText, ".net") || strings.Contains(lowerText, ".org") {
+				violation = true
+				reason = "links"
+				violationType = "antilink"
+			}
 		}
 	}
 
@@ -907,7 +927,8 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 		for _, w := range bannedWords {
 			if strings.Contains(lowerText, w) {
 				violation = true
-				reason = "banned words"
+				reason = fmt.Sprintf("banned word (%s)", w)
+				violationType = "antiword"
 				break
 			}
 		}
@@ -920,17 +941,79 @@ func handleGroupModeration(ctx context.Context, client *whatsmeow.Client, evt *e
 		}
 
 		if botIsAdmin {
+			// Delete violating message
 			_, _ = client.SendMessage(ctx, evt.Info.Chat, client.BuildRevoke(evt.Info.Chat, evt.Info.Sender, evt.Info.ID))
 			resolvedJID, username := waSender.ResolveMentionRaw(ctx, client, evt.Info.Sender)
-			textMsg := fmt.Sprintf("Message from @%s deleted: contains %s.", username, reason)
-			_, _ = client.SendMessage(ctx, evt.Info.Chat, &waE2E.Message{
-				ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-					Text: &textMsg,
-					ContextInfo: &waE2E.ContextInfo{
-						MentionedJID: []string{resolvedJID.String()},
+
+			actionKey := violationType + "_action:" + chatStr
+			action, _ := s.GetSetting(ctx, actionKey)
+			action = strings.ToLower(strings.TrimSpace(action))
+
+			switch action {
+			case "kick":
+				_, _ = client.UpdateGroupParticipants(ctx, evt.Info.Chat, []types.JID{evt.Info.Sender}, whatsmeow.ParticipantChangeRemove)
+				textMsg := fmt.Sprintf("Message from @%s deleted and participant kicked: contains %s.", username, reason)
+				_, _ = client.SendMessage(ctx, evt.Info.Chat, &waE2E.Message{
+					ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+						Text: &textMsg,
+						ContextInfo: &waE2E.ContextInfo{
+							MentionedJID: []string{resolvedJID.String()},
+						},
 					},
-				},
-			})
+				})
+
+			case "warn":
+				maxWarnKey := violationType + "_maxwarn:" + chatStr
+				maxWarnStr, _ := s.GetSetting(ctx, maxWarnKey)
+				maxWarn := 3
+				if parsed, err := strconv.Atoi(maxWarnStr); err == nil && parsed > 0 {
+					maxWarn = parsed
+				}
+
+				warnsKey := violationType + "_warns:" + chatStr + ":" + evt.Info.Sender.ToNonAD().String()
+				currWarnStr, _ := s.GetSetting(ctx, warnsKey)
+				currWarns := 0
+				if parsed, err := strconv.Atoi(currWarnStr); err == nil {
+					currWarns = parsed
+				}
+				currWarns++
+
+				if currWarns >= maxWarn {
+					_, _ = client.UpdateGroupParticipants(ctx, evt.Info.Chat, []types.JID{evt.Info.Sender}, whatsmeow.ParticipantChangeRemove)
+					_ = s.PutSetting(ctx, warnsKey, "0")
+					textMsg := fmt.Sprintf("⚠️ @%s reached maximum warnings (%d/%d) for %s! Message deleted and participant kicked.", username, currWarns, maxWarn, reason)
+					_, _ = client.SendMessage(ctx, evt.Info.Chat, &waE2E.Message{
+						ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+							Text: &textMsg,
+							ContextInfo: &waE2E.ContextInfo{
+								MentionedJID: []string{resolvedJID.String()},
+							},
+						},
+					})
+				} else {
+					_ = s.PutSetting(ctx, warnsKey, strconv.Itoa(currWarns))
+					textMsg := fmt.Sprintf("⚠️ Warning for @%s (%d/%d): Message deleted for %s. Reaching %d warnings will result in a kick!", username, currWarns, maxWarn, reason, maxWarn)
+					_, _ = client.SendMessage(ctx, evt.Info.Chat, &waE2E.Message{
+						ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+							Text: &textMsg,
+							ContextInfo: &waE2E.ContextInfo{
+								MentionedJID: []string{resolvedJID.String()},
+							},
+						},
+					})
+				}
+
+			default: // "delete"
+				textMsg := fmt.Sprintf("Message from @%s deleted: contains %s.", username, reason)
+				_, _ = client.SendMessage(ctx, evt.Info.Chat, &waE2E.Message{
+					ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+						Text: &textMsg,
+						ContextInfo: &waE2E.ContextInfo{
+							MentionedJID: []string{resolvedJID.String()},
+						},
+					},
+				})
+			}
 			return true
 		}
 	}

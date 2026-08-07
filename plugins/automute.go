@@ -3,6 +3,8 @@ package plugins
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -519,6 +521,10 @@ func checkAndExecuteMuteSchedules(ctx context.Context, client *whatsmeow.Client)
 
 	rows, err := db.Query(ctx, `SELECT key, value FROM bot_settings WHERE our_jid=$1 AND (key LIKE 'automute:%' OR key LIKE 'autounmute:%')`, s.JID)
 	if err != nil {
+		if errors.Is(err, sql.ErrConnDone) || strings.Contains(err.Error(), "database is closed") || ctx.Err() != nil {
+			slog.Debug("automute: database closed or context canceled during shutdown", "err", err)
+			return
+		}
 		slog.Error("automute: query failed", "err", err)
 		return
 	}

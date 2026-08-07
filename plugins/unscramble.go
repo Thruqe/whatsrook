@@ -79,6 +79,7 @@ func HandleUnscrambleInput(ctx *Context, text string) bool {
 	correct, gameOver, winner, currentPlayer, elapsed := game.ProcessGuess(text, senderLID)
 
 	if correct {
+		_ = ctx.React("✅")
 		msg := fmt.Sprintf("Correct! %s guessed '%s' in %.1fs! (+%d pts)\n\nAdvancing to the next level!",
 			currentPlayer.Tag, game.CurrentWord, elapsed.Seconds(), game.WordLength*10)
 		_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
@@ -94,6 +95,7 @@ func HandleUnscrambleInput(ctx *Context, text string) bool {
 	}
 
 	// Wrong guess
+	_ = ctx.React("❌")
 	msg := fmt.Sprintf("Incorrect guess by %s!\nThe correct word was: '%s'.\n%s has been eliminated from this match!",
 		currentPlayer.Tag, game.CurrentWord, currentPlayer.Tag)
 	_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})

@@ -113,7 +113,7 @@ func init() {
 	})
 	Register(&Command{
 		Name:        "pinterest",
-		Aliases:     []string{"pin"},
+		Aliases:     []string{"pnt", "pinter"},
 		Description: "Download video or photo from Pinterest URL",
 		Category:    "downloader",
 		IsPublic:    true,

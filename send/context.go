@@ -32,6 +32,17 @@ func (c *PluginContext) Cancel() {
 	}
 }
 
+// GetSendContext returns c.Ctx if active and non-canceled, or fallback context.Background() to prevent context canceled errors.
+func (c *PluginContext) GetSendContext() context.Context {
+	if c == nil || c.Ctx == nil {
+		return context.Background()
+	}
+	if err := c.Ctx.Err(); err != nil {
+		return context.Background()
+	}
+	return c.Ctx
+}
+
 // GetPrefix returns the primary active command prefix from the database settings, or "." default.
 func (c *PluginContext) GetPrefix() string {
 	if c.Client == nil || c.Client.Store == nil || c.Client.Store.Identities == nil {

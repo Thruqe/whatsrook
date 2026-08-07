@@ -3,6 +3,8 @@ package plugins
 
 import (
 	"fmt"
+
+	"go.mau.fi/whatsmeow/types"
 )
 
 func init() {
@@ -30,7 +32,7 @@ func handleBio(ctx *Context) error {
 	loader := ctx.StartLoader("Updating status bio...")
 	defer loader.Delete()
 
-	err := ctx.Client.SetStatusMessage(ctx.Ctx, newBio)
+	err := ctx.Client.SetStatusMessage(ctx.Ctx, types.SetStatusInput{Text: &newBio})
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf("Failed to update status bio: %v", err))
 	}

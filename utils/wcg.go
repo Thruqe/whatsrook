@@ -2,14 +2,26 @@
 package utils
 
 import (
+	crand "crypto/rand"
 	"math/rand"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
 )
+
+// GetRandomStartingLetter returns a cryptographically random uppercase letter from A to Z.
+func GetRandomStartingLetter() rune {
+	var b [1]byte
+	_, err := crand.Read(b[:])
+	if err != nil {
+		return rune('A' + rand.Intn(26))
+	}
+	return rune('A' + (int(b[0]) % 26))
+}
 
 type WCGState int
 
@@ -80,7 +92,7 @@ func CreateWCGGame(chatKey string, hostLID, hostMention types.JID, hostTag strin
 		HostLID:      hostLID,
 		HostMention:  hostMention,
 		HostTag:      hostTag,
-		RequiredChar: rune('a' + rand.Intn(26)),
+		RequiredChar: GetRandomStartingLetter(),
 		MinLength:    3,
 		RoundCount:   1,
 		UsedWords:    make(map[string]bool),
@@ -140,6 +152,17 @@ func (g *WCGGame) FindPlayerIndex(lid types.JID) int {
 	return -1
 }
 
+// IsPlayerEliminated returns true if the player with given LID is eliminated or not found in the match.
+func (g *WCGGame) IsPlayerEliminated(lid types.JID) bool {
+	g.Mu.Lock()
+	defer g.Mu.Unlock()
+	idx := g.FindPlayerIndex(lid)
+	if idx == -1 {
+		return true
+	}
+	return g.Players[idx].Eliminated
+}
+
 // GetActivePlayers returns all non-eliminated players.
 func (g *WCGGame) GetActivePlayers() []*WCGPlayer {
 	var active []*WCGPlayer
@@ -169,7 +192,7 @@ func (g *WCGGame) StartGame() bool {
 
 	g.State = WCGStateInProgress
 	g.GameStartTime = time.Now()
-	g.RequiredChar = rune('a' + rand.Intn(26))
+	g.RequiredChar = GetRandomStartingLetter()
 	g.MinLength = 3
 	g.RoundCount = 1
 	g.AnswersInRound = 0
@@ -192,7 +215,7 @@ func (g *WCGGame) StartTurn() (reqChar rune, minLen int, timeLimitSec int, curre
 
 	active := g.GetActivePlayers()
 	if len(active) == 0 {
-		return 'a', 3, 0, nil
+		return 'A', 3, 0, nil
 	}
 
 	if g.CurrentTurnIdx >= len(g.Players) {
@@ -253,8 +276,8 @@ func (g *WCGGame) ProcessGuess(word string, senderLID types.JID) (correct bool, 
 	currentPlayer.Score += len(word) * 10
 	currentPlayer.CorrectGuesses++
 
-	// Next required starting character is the last character of the submitted word
-	g.RequiredChar = rune(word[len(word)-1])
+	// Next required starting character is the last character of the submitted word (in uppercase)
+	g.RequiredChar = unicode.ToUpper(rune(word[len(word)-1]))
 
 	g.AnswersInRound++
 	activeCount := len(g.GetActivePlayers())

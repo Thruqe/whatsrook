@@ -54,7 +54,7 @@ func (ctx *PluginContext) SendText(text string) error {
 	formatted := ctx.formatTextResponse(text)
 	slog.Debug("Building SendText", "text", text, "formatted", formatted)
 	slog.Debug("Sending SendText", "chat", ctx.Chat.String())
-	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
+	_, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, &waE2E.Message{
 		Conversation: &formatted,
 	})
 	if err != nil {
@@ -84,7 +84,7 @@ func (ctx *PluginContext) Send(content any, extra ...whatsmeow.SendRequestExtra)
 	if len(extra) > 0 {
 		reqExtra = extra[0]
 	}
-	return ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, reqExtra)
+	return ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg, reqExtra)
 }
 
 // Edit edits an existing message in the current chat by message ID.
@@ -107,7 +107,7 @@ func (ctx *PluginContext) Edit(msgID types.MessageID, content any, extra ...what
 	if len(extra) > 0 {
 		reqExtra = extra[0]
 	}
-	return ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, editMsg, reqExtra)
+	return ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, editMsg, reqExtra)
 }
 
 // Delete revokes/deletes a message in the current chat by message ID.
@@ -117,7 +117,7 @@ func (ctx *PluginContext) Delete(msgID types.MessageID, senderJID ...types.JID) 
 		sJID = senderJID[0]
 	}
 	revokeMsg := ctx.Client.BuildRevoke(ctx.Chat, sJID, msgID)
-	return ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, revokeMsg)
+	return ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, revokeMsg)
 }
 
 // Reply sends a text message replying to the current message (with typing simulation and monospace format).
@@ -132,7 +132,7 @@ func (ctx *PluginContext) ReplyWithID(text string) (types.MessageID, error) {
 	cinfo := ctx.replyContextInfo()
 	slog.Debug("Building Reply", "text", text, "formatted", formatted, "context_info", cinfo)
 	slog.Debug("Sending Reply", "chat", ctx.Chat.String())
-	resp, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
+	resp, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text:        &formatted,
 			ContextInfo: cinfo,
@@ -185,7 +185,7 @@ func (ctx *PluginContext) SendImage(data []byte, mimetype, caption string) error
 	}
 	*msg.ImageMessage.FileLength = uint64(len(data))
 	slog.Debug("Sending SendImage", "chat", ctx.Chat.String(), "url", uploaded.URL)
-	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
+	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
 		slog.Error("SendImage failed", "err", err)
 	} else {
@@ -222,7 +222,7 @@ func (ctx *PluginContext) ReplyWithImage(data []byte, mimetype, caption string) 
 	}
 	*msg.ImageMessage.FileLength = uint64(len(data))
 	slog.Debug("Sending ReplyWithImage", "chat", ctx.Chat.String(), "url", uploaded.URL)
-	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
+	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
 		slog.Error("ReplyWithImage failed", "err", err)
 	} else {
@@ -267,7 +267,7 @@ func (ctx *PluginContext) sendVideoInternal(data []byte, mimetype, caption strin
 		msg.VideoMessage.GifPlayback = new(true)
 	}
 	slog.Debug("Sending SendVideo", "chat", ctx.Chat.String(), "url", uploaded.URL)
-	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
+	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
 		slog.Error("SendVideo failed", "err", err)
 	} else {
@@ -314,7 +314,7 @@ func (ctx *PluginContext) replyVideoInternal(data []byte, mimetype, caption stri
 		msg.VideoMessage.GifPlayback = new(true)
 	}
 	slog.Debug("Sending replyVideoInternal", "chat", ctx.Chat.String(), "url", uploaded.URL)
-	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
+	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
 		slog.Error("replyVideoInternal failed", "err", err)
 	} else {
@@ -350,7 +350,7 @@ func (ctx *PluginContext) SendDocument(data []byte, mimetype, filename, caption 
 	}
 	*msg.DocumentMessage.FileLength = uint64(len(data))
 	slog.Debug("Sending SendDocument", "chat", ctx.Chat.String(), "url", uploaded.URL)
-	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
+	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
 		slog.Error("SendDocument failed", "err", err)
 	} else {
@@ -388,7 +388,7 @@ func (ctx *PluginContext) ReplyWithDocument(data []byte, mimetype, filename, cap
 	}
 	*msg.DocumentMessage.FileLength = uint64(len(data))
 	slog.Debug("Sending ReplyWithDocument", "chat", ctx.Chat.String(), "url", uploaded.URL)
-	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
+	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
 		slog.Error("ReplyWithDocument failed", "err", err)
 	} else {
@@ -419,7 +419,7 @@ func (ctx *PluginContext) SendSticker(data []byte) error {
 	}
 	*msg.StickerMessage.FileLength = uint64(len(data))
 	slog.Debug("Sending SendSticker", "chat", ctx.Chat.String(), "url", uploaded.URL)
-	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
+	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
 		slog.Error("SendSticker failed", "err", err)
 	} else {
@@ -452,7 +452,7 @@ func (ctx *PluginContext) ReplyWithSticker(data []byte) error {
 	}
 	*msg.StickerMessage.FileLength = uint64(len(data))
 	slog.Debug("Sending ReplyWithSticker", "chat", ctx.Chat.String(), "url", uploaded.URL)
-	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
+	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
 		slog.Error("ReplyWithSticker failed", "err", err)
 	} else {
@@ -707,6 +707,33 @@ func (ctx *PluginContext) IsSudo() bool {
 	return false
 }
 
+// IsSudoRaw checks if a given sender is a registered sudo user or the bot owner.
+func IsSudoRaw(ctx context.Context, client *whatsmeow.Client, sender types.JID) bool {
+	if client == nil {
+		return false
+	}
+	if client.Store.ID != nil && IsSameUserRaw(ctx, client, *client.Store.ID, sender) {
+		return true
+	}
+	s, ok := client.Store.Identities.(*sqlstore.SQLStore)
+	if !ok {
+		return false
+	}
+	raw, err := s.GetSetting(ctx, "sudoers")
+	if err != nil || raw == "" {
+		return false
+	}
+	for sudoerStr := range strings.FieldsSeq(raw) {
+		sudoerJID, err := types.ParseJID(sudoerStr)
+		if err == nil {
+			if IsSameUserRaw(ctx, client, sender, sudoerJID) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // GetMedia retrieves media bytes and mimetype from the message or its quoted message.
 func (ctx *PluginContext) GetMedia() ([]byte, string, error) {
 	// First check the main message
@@ -804,7 +831,7 @@ func (ctx *PluginContext) SendAudio(data []byte, mimetype string) error {
 		}
 	}
 	slog.Debug("Sending SendAudio", "chat", ctx.Chat.String(), "url", uploaded.URL)
-	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
+	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
 		slog.Error("SendAudio failed", "err", err)
 	} else {
@@ -849,7 +876,7 @@ func (ctx *PluginContext) ReplyWithAudio(data []byte, mimetype string) error {
 		}
 	}
 	slog.Debug("Sending ReplyWithAudio", "chat", ctx.Chat.String(), "url", uploaded.URL)
-	_, err = ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg)
+	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
 	if err != nil {
 		slog.Error("ReplyWithAudio failed", "err", err)
 	} else {
@@ -869,7 +896,7 @@ func (ctx *PluginContext) SendTextWithMentions(text string, jids []types.JID) er
 	}
 	slog.Debug("Building SendTextWithMentions", "text", text, "formatted", formatted, "mentioned_jids", mentioned)
 	slog.Debug("Sending SendTextWithMentions", "chat", ctx.Chat.String())
-	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
+	_, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text: &formatted,
 			ContextInfo: &waE2E.ContextInfo{
@@ -904,7 +931,7 @@ func (ctx *PluginContext) ReplyWithMentions(text string, jids []types.JID) error
 	}
 	slog.Debug("Building ReplyWithMentions", "text", text, "formatted", formatted, "mentioned_jids", mentioned, "context_info", cInfo)
 	slog.Debug("Sending ReplyWithMentions", "chat", ctx.Chat.String())
-	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
+	_, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text:        &formatted,
 			ContextInfo: cInfo,
@@ -938,7 +965,7 @@ func (ctx *PluginContext) SendTextWithGroupMention(text string) error {
 	}
 
 	slog.Debug("Sending SendTextWithGroupMention", "chat", ctx.Chat.String())
-	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
+	_, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text:        &formatted,
 			ContextInfo: cInfo,
@@ -962,7 +989,7 @@ func (ctx *PluginContext) ReplyWithGroupMention(text string) error {
 	cInfo.NonJIDMentions = &nonJID
 
 	slog.Debug("Sending ReplyWithGroupMention", "chat", ctx.Chat.String())
-	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, &waE2E.Message{
+	_, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text:        &formatted,
 			ContextInfo: cInfo,
@@ -970,6 +997,21 @@ func (ctx *PluginContext) ReplyWithGroupMention(text string) error {
 	})
 	if err != nil {
 		slog.Error("ReplyWithGroupMention failed", "err", err)
+	}
+	return err
+}
+
+// React sends an emoji reaction to the current message (e.g. "✅" or "❌").
+func (ctx *PluginContext) React(emoji string) error {
+	if ctx == nil || ctx.Client == nil || ctx.Evt == nil {
+		return fmt.Errorf("cannot react: context, client, or event is nil")
+	}
+	msg := ctx.Client.BuildReaction(ctx.Chat, ctx.Evt.Info.Sender, ctx.Evt.Info.ID, emoji)
+	_, err := ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
+	if err != nil {
+		slog.Error("React failed", "emoji", emoji, "err", err)
+	} else {
+		slog.Debug("React sent successfully", "emoji", emoji)
 	}
 	return err
 }

@@ -68,7 +68,14 @@ func (s *SearchResult) GetURL() string {
 }
 
 func (c *Client) runYtDlp(ctx context.Context, args ...string) ([]byte, error) {
+	binPath, err := GetYTDLPPath(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to locate yt-dlp binary: %w", err)
+	}
+
 	var finalArgs []string
+	finalArgs = append(finalArgs, "--no-check-certificates", "--legacy-server-connect")
+
 	if c.CookieFile != "" {
 		if _, err := os.Stat(c.CookieFile); err == nil {
 			ytLog.Debugf("Using YouTube cookies file: %s", c.CookieFile)
@@ -81,21 +88,77 @@ func (c *Client) runYtDlp(ctx context.Context, args ...string) ([]byte, error) {
 	}
 
 	finalArgs = append(finalArgs, args...)
-	ytLog.Debugf("Executing yt-dlp binary with args: %s", strings.Join(finalArgs, " "))
+	ytLog.Debugf("Executing yt-dlp binary (%s) with args: %s", binPath, strings.Join(finalArgs, " "))
 
-	cmd := exec.CommandContext(ctx, "yt-dlp", finalArgs...)
+	return executeYtDlpWithRetry(ctx, binPath, finalArgs)
+}
+
+func executeYtDlpWithRetry(ctx context.Context, binPath string, args []string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, binPath, args...)
+	setSSLBypassEnv(cmd)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	err := cmd.Run()
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "permission denied") {
+		// Non-root permission fallback: run zipapp binary via python3/python without requiring root/chmod permissions
+		pyExec := "python3"
+		if _, pErr := exec.LookPath("python3"); pErr != nil {
+			pyExec = "python"
+		}
+		pyArgs := append([]string{binPath}, args...)
+		cmd = exec.CommandContext(ctx, pyExec, pyArgs...)
+		setSSLBypassEnv(cmd)
+		stdout.Reset()
+		stderr.Reset()
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		err = cmd.Run()
+	}
+
 	stderrStr := strings.TrimSpace(stderr.String())
 	if stderrStr != "" {
 		ytLog.Debugf("yt-dlp stderr output:\n%s", stderrStr)
 	}
 
 	if err != nil {
+		if strings.Contains(stderrStr, "CERTIFICATE_VERIFY_FAILED") || strings.Contains(stderrStr, "Unable to download API page") || strings.Contains(stderrStr, "Please report this issue") {
+			ytLog.Warnf("yt-dlp execution failed with SSL/API error. Auto-updating yt-dlp binary and retrying...")
+			_ = UpdateYTDLP(ctx)
+
+			newPath, _ := GetYTDLPPath(ctx)
+			retryCmd := exec.CommandContext(ctx, newPath, args...)
+			setSSLBypassEnv(retryCmd)
+
+			var retryStdout, retryStderr bytes.Buffer
+			retryCmd.Stdout = &retryStdout
+			retryCmd.Stderr = &retryStderr
+
+			retryErr := retryCmd.Run()
+			if retryErr != nil && strings.Contains(strings.ToLower(retryErr.Error()), "permission denied") {
+				pyExec := "python3"
+				if _, pErr := exec.LookPath("python3"); pErr != nil {
+					pyExec = "python"
+				}
+				pyArgs := append([]string{newPath}, args...)
+				retryCmd = exec.CommandContext(ctx, pyExec, pyArgs...)
+				setSSLBypassEnv(retryCmd)
+				retryStdout.Reset()
+				retryStderr.Reset()
+				retryCmd.Stdout = &retryStdout
+				retryCmd.Stderr = &retryStderr
+				retryErr = retryCmd.Run()
+			}
+
+			retryStderrStr := strings.TrimSpace(retryStderr.String())
+			if retryErr != nil {
+				return nil, fmt.Errorf("yt-dlp error after auto-update: %w (stderr: %s)", retryErr, retryStderrStr)
+			}
+			return retryStdout.Bytes(), nil
+		}
+
 		ytLog.Warnf("yt-dlp command failed with err: %v | stderr: %s", err, stderrStr)
 		return nil, fmt.Errorf("yt-dlp error: %w (stderr: %s)", err, stderrStr)
 	}

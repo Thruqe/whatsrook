@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+	"unicode"
 
 	"whatsrook/store/sqlstore"
 	"whatsrook/utils"
@@ -217,6 +217,7 @@ func HandleWCGInput(ctx *Context, text string) bool {
 
 	// Validation rule 1: Check min length rule (greater than or equal to expected length)
 	if len(guess) < game.MinLength {
+		_ = ctx.React("❌")
 		failMsg := fmt.Sprintf("Word too short! Must be at least %d characters long (got %d).\n%s has been eliminated!", game.MinLength, len(guess), currentTurnPlayer.Tag)
 		_ = ctx.ReplyWithMentions(failMsg, []types.JID{currentTurnPlayer.MentionJID})
 		eliminateAndAdvanceWCG(ctx, game)
@@ -224,8 +225,9 @@ func HandleWCGInput(ctx *Context, text string) bool {
 	}
 
 	// Validation rule 2: Starting character must match RequiredChar
-	if len(guess) == 0 || rune(guess[0]) != game.RequiredChar {
-		failMsg := fmt.Sprintf("Invalid start letter! Word must start with '%c'.\n%s has been eliminated!", game.RequiredChar, currentTurnPlayer.Tag)
+	if len(guess) == 0 || unicode.ToUpper(rune(guess[0])) != unicode.ToUpper(game.RequiredChar) {
+		_ = ctx.React("❌")
+		failMsg := fmt.Sprintf("Invalid start letter! Word must start with '%c'.\n%s has been eliminated!", unicode.ToUpper(game.RequiredChar), currentTurnPlayer.Tag)
 		_ = ctx.ReplyWithMentions(failMsg, []types.JID{currentTurnPlayer.MentionJID})
 		eliminateAndAdvanceWCG(ctx, game)
 		return true
@@ -233,6 +235,7 @@ func HandleWCGInput(ctx *Context, text string) bool {
 
 	// Validation rule 3: Cannot reuse word already used in current match
 	if game.IsWordUsed(guess) {
+		_ = ctx.React("❌")
 		failMsg := fmt.Sprintf("Word '%s' was already used in this match!\n%s has been eliminated!", guess, currentTurnPlayer.Tag)
 		_ = ctx.ReplyWithMentions(failMsg, []types.JID{currentTurnPlayer.MentionJID})
 		eliminateAndAdvanceWCG(ctx, game)
@@ -241,6 +244,7 @@ func HandleWCGInput(ctx *Context, text string) bool {
 
 	// Validation rule 4: Parallel API validation for dictionary correctness
 	if !ValidateWordParallel(guess) {
+		_ = ctx.React("❌")
 		failMsg := fmt.Sprintf("'%s' is not recognized as a valid English word across dictionary sources!\n%s has been eliminated!", guess, currentTurnPlayer.Tag)
 		_ = ctx.ReplyWithMentions(failMsg, []types.JID{currentTurnPlayer.MentionJID})
 		eliminateAndAdvanceWCG(ctx, game)
@@ -251,7 +255,8 @@ func HandleWCGInput(ctx *Context, text string) bool {
 	correct, gameOver, winner, currentPlayer, elapsed := game.ProcessGuess(guess, senderLID)
 
 	if correct {
-		nextChar := rune(guess[len(guess)-1])
+		_ = ctx.React("✅")
+		nextChar := unicode.ToUpper(rune(guess[len(guess)-1]))
 		msg := fmt.Sprintf("Correct! %s submitted '%s' (%d letters) in %.1fs! (+%d pts)\n\nNext Required Letter: '%c' | Round %d Min Length: %d",
 			currentPlayer.Tag, guess, len(guess), elapsed.Seconds(), len(guess)*10, nextChar, game.RoundCount, game.MinLength)
 		_ = ctx.ReplyWithMentions(msg, []types.JID{currentPlayer.MentionJID})
@@ -282,13 +287,54 @@ func handleWCGChain(ctx *Context) error {
 		return handleWCGChainLeaderboard(ctx)
 	}
 
-	if arg0 == "cancel" || arg0 == "stop" || arg0 == "end" {
+	if arg0 == "cancel" || arg0 == "stop" || arg0 == "end" || arg0 == "kill" {
 		if existingGame == nil {
 			return ctx.Reply("No active WCG game to end.")
 		}
+
+		senderLID := ctx.Sender.ToNonAD()
+		isBotOwner := ctx.IsSudo()
+		isHost := ctx.IsSameUser(existingGame.HostLID, senderLID)
+
+		if !isBotOwner && !isHost {
+			return ctx.Reply("Only the bot owner or the game initiator can end this match.")
+		}
+
+		if isHost && !isBotOwner {
+			if existingGame.State == utils.WCGStateInProgress && existingGame.IsPlayerEliminated(senderLID) {
+				return ctx.Reply("You cannot end the match because you have been eliminated! Only the bot owner can end an active match after host elimination.")
+			}
+		}
+
 		existingGame.StopTimers()
 		utils.DeleteWCGGame(chatKey)
 		return ctx.Reply("Word Chain Game (WCG) ended.")
+	}
+
+	if arg0 == "join" {
+		if existingGame == nil {
+			return ctx.Reply(fmt.Sprintf("No active WCG lobby in this chat. Start one with %swcg", ctx.GetPrefix()))
+		}
+		existingGame.Mu.Lock()
+		if existingGame.State != utils.WCGStateLobby {
+			existingGame.Mu.Unlock()
+			return ctx.Reply("WCG game is already in progress!")
+		}
+		senderLID := ctx.Sender.ToNonAD()
+		if existingGame.FindPlayerIndex(senderLID) != -1 {
+			existingGame.Mu.Unlock()
+			return ctx.Reply("You have already joined the WCG match!")
+		}
+		existingGame.Mu.Unlock()
+
+		mentionJID, username := ctx.ResolveMention(senderLID)
+		tag := "@" + username
+		if !existingGame.AddPlayer(senderLID, mentionJID, tag) {
+			return ctx.Reply("WCG match has already started!")
+		}
+
+		msg := fmt.Sprintf("%s joined the WCG match! (%d players in lobby)\nType 'join' to join or wait for the host to start.", tag, len(existingGame.Players))
+		return ctx.ReplyWithMentions(msg, []types.JID{mentionJID})
 	}
 
 	// Start sub-command
@@ -296,6 +342,15 @@ func handleWCGChain(ctx *Context) error {
 		if existingGame != nil {
 			existingGame.Mu.Lock()
 			if existingGame.State == utils.WCGStateLobby {
+				senderLID := ctx.Sender.ToNonAD()
+				isBotOwner := ctx.IsSudo()
+				isHost := ctx.IsSameUser(existingGame.HostLID, senderLID)
+
+				if !isBotOwner && !isHost {
+					existingGame.Mu.Unlock()
+					return ctx.Reply("Only the game initiator or bot owner can start the match!")
+				}
+
 				if len(existingGame.Players) == 0 {
 					existingGame.Mu.Unlock()
 					return ctx.Reply("No players in lobby yet! Type `join` to join first.")
@@ -373,8 +428,8 @@ func startWCGChainGame(ctx *Context, game *utils.WCGGame) {
 		mentions = append(mentions, p.MentionJID)
 	}
 
-	// Pick random starting letter (a-z)
-	startRune := rune('a' + rand.Intn(26))
+	// Pick random starting letter (A-Z)
+	startRune := utils.GetRandomStartingLetter()
 	game.Mu.Lock()
 	game.RequiredChar = startRune
 	game.MinLength = 3
@@ -383,7 +438,7 @@ func startWCGChainGame(ctx *Context, game *utils.WCGGame) {
 	game.Mu.Unlock()
 
 	msg := fmt.Sprintf("Word Chain Game (WCG) Started!\n\nPlayers (%d): %s\n\nStarting Letter: '%c' (Round 1 Min Length: 3)\nWords are validated in real-time across 5 dictionary APIs!",
-		len(active), strings.Join(playerTags, ", "), startRune)
+		len(active), strings.Join(playerTags, ", "), unicode.ToUpper(startRune))
 	_ = ctx.ReplyWithMentions(msg, mentions)
 
 	startWCGChainTurn(ctx, game)
@@ -398,7 +453,7 @@ func startWCGChainTurn(ctx *Context, game *utils.WCGGame) {
 	}
 
 	msg := fmt.Sprintf("TURN: %s\n\nRound %d\nRequired Starting Letter: *%c*\nMinimum Word Length: *%d* characters\nTime Limit: %d seconds!\n\nType a valid English word matching the required letter!",
-		currentPlayer.Tag, game.RoundCount, reqChar, minLen, timeSec)
+		currentPlayer.Tag, game.RoundCount, unicode.ToUpper(reqChar), minLen, timeSec)
 
 	p := ctx.GetPrefix()
 	buttons := []struct{ ID, Text string }{
@@ -431,7 +486,7 @@ func startWCGChainTurn(ctx *Context, game *utils.WCGGame) {
 		}
 
 		timeoutMsg := fmt.Sprintf("Time's up for %s!\nFailed to submit a valid word starting with '%c'.\n%s has been eliminated!",
-			currentPlayer.Tag, reqChar, currentPlayer.Tag)
+			currentPlayer.Tag, unicode.ToUpper(reqChar), currentPlayer.Tag)
 		_ = cctx.ReplyWithMentions(timeoutMsg, []types.JID{currentPlayer.MentionJID})
 
 		eliminateAndAdvanceWCG(cctx, game)
@@ -497,8 +552,11 @@ func finishWCGChainGame(ctx *Context, game *utils.WCGGame, winner *utils.WCGPlay
 
 	// Check if last player standing is not highest scorer
 	if winner != nil && highestPlayer != nil && winner.LID.User != highestPlayer.LID.User {
+		winnerTag, winnerJID := ctx.FormatMention(winner.MentionJID)
+		highestTag, highestJID := ctx.FormatMention(highestPlayer.MentionJID)
+
 		promptMsg := fmt.Sprintf("Notice for %s:\nYou are the last player standing, but you do not have the highest score (Highest: %s with %d pts vs your %d pts).\nWould you like to continue playing solo to obtain higher points or end this game?",
-			winner.Tag, highestPlayer.Tag, highestScore, winner.Score)
+			winnerTag, highestTag, highestScore, winner.Score)
 
 		p := ctx.GetPrefix()
 		buttons := []struct{ ID, Text string }{
@@ -506,7 +564,7 @@ func finishWCGChainGame(ctx *Context, game *utils.WCGGame, winner *utils.WCGPlay
 			{ID: p + "wcg cancel", Text: "End Game"},
 		}
 
-		_ = sendInteractiveButtons(ctx, promptMsg, "WhatsRook Word Chain", buttons)
+		_ = sendInteractiveButtonsWithMentions(ctx, promptMsg, "WhatsRook Word Chain", buttons, []types.JID{winnerJID, highestJID})
 	}
 }
 
@@ -647,7 +705,12 @@ func HandleWCGLobbyInput(ctx *Context, text string) bool {
 	game.Mu.Unlock()
 
 	trimmed := strings.ToLower(strings.TrimSpace(text))
-	if trimmed != "join" {
+	isJoinCmd := trimmed == "join" || trimmed == "wcg join"
+	if !isJoinCmd {
+		clean := strings.Trim(trimmed, ".!/#$%^&*()_+-=`~")
+		isJoinCmd = clean == "join" || clean == "wcg join" || strings.HasSuffix(clean, "wcg join")
+	}
+	if !isJoinCmd {
 		return false
 	}
 
@@ -660,7 +723,10 @@ func HandleWCGLobbyInput(ctx *Context, text string) bool {
 	senderLID := ctx.Sender.ToNonAD()
 	if game.FindPlayerIndex(senderLID) != -1 {
 		game.Mu.Unlock()
-		return true // already joined, silently ignore or reply below
+		mentionJID, username := ctx.ResolveMention(senderLID)
+		tag := "@" + username
+		_ = ctx.ReplyWithMentions(fmt.Sprintf("%s you have already joined the WCG match!", tag), []types.JID{mentionJID})
+		return true
 	}
 	game.Mu.Unlock()
 

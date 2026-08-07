@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -37,19 +36,23 @@ func (c *Client) DownloadInstagram(ctx context.Context, rawURL string) (*Result,
 	outTemplate := filepath.Join(tmpDir, "ig_%(id)s_%(autonumber)s.%(ext)s")
 
 	// 1. Dump full metadata structure
+	// 1. Dump full metadata structure
 	metaArgs := []string{
+		"--no-check-certificates",
+		"--legacy-server-connect",
 		"--dump-single-json",
 		"--no-warnings",
 		rawURL,
 	}
 
-	cmdMeta := exec.CommandContext(ctx, "yt-dlp", metaArgs...)
-	metaOut, err := cmdMeta.Output()
+	binPath, err := GetYTDLPPath(ctx)
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			return nil, fmt.Errorf("yt-dlp metadata failed: %s", string(exitErr.Stderr))
-		}
-		return nil, fmt.Errorf("failed to run yt-dlp: %w", err)
+		return nil, fmt.Errorf("failed to locate yt-dlp binary: %w", err)
+	}
+
+	metaOut, err := executeYtDlpWithRetry(ctx, binPath, metaArgs)
+	if err != nil {
+		return nil, fmt.Errorf("yt-dlp metadata failed: %w", err)
 	}
 
 	var root ytDlpSingleJson
@@ -59,15 +62,16 @@ func (c *Client) DownloadInstagram(ctx context.Context, rawURL string) (*Result,
 
 	// 2. Execute download to disk
 	dlArgs := []string{
+		"--no-check-certificates",
+		"--legacy-server-connect",
 		"-f", "b[ext=mp4]/bv*[ext=mp4]+ba[ext=m4a]/b",
 		"-o", outTemplate,
 		"--no-warnings",
 		rawURL,
 	}
 
-	cmdDl := exec.CommandContext(ctx, "yt-dlp", dlArgs...)
-	if dlOut, err := cmdDl.CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("yt-dlp download failed: %s", string(dlOut))
+	if _, err := executeYtDlpWithRetry(ctx, binPath, dlArgs); err != nil {
+		return nil, fmt.Errorf("yt-dlp download failed: %w", err)
 	}
 
 	var items []MediaItem
