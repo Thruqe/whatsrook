@@ -53,7 +53,7 @@ func (c *Client) DownloadTwitter(ctx context.Context, rawURL string) (*Result, e
 	mainLog.Debugf("Syndication API failed for tweet %s: %v", tweetID, err)
 
 	// Strategy 2: Twitsave extractor
-	resTwit, errTwit := c.fetchTwitterTwitsave(ctx, canonicalURL, tweetID)
+	resTwit, errTwit := c.fetchTwitterTwitsave(ctx, tweetID)
 	if errTwit == nil && resTwit != nil && len(resTwit.Items) > 0 {
 		return resTwit, nil
 	}
@@ -178,7 +178,7 @@ func (c *Client) fetchTwitterSyndication(ctx context.Context, tweetID string) (*
 	}, nil
 }
 
-func (c *Client) fetchTwitterTwitsave(ctx context.Context, rawURL, tweetID string) (*Result, error) {
+func (c *Client) fetchTwitterTwitsave(ctx context.Context, tweetID string) (*Result, error) {
 	canonicalURL := fmt.Sprintf("https://twitter.com/i/status/%s", tweetID)
 	apiURL := "https://twitsave.com/info?url=" + url.QueryEscape(canonicalURL)
 

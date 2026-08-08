@@ -5,17 +5,79 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 
 	"whatsrook/utils"
 )
 
 var ytLog = utils.WhatsmeowStyle("Downloader/YouTube", "DEBUG", true)
 var ytIDRegex = regexp.MustCompile(`(?:v=|/v/|embed/|shorts/|youtu\.be/)([a-zA-Z0-9_-]{11})`)
+
+const fallbackCookiesURL = "https://gist.githubusercontent.com/Thruqe/e43b6b98dd75f4f5e31bc319365f05e0/raw/dbe5901ecb7586d29684217d6645a29e617f34f0/cookies.txt"
+
+var (
+	fallbackCookieOnce sync.Once
+	fallbackCookiePath string // empty string means fetch failed / unavailable
+)
+
+// getFallbackCookieFile lazily fetches and caches a generic fallback cookies file
+// to disk, for use only when no CookieFile is configured on the client.
+// If the fetch fails for any reason, it returns "" and callers should proceed
+// without cookies (surfacing the normal bot-detection error downstream).
+func getFallbackCookieFile(ctx context.Context) string {
+	fallbackCookieOnce.Do(func() {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, fallbackCookiesURL, nil)
+		if err != nil {
+			ytLog.Debugf("Fallback cookies: failed to build request: %v", err)
+			return
+		}
+
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			ytLog.Debugf("Fallback cookies: fetch failed: %v", err)
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			ytLog.Debugf("Fallback cookies: unexpected status %d", resp.StatusCode)
+			return
+		}
+
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // cap at 1MB, sanity limit
+		if err != nil {
+			ytLog.Debugf("Fallback cookies: read failed: %v", err)
+			return
+		}
+
+		trimmed := bytes.TrimSpace(body)
+		if len(trimmed) == 0 {
+			ytLog.Debugf("Fallback cookies: empty response body")
+			return
+		}
+
+		tmpPath := filepath.Join(os.TempDir(), "whatsrook_fallback_cookies.txt")
+		if err := os.WriteFile(tmpPath, trimmed, 0o600); err != nil {
+			ytLog.Debugf("Fallback cookies: failed to write temp file: %v", err)
+			return
+		}
+
+		ytLog.Debugf("Fallback cookies: cached to %s (%d bytes)", tmpPath, len(trimmed))
+		fallbackCookiePath = tmpPath
+	})
+
+	return fallbackCookiePath
+}
 
 type MediaInfo struct {
 	ID         string  `json:"id"`
@@ -76,15 +138,25 @@ func (c *Client) runYtDlp(ctx context.Context, args ...string) ([]byte, error) {
 	var finalArgs []string
 	finalArgs = append(finalArgs, "--no-check-certificates", "--legacy-server-connect")
 
-	if c.CookieFile != "" {
-		if _, err := os.Stat(c.CookieFile); err == nil {
-			ytLog.Debugf("Using YouTube cookies file: %s", c.CookieFile)
-			finalArgs = append(finalArgs, "--cookies", c.CookieFile)
+	cookieFile := c.CookieFile
+	if cookieFile != "" {
+		if _, err := os.Stat(cookieFile); err == nil {
+			ytLog.Debugf("Using YouTube cookies file: %s", cookieFile)
+			finalArgs = append(finalArgs, "--cookies", cookieFile)
 		} else {
-			ytLog.Warnf("CookieFile specified (%s) but file not found on disk", c.CookieFile)
+			ytLog.Warnf("CookieFile specified (%s) but file not found on disk", cookieFile)
+			cookieFile = ""
 		}
-	} else {
-		ytLog.Debugf("No CookieFile configured on downloader client")
+	}
+
+	if cookieFile == "" {
+		ytLog.Debugf("No CookieFile configured on downloader client; attempting fallback cookies")
+		if fbPath := getFallbackCookieFile(ctx); fbPath != "" {
+			ytLog.Debugf("Using fallback cookies file: %s", fbPath)
+			finalArgs = append(finalArgs, "--cookies", fbPath)
+		} else {
+			ytLog.Debugf("Fallback cookies unavailable; proceeding without cookies")
+		}
 	}
 
 	finalArgs = append(finalArgs, args...)
