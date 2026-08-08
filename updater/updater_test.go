@@ -1,6 +1,8 @@
 package updater_test
 
 import (
+	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -53,5 +55,33 @@ func TestGetPlatform(t *testing.T) {
 	platform := updater.GetPlatform()
 	if platform == "" || platform == "/" {
 		t.Errorf("expected valid OS/Arch platform string, got %q", platform)
+	}
+}
+
+func TestUpdaterOptions(t *testing.T) {
+	var buf bytes.Buffer
+	up := updater.New(updater.Options{
+		RepoOwner:   "TestOwner",
+		RepoName:    "TestRepo",
+		VersionFile: "custom_version.toml",
+		Out:         &buf,
+	})
+
+	if up == nil {
+		t.Fatal("expected non-nil Updater instance")
+	}
+
+	up.SetOutput(&buf)
+	ctx := context.Background()
+
+	// Perform a check against invalid remote to verify custom options are used
+	_, err := up.Check(ctx)
+	if err == nil {
+		t.Log("check finished without error")
+	}
+
+	output := buf.String()
+	if output == "" {
+		t.Errorf("expected progress output to be written to buffer, got empty")
 	}
 }

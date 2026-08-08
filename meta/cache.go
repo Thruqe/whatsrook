@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"go.mau.fi/whatsmeow/types"
+	"whatsrook/wa-core/types"
 )
 
 const cacheTTL = 10 * time.Minute

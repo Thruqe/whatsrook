@@ -6,9 +6,9 @@ import (
 	"slices"
 	"strings"
 
-	"whatsrook/store/sqlstore"
+	"whatsrook/wa-core/store/sqlstore"
 
-	"go.mau.fi/whatsmeow/types"
+	"whatsrook/wa-core/types"
 )
 
 func init() {

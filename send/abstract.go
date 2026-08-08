@@ -7,33 +7,29 @@ import (
 	"log/slog"
 	"strings"
 
-	"whatsrook/store/sqlstore"
 	"whatsrook/utils"
+	"whatsrook/wa-core/store/sqlstore"
 
-	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/types"
 	"google.golang.org/protobuf/proto"
+	"whatsrook/wa-core"
+	"whatsrook/wa-core/proto/waE2E"
+	"whatsrook/wa-core/types"
 )
-
-func ptr[T any](v T) *T {
-	return &v
-}
 
 // CreateInteractiveButtonMessage constructs a waE2E.Message containing interactive response buttons.
 func CreateInteractiveButtonMessage(bodyText string, buttons []struct{ ID, Text string }) *waE2E.Message {
 	var btnList []*waE2E.ButtonsMessage_Button
 	for _, b := range buttons {
 		btnList = append(btnList, &waE2E.ButtonsMessage_Button{
-			ButtonID:   proto.String(b.ID),
-			ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: proto.String(b.Text)},
+			ButtonID:   new(b.ID),
+			ButtonText: &waE2E.ButtonsMessage_Button_ButtonText{DisplayText: new(b.Text)},
 			Type:       waE2E.ButtonsMessage_Button_RESPONSE.Enum(),
 		})
 	}
 
 	return &waE2E.Message{
 		ButtonsMessage: &waE2E.ButtonsMessage{
-			ContentText: proto.String(bodyText),
+			ContentText: new(bodyText),
 			HeaderType:  waE2E.ButtonsMessage_EMPTY.Enum(),
 			Buttons:     btnList,
 		},
@@ -263,12 +259,12 @@ func (ctx *PluginContext) sendVideoInternal(data []byte, mimetype, caption strin
 			Mimetype:      &mimetype,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    ptr(uint64(len(data))),
+			FileLength:    new(uint64(len(data))),
 			Caption:       &caption,
 		},
 	}
 	if gifPlayback {
-		msg.VideoMessage.GifPlayback = ptr(true)
+		msg.VideoMessage.GifPlayback = new(true)
 	}
 	slog.Debug("Sending SendVideo", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
@@ -309,13 +305,13 @@ func (ctx *PluginContext) replyVideoInternal(data []byte, mimetype, caption stri
 			Mimetype:      &mimetype,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    ptr(uint64(len(data))),
+			FileLength:    new(uint64(len(data))),
 			Caption:       &caption,
 			ContextInfo:   cinfo,
 		},
 	}
 	if gifPlayback {
-		msg.VideoMessage.GifPlayback = ptr(true)
+		msg.VideoMessage.GifPlayback = new(true)
 	}
 	slog.Debug("Sending replyVideoInternal", "chat", ctx.Chat.String(), "url", uploaded.URL)
 	_, err = ctx.Client.SendMessage(ctx.GetSendContext(), ctx.Chat, msg)
@@ -533,33 +529,80 @@ func (ctx *PluginContext) GetMentionedJIDs() []types.JID {
 	return out
 }
 
-// GetArgsJIDs parses any phone numbers or JID strings in command args.
-func (ctx *PluginContext) GetArgsJIDs() []types.JID {
-	var out []types.JID
-	for _, arg := range ctx.Args {
-		clean := strings.TrimLeft(arg, "@")
-		clean = strings.TrimSpace(clean)
-		if clean == "" {
-			continue
+// ParseUserJID parses and validates a raw JID, LID, or phone number string.
+// It handles leading @, + signs, formatted numbers (+1 (234) 567-8900), LID domains (lid.whatsapp.net -> lid),
+// c.us -> s.whatsapp.net, and device IDs (:1 -> ToNonAD()).
+func ParseUserJID(raw string) (types.JID, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return types.EmptyJID, fmt.Errorf("empty JID string")
+	}
+
+	clean := strings.TrimLeft(raw, "@")
+	clean = strings.TrimSpace(clean)
+	if clean == "" {
+		return types.EmptyJID, fmt.Errorf("empty JID string after trimming '@'")
+	}
+
+	if idx := strings.IndexByte(clean, '@'); idx != -1 {
+		userPart := clean[:idx]
+		domainPart := strings.ToLower(clean[idx+1:])
+		userPart = strings.TrimLeft(userPart, "+")
+
+		switch domainPart {
+		case "c.us", "s.whatsapp.net":
+			domainPart = types.DefaultUserServer
+		case "lid.whatsapp.net", "lid":
+			domainPart = types.HiddenUserServer
 		}
-		if strings.Contains(clean, "@") {
-			j, err := types.ParseJID(clean)
-			if err == nil {
-				out = append(out, j)
-			}
-		} else {
+
+		if domainPart == types.DefaultUserServer || domainPart == types.HiddenUserServer {
 			var digits strings.Builder
-			for _, r := range clean {
+			for _, r := range userPart {
 				if r >= '0' && r <= '9' {
 					digits.WriteRune(r)
 				}
 			}
 			if digits.Len() > 0 {
-				j, err := types.ParseJID(digits.String() + "@" + types.DefaultUserServer)
-				if err == nil {
-					out = append(out, j)
-				}
+				userPart = digits.String()
 			}
+		}
+
+		parsed, err := types.ParseJID(userPart + "@" + domainPart)
+		if err != nil {
+			return types.EmptyJID, err
+		}
+		cleanJID := parsed.ToNonAD()
+		if cleanJID.IsEmpty() || cleanJID.User == "" {
+			return types.EmptyJID, fmt.Errorf("invalid JID user")
+		}
+		return cleanJID, nil
+	}
+
+	var digits strings.Builder
+	for _, r := range clean {
+		if r >= '0' && r <= '9' {
+			digits.WriteRune(r)
+		}
+	}
+
+	if digits.Len() == 0 {
+		return types.EmptyJID, fmt.Errorf("no valid digits in JID string: %q", raw)
+	}
+
+	parsed := types.NewJID(digits.String(), types.DefaultUserServer).ToNonAD()
+	if parsed.IsEmpty() || parsed.User == "" {
+		return types.EmptyJID, fmt.Errorf("invalid JID user")
+	}
+	return parsed, nil
+}
+
+// GetArgsJIDs parses any phone numbers or JID strings in command args.
+func (ctx *PluginContext) GetArgsJIDs() []types.JID {
+	var out []types.JID
+	for _, arg := range ctx.Args {
+		if j, err := ParseUserJID(arg); err == nil && !j.IsEmpty() {
+			out = append(out, j)
 		}
 	}
 	return out
@@ -829,13 +872,13 @@ func (ctx *PluginContext) SendAudio(data []byte, mimetype string) error {
 			Mimetype:      &mimetype,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    proto.Uint64(uint64(len(data))),
-			PTT:           proto.Bool(isPTT),
+			FileLength:    new(uint64(len(data))),
+			PTT:           new(isPTT),
 		},
 	}
 	if isPTT && meta != nil {
 		if meta.Seconds > 0 {
-			msg.AudioMessage.Seconds = proto.Uint32(meta.Seconds)
+			msg.AudioMessage.Seconds = new(meta.Seconds)
 		}
 		if len(meta.Waveform) > 0 {
 			msg.AudioMessage.Waveform = meta.Waveform
@@ -880,14 +923,14 @@ func (ctx *PluginContext) ReplyWithAudio(data []byte, mimetype string) error {
 			Mimetype:      &mimetype,
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
-			FileLength:    proto.Uint64(uint64(len(data))),
-			PTT:           proto.Bool(isPTT),
+			FileLength:    new(uint64(len(data))),
+			PTT:           new(isPTT),
 			ContextInfo:   cinfo,
 		},
 	}
-	if isPTT && meta != nil {
+	if meta != nil {
 		if meta.Seconds > 0 {
-			msg.AudioMessage.Seconds = proto.Uint32(meta.Seconds)
+			msg.AudioMessage.Seconds = new(meta.Seconds)
 		}
 		if len(meta.Waveform) > 0 {
 			msg.AudioMessage.Waveform = meta.Waveform
@@ -1122,21 +1165,25 @@ func ExtractViewOnceMessage(msg *waE2E.Message) *waE2E.Message {
 
 	cloned := proto.Clone(inner).(*waE2E.Message)
 
+	cloned.ViewOnceMessage = nil
+	cloned.ViewOnceMessageV2 = nil
+	cloned.ViewOnceMessageV2Extension = nil
+
 	if cloned.ImageMessage != nil {
-		cloned.ImageMessage.ViewOnce = new(bool)
+		cloned.ImageMessage.ViewOnce = new(false)
 	}
 	if cloned.VideoMessage != nil {
-		cloned.VideoMessage.ViewOnce = new(bool)
+		cloned.VideoMessage.ViewOnce = new(false)
 	}
 	if cloned.AudioMessage != nil {
-		cloned.AudioMessage.ViewOnce = new(bool)
+		cloned.AudioMessage.ViewOnce = new(false)
 	}
 
 	return cloned
 }
 
-// UnwrapAndSendViewOnceMessage downloads the encrypted ViewOnce media, re-uploads it with fresh media keys (preventing "media unavailable" CDN expiry), and sends to target JID.
-func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client, msg *waE2E.Message, senderJID types.JID, pushName string, targetJID types.JID) error {
+// UnwrapAndSendViewOnceMessage downloads the encrypted ViewOnce media, re-uploads it with fresh media keys (preventing "media unavailable" CDN expiry), and sends the clean unwrapped message object to target JID.
+func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client, msg *waE2E.Message, senderJID types.JID, pushName string, targetJID types.JID, sourceChat ...types.JID) error {
 	if msg == nil || client == nil {
 		return fmt.Errorf("invalid arguments")
 	}
@@ -1146,126 +1193,76 @@ func UnwrapAndSendViewOnceMessage(ctx context.Context, client *whatsmeow.Client,
 		return fmt.Errorf("failed to extract inner ViewOnce message")
 	}
 
-	senderUser := senderJID.ToNonAD().User
-	if pushName == "" {
-		pushName = senderUser
-	}
-
-	headerCaption := fmt.Sprintf("🔓 *UNWRAPPED VIEWONCE MEDIA*\n\nFrom: %s (@%s)", pushName, senderUser)
-
-	var mediaData []byte
-	var mediaType whatsmeow.MediaType
-	var mimeType string
-	var caption string
-
-	var audioMeta *utils.AudioPTTMeta
 	if img := unwrapped.GetImageMessage(); img != nil {
 		data, err := client.Download(ctx, img)
-		if err == nil && len(data) > 0 {
-			mediaData = data
-			mediaType = whatsmeow.MediaImage
-			mimeType = img.GetMimetype()
-			if mimeType == "" {
-				mimeType = "image/jpeg"
-			}
-			if img.GetCaption() != "" {
-				caption = fmt.Sprintf("%s\n\nCaption: %s", headerCaption, img.GetCaption())
-			} else {
-				caption = headerCaption
-			}
+		if err != nil {
+			return fmt.Errorf("failed to download viewonce image: %w", err)
 		}
+		if len(data) == 0 {
+			return fmt.Errorf("downloaded viewonce image data is empty")
+		}
+		uploaded, errUp := client.Upload(ctx, data, whatsmeow.MediaImage)
+		if errUp != nil {
+			return fmt.Errorf("failed to upload unwrapped viewonce image: %w", errUp)
+		}
+		img.URL = &uploaded.URL
+		img.DirectPath = &uploaded.DirectPath
+		img.MediaKey = uploaded.MediaKey
+		img.FileEncSHA256 = uploaded.FileEncSHA256
+		img.FileSHA256 = uploaded.FileSHA256
+		img.FileLength = new(uint64(len(data)))
+		img.ViewOnce = new(false)
 	} else if vid := unwrapped.GetVideoMessage(); vid != nil {
 		data, err := client.Download(ctx, vid)
-		if err == nil && len(data) > 0 {
-			mediaData = data
-			mediaType = whatsmeow.MediaVideo
-			mimeType = vid.GetMimetype()
-			if mimeType == "" {
-				mimeType = "video/mp4"
-			}
-			if vid.GetCaption() != "" {
-				caption = fmt.Sprintf("%s\n\nCaption: %s", headerCaption, vid.GetCaption())
-			} else {
-				caption = headerCaption
-			}
+		if err != nil {
+			return fmt.Errorf("failed to download viewonce video: %w", err)
 		}
+		if len(data) == 0 {
+			return fmt.Errorf("downloaded viewonce video data is empty")
+		}
+		uploaded, errUp := client.Upload(ctx, data, whatsmeow.MediaVideo)
+		if errUp != nil {
+			return fmt.Errorf("failed to upload unwrapped viewonce video: %w", errUp)
+		}
+		vid.URL = &uploaded.URL
+		vid.DirectPath = &uploaded.DirectPath
+		vid.MediaKey = uploaded.MediaKey
+		vid.FileEncSHA256 = uploaded.FileEncSHA256
+		vid.FileSHA256 = uploaded.FileSHA256
+		vid.FileLength = new(uint64(len(data)))
+		vid.ViewOnce = new(false)
 	} else if aud := unwrapped.GetAudioMessage(); aud != nil {
 		data, err := client.Download(ctx, aud)
-		if err == nil && len(data) > 0 {
-			meta, cErr := utils.EnsureOpusPTT(ctx, data)
-			if cErr == nil && meta != nil && len(meta.Data) > 0 {
-				data = meta.Data
-				audioMeta = meta
-			}
-			mediaData = data
-			mediaType = whatsmeow.MediaAudio
-			mimeType = "audio/ogg; codecs=opus"
-			caption = headerCaption
+		if err != nil {
+			return fmt.Errorf("failed to download viewonce audio: %w", err)
 		}
-	}
-
-	// If media download succeeded, re-upload to CDN to ensure fresh media keys!
-	if len(mediaData) > 0 {
-		uploaded, errUp := client.Upload(ctx, mediaData, mediaType)
-		if errUp == nil {
-			var freshMsg *waE2E.Message
-			if mediaType == whatsmeow.MediaImage {
-				freshMsg = &waE2E.Message{
-					ImageMessage: &waE2E.ImageMessage{
-						URL:           &uploaded.URL,
-						DirectPath:    &uploaded.DirectPath,
-						MediaKey:      uploaded.MediaKey,
-						Mimetype:      &mimeType,
-						FileEncSHA256: uploaded.FileEncSHA256,
-						FileSHA256:    uploaded.FileSHA256,
-						FileLength:    proto.Uint64(uint64(len(mediaData))),
-						Caption:       &caption,
-					},
-				}
-			} else if mediaType == whatsmeow.MediaVideo {
-				freshMsg = &waE2E.Message{
-					VideoMessage: &waE2E.VideoMessage{
-						URL:           &uploaded.URL,
-						DirectPath:    &uploaded.DirectPath,
-						MediaKey:      uploaded.MediaKey,
-						Mimetype:      &mimeType,
-						FileEncSHA256: uploaded.FileEncSHA256,
-						FileSHA256:    uploaded.FileSHA256,
-						FileLength:    proto.Uint64(uint64(len(mediaData))),
-						Caption:       &caption,
-					},
-				}
-			} else if mediaType == whatsmeow.MediaAudio {
-				freshMsg = &waE2E.Message{
-					AudioMessage: &waE2E.AudioMessage{
-						URL:           &uploaded.URL,
-						DirectPath:    &uploaded.DirectPath,
-						MediaKey:      uploaded.MediaKey,
-						Mimetype:      &mimeType,
-						FileEncSHA256: uploaded.FileEncSHA256,
-						FileSHA256:    uploaded.FileSHA256,
-						FileLength:    proto.Uint64(uint64(len(mediaData))),
-						PTT:           proto.Bool(true),
-					},
-				}
-				if audioMeta != nil {
-					if audioMeta.Seconds > 0 {
-						freshMsg.AudioMessage.Seconds = proto.Uint32(audioMeta.Seconds)
-					}
-					if len(audioMeta.Waveform) > 0 {
-						freshMsg.AudioMessage.Waveform = audioMeta.Waveform
-					}
-				}
+		if len(data) == 0 {
+			return fmt.Errorf("downloaded viewonce audio data is empty")
+		}
+		meta, cErr := utils.EnsureOpusPTT(ctx, data)
+		if cErr == nil && meta != nil && len(meta.Data) > 0 {
+			data = meta.Data
+			if meta.Seconds > 0 {
+				aud.Seconds = new(meta.Seconds)
 			}
-
-			if freshMsg != nil {
-				_, errSend := client.SendMessage(ctx, targetJID, freshMsg)
-				return errSend
+			if len(meta.Waveform) > 0 {
+				aud.Waveform = meta.Waveform
 			}
 		}
+		uploaded, errUp := client.Upload(ctx, data, whatsmeow.MediaAudio)
+		if errUp != nil {
+			return fmt.Errorf("failed to upload unwrapped viewonce audio: %w", errUp)
+		}
+		aud.URL = &uploaded.URL
+		aud.DirectPath = &uploaded.DirectPath
+		aud.MediaKey = uploaded.MediaKey
+		aud.FileEncSHA256 = uploaded.FileEncSHA256
+		aud.FileSHA256 = uploaded.FileSHA256
+		aud.FileLength = new(uint64(len(data)))
+		aud.PTT = new(true)
+		aud.ViewOnce = new(false)
 	}
 
-	// Fallback to sending unwrapped raw proto
 	_, err := client.SendMessage(ctx, targetJID, unwrapped)
 	return err
 }

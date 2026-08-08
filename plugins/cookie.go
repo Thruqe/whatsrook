@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"whatsrook/store/sqlstore"
+	"whatsrook/wa-core/store/sqlstore"
 )
 
 func init() {

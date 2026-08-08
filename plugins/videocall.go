@@ -6,10 +6,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"whatsrook/store/sqlstore"
 	"whatsrook/utils"
+	"whatsrook/wa-core/store/sqlstore"
 
-	"go.mau.fi/whatsmeow/proto/waE2E"
+	"whatsrook/wa-core/proto/waE2E"
 )
 
 func init() {

@@ -6,9 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/types"
-	"google.golang.org/protobuf/proto"
+	"whatsrook/wa-core/proto/waE2E"
+	"whatsrook/wa-core/types"
 )
 
 // Braille spinner frames for smooth text animation
@@ -72,7 +71,7 @@ func (l *Loader) activate() {
 
 	slog.Debug("StartLoader: sending loader message synchronously", "id", l.id, "text", l.initialText)
 	resp, err := l.ctx.Client.SendMessage(l.ctx.GetSendContext(), l.ctx.Chat, &waE2E.Message{
-		Conversation: proto.String(displayText),
+		Conversation: new(displayText),
 	})
 	if err != nil {
 		slog.Error("StartLoader: failed to send loader message", "err", err)

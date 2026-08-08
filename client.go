@@ -9,85 +9,133 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
+	"strings"
+	"sync"
 	"time"
 
 	"whatsrook/logger"
 	commands "whatsrook/plugins"
-	"whatsrook/store/sqlstore"
-	"whatsrook/updater"
 	"whatsrook/utils"
+	"whatsrook/wa-core/store/sqlstore"
 
-	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/types/events"
 	_ "modernc.org/sqlite"
+	"whatsrook/wa-core"
+	"whatsrook/wa-core/types/events"
 )
 
-// ExecuteCLI executes the WhatsRook CLI lifecycle.
-func ExecuteCLI() {
-	cli := parseArgs()
+// ClientType represents the platform emulated by the WhatsApp client.
+type ClientType int
 
-	if cli.Update {
-		fmt.Println("Checking for application update...")
-		res, err := updater.PerformUpdate(false)
-		if err != nil {
-			slog.Error("update failed", "err", err)
-			os.Exit(1)
-		}
+const (
+	ClientChrome ClientType = iota
+	ClientAndroid
+	ClientIos
+)
 
-		fmt.Println(res.Message)
-		if res.Updated {
-			fmt.Println("Restarting process...")
-			if err := updater.RestartProcess(); err != nil {
-				slog.Error("failed to restart process", "err", err)
-				os.Exit(1)
-			}
-		}
-		return
+// ParseClientType converts a platform name string to its ClientType enum.
+func ParseClientType(s string) (ClientType, bool) {
+	c, ok := map[string]ClientType{
+		"chrome":  ClientChrome,
+		"android": ClientAndroid,
+		"ios":     ClientIos,
+	}[strings.ToLower(s)]
+	return c, ok
+}
+
+// Config holds configuration parameters for a RookClient instance.
+type Config struct {
+	Session         string
+	Pair            bool
+	QRCode          bool
+	Logout          bool
+	Verbose         bool
+	ClientType      ClientType
+	SkipOldMessages bool
+	DataDir         string // Directory to store session data (default: "auth")
+	WSPort          int    // Base port for HTTP/WebSocket server (default: 3000)
+}
+
+// RookClient manages the WhatsRook bot lifecycle, event routing, database connection, and WebSocket server.
+type RookClient struct {
+	Config Config
+
+	hub        *Hub
+	client     *whatsmeow.Client
+	bot        *Bot
+	httpServer *http.Server
+	listener   net.Listener
+	mu         sync.Mutex
+}
+
+// NewRookClient returns a new RookClient initialized with the provided Config and sensible defaults.
+func NewRookClient(cfg Config) *RookClient {
+	r := &RookClient{Config: cfg}
+	r.applyDefaults()
+	return r
+}
+
+func (r *RookClient) applyDefaults() {
+	if r.Config.DataDir == "" {
+		r.Config.DataDir = "auth"
+	}
+	if r.Config.WSPort <= 0 {
+		r.Config.WSPort = 3000
+	}
+}
+
+// Client returns the underlying whatsmeow Client instance (available after connection/start).
+func (r *RookClient) Client() *whatsmeow.Client {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.client
+}
+
+// Hub returns the central WebSocket event and control hub.
+func (r *RookClient) Hub() *Hub {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.hub
+}
+
+// Start launches the full RookClient lifecycle (DB connection, HTTP/WS server, network guard, and WhatsApp engine).
+func (r *RookClient) Start(ctx context.Context) error {
+	r.applyDefaults()
+
+	if r.Config.Session == "" {
+		return errors.New("session phone number is required")
 	}
 
-	sessionDir := filepath.Join("auth", cli.Session)
+	sessionDir := filepath.Join(r.Config.DataDir, r.Config.Session)
 	if err := os.MkdirAll(sessionDir, 0755); err != nil {
-		slog.Error("failed to create session dir", "path", sessionDir, "err", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to create session dir %q: %w", sessionDir, err)
 	}
 
-	if err := logger.InitLogger(sessionDir, cli.Verbose); err != nil {
-		slog.Error("failed to initialize logger", "err", err)
-		os.Exit(1)
+	if err := logger.InitLogger(sessionDir, r.Config.Verbose); err != nil {
+		return fmt.Errorf("failed to initialize logger: %w", err)
 	}
 	defer logger.Close()
 
-	dbPath := filepath.Join(sessionDir, cli.Session+".db")
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	dbPath := filepath.Join(sessionDir, r.Config.Session+".db")
 
 	// Start background network health guard & auto-pause manager.
 	utils.StartNetworkGuard(ctx, 10*time.Second)
 
-	// Graceful shutdown on Ctrl+C / SIGTERM.
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-sigCh
-		slog.Info("shutting down process")
-		cancel()
-	}()
-
 	waLevel := "INFO"
-	if cli.Verbose {
+	if r.Config.Verbose {
 		waLevel = "DEBUG"
 	}
 
 	// WebSocket hub + HTTP server (shared across retries).
 	hub := newHub()
+	r.mu.Lock()
+	r.hub = hub
+	r.mu.Unlock()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", hub.ServeWS(false))
 
-	startPort := 3000
+	startPort := r.Config.WSPort
 	var listener net.Listener
 	var actualPort int
 	for p := startPort; p < startPort+100; p++ {
@@ -103,30 +151,35 @@ func ExecuteCLI() {
 	}
 
 	if listener == nil {
-		slog.Error("failed to find an available port to bind HTTP server")
-		os.Exit(1)
+		return errors.New("failed to find an available port to bind HTTP server")
 	}
 
 	if actualPort != startPort {
 		slog.Warn("port in use — switched to alternative port", "original_port", startPort, "new_port", actualPort)
 	}
 
-	server := &http.Server{
-		Handler: mux,
-	}
+	r.listener = listener
+	server := &http.Server{Handler: mux}
+	r.httpServer = server
+
 	go func() {
-		slog.Info("listening", "port", actualPort, "session", cli.Session)
-		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
+		slog.Info("listening", "port", actualPort, "session", r.Config.Session)
+		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("http server error", "err", err)
 		}
 	}()
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		_ = server.Shutdown(shutdownCtx)
+	}()
 
 	for {
-		err := runSession(ctx, cli, sessionDir, dbPath, waLevel, hub)
+		err := r.runSession(ctx, sessionDir, dbPath, waLevel)
 
 		// Clean shutdown or context cancelled — exit normally.
 		if err == nil || errors.Is(err, context.Canceled) {
-			return
+			return nil
 		}
 
 		// Pairing stalled (malformed WA notification). Wipe the session and retry.
@@ -134,7 +187,7 @@ func ExecuteCLI() {
 			slog.Error("session error", "err", "Pairing timed out — WhatsApp sent a bad response.")
 			slog.Warn("session action", "warn", "The session directory will be cleared and a new code generated.")
 
-			wipeSession(sessionDir)
+			WipeSession(sessionDir)
 
 			for i := 10; i > 0; i-- {
 				fmt.Printf("\r  Retrying in %2ds…", i)
@@ -142,7 +195,7 @@ func ExecuteCLI() {
 				case <-time.After(time.Second):
 				case <-ctx.Done():
 					fmt.Println()
-					return
+					return nil
 				}
 			}
 			fmt.Println("\r  Retrying now…         ")
@@ -150,15 +203,12 @@ func ExecuteCLI() {
 		}
 
 		// Any other error is fatal.
-		slog.Error("session error", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("session error: %w", err)
 	}
 }
 
-// runSession opens the DB, creates a whatsmeow client, handles --logout, then
-// runs the bot. It returns ErrPairTimeout when --pair stalls so the caller
-// can wipe + retry, or nil on clean shutdown.
-func runSession(ctx context.Context, cli Arguments, sessionDir, dbPath, waLevel string, hub *Hub) error {
+// runSession opens the DB, creates a whatsmeow client, handles logout if configured, then runs the bot.
+func (r *RookClient) runSession(ctx context.Context, sessionDir, dbPath, waLevel string) error {
 	dbLog := logger.WhatsmeowStyle("Database", waLevel, true)
 	container, err := sqlstore.New(ctx, "sqlite", fmt.Sprintf(
 		"file:%s?_pragma=busy_timeout=5000&_pragma=journal_mode=WAL&_pragma=synchronous=NORMAL&_pragma=foreign_keys=on&_pragma=cache_size=-2000",
@@ -184,12 +234,16 @@ func runSession(ctx context.Context, cli Arguments, sessionDir, dbPath, waLevel 
 	clientLog := logger.WhatsmeowStyle("Client", "INFO", true)
 	client := whatsmeow.NewClient(deviceStore, clientLog)
 
+	r.mu.Lock()
+	r.client = client
+	r.mu.Unlock()
+
 	// Initialize meowcaller before connecting whatsmeow so raw call adapter hook is installed
 	commands.RegisterMeowCaller(client)
 
 	// ── Logout
-	if cli.Logout {
-		slog.Info("logging out session", "session", cli.Session)
+	if r.Config.Logout {
+		slog.Info("logging out session", "session", r.Config.Session)
 
 		if deviceStore.ID == nil {
 			slog.Info("session was never paired, skipping server logout")
@@ -225,18 +279,22 @@ func runSession(ctx context.Context, cli Arguments, sessionDir, dbPath, waLevel 
 
 		// Close DB explicitly before file deletion
 		_ = container.Close()
-		wipeSession(sessionDir)
-		slog.Info("session directory cleared successfully", "session", cli.Session)
+		WipeSession(sessionDir)
+		slog.Info("session directory cleared successfully", "session", r.Config.Session)
 		return nil
 	}
 
 	// ── Normal / pair run
-	bot := newBot(client, hub, cli)
+	bot := newBot(client, r.hub, r.Config)
+	r.mu.Lock()
+	r.bot = bot
+	r.mu.Unlock()
+
 	return bot.run(ctx)
 }
 
-// wipeSession removes the session folder and all contained database/cache files.
-func wipeSession(sessionDir string) {
+// WipeSession removes the session folder and all contained database/cache files.
+func WipeSession(sessionDir string) {
 	if err := os.RemoveAll(sessionDir); err != nil && !os.IsNotExist(err) {
 		slog.Error("failed to remove session directory", "path", sessionDir, "err", err)
 		return

@@ -6,7 +6,7 @@ import (
 
 	"whatsrook/utils"
 
-	"go.mau.fi/whatsmeow/proto/waE2E"
+	"whatsrook/wa-core/proto/waE2E"
 )
 
 func TestURLMatching(t *testing.T) {

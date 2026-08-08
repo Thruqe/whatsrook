@@ -4,7 +4,7 @@ package plugins
 import (
 	"fmt"
 
-	"go.mau.fi/whatsmeow/types"
+	"whatsrook/wa-core/types"
 )
 
 func init() {

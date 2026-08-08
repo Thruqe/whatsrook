@@ -14,13 +14,13 @@ import (
 	"sync"
 	"time"
 
-	"whatsrook/store/sqlstore"
 	"whatsrook/utils"
+	"whatsrook/wa-core/store/sqlstore"
 
-	"go.mau.fi/whatsmeow/proto/waE2E"
+	"whatsrook/wa-core/proto/waE2E"
 
-	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/types"
+	"whatsrook/wa-core"
+	"whatsrook/wa-core/types"
 )
 
 // Supported timezones list for interactive pagination selection

@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func startTempJanitor() {
+func tmpCron() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 	for range ticker.C {

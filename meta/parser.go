@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	stripmd "github.com/writeas/go-strip-markdown/v2"
-	"go.mau.fi/whatsmeow/types"
+	"whatsrook/wa-core/types"
 )
 
 //go:embed prompts/meta_ai.txt

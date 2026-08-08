@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"whatsrook/store/sqlstore"
 	"whatsrook/utils"
+	"whatsrook/wa-core/store/sqlstore"
 )
 
 type fontEntry struct {

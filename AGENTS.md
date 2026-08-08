@@ -4,13 +4,13 @@ Welcome to WhatsRook.
 
 ## Core Architecture
 
-- **CLI Entrypoint**: Located in [`cli/main.go`](file:///home/thruqe/Documents/whatsrook/cli/main.go), which delegates execution to `whatsrook.ExecuteCLI()`.
+- **CLI Entrypoint**: Located in [`cli/main.go`](file:///home/thruqe/whatsrook/cli/main.go), which parses command-line arguments and initializes `whatsrook.NewRookClient(config)`.
 - **Package Layout**:
-  - `whatsrook`: Root package containing core bot lifecycle, WebSocket hub, IPC stanzas, and event routing.
+  - `whatsrook`: Root library package containing `RookClient`, bot lifecycle, WebSocket hub, IPC stanzas, and event routing.
   - `whatsrook/plugins`: Command registration (`Register`), dispatching, and structured error handling (`plugins/error.go`).
   - `whatsrook/send`: High-level sending abstractions and context management (`PluginContext`).
-  - `whatsrook/store/sqlstore`: Custom prefix-free SQLite/PostgreSQL data store and migration upgrades.
-  - `whatsrook/patch`: Overrides and patch application scripts for `whatsmeow` defaults.
+  - `whatsrook/wa-core`: WhatsApp protocol core library and database stores (`wa-core/store/sqlstore`).
+  - `whatsrook/caller`: Local VoIP call signaling and WebRTC media engine.
   - `whatsrook/utils`: Media processing, network guards, font formatting, and waveform generators.
 
 ## Plugin Authoring

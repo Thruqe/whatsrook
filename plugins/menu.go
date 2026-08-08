@@ -13,12 +13,12 @@ import (
 	"sync"
 	"time"
 
-	"whatsrook/store/sqlstore"
 	"whatsrook/updater"
 	"whatsrook/utils"
+	"whatsrook/wa-core/store/sqlstore"
 
-	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/types/events"
+	"whatsrook/wa-core"
+	"whatsrook/wa-core/types/events"
 )
 
 var (

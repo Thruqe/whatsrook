@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
-	"whatsrook/store/sqlstore"
 	"whatsrook/utils"
+	"whatsrook/wa-core/store/sqlstore"
 
-	"github.com/purpshell/meowcaller"
-	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/types/events"
+	"whatsrook/caller"
+	"whatsrook/wa-core"
+	"whatsrook/wa-core/types/events"
 )
 
 const AutoAcceptCallSettingKey = "autoacceptcall_status"

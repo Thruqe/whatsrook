@@ -14,10 +14,10 @@ import (
 	"whatsrook/downloader"
 	"whatsrook/utils"
 
-	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/types/events"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	"whatsrook/wa-core"
+	"whatsrook/wa-core/types/events"
 )
 
 var (

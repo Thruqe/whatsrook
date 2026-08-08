@@ -15,7 +15,7 @@ func (b *Bot) runQR(ctx context.Context) error {
 	}
 	for evt := range qrChan {
 		if evt.Event == "code" {
-			if b.cli.QRCode {
+			if b.cfg.QRCode {
 				fmt.Println("QR code:", evt.Code)
 			}
 			b.hub.Broadcast(EventMessage{

@@ -10,9 +10,9 @@ package plugins
 // 	"sync"
 // 	"time"
 
-// 	"go.mau.fi/whatsmeow"
-// 	waBinary "go.mau.fi/whatsmeow/binary"
-// 	"go.mau.fi/whatsmeow/proto/waE2E"
+// 	"whatsrook/wa-core"
+// 	waBinary "whatsrook/wa-core/binary"
+// 	"whatsrook/wa-core/proto/waE2E"
 // )
 
 // var defaultImageUrls = []string{

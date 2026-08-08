@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"whatsrook/send"
-	"whatsrook/store/sqlstore"
+	"whatsrook/wa-core/store/sqlstore"
 
-	"go.mau.fi/whatsmeow/proto/waE2E"
+	"whatsrook/wa-core/proto/waE2E"
 )
 
 func init() {

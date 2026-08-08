@@ -13,7 +13,7 @@ import (
 	"whatsrook/utils"
 
 	"github.com/skip2/go-qrcode"
-	"go.mau.fi/whatsmeow/proto/waE2E"
+	"whatsrook/wa-core/proto/waE2E"
 )
 
 func init() {

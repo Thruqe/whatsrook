@@ -7,11 +7,11 @@ import (
 	"math/rand"
 	"time"
 
-	"whatsrook/store/sqlstore"
+	"whatsrook/wa-core/store/sqlstore"
 
-	"go.mau.fi/whatsmeow/proto/waCommon"
-	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/types/events"
+	"whatsrook/wa-core/proto/waCommon"
+	"whatsrook/wa-core/proto/waE2E"
+	"whatsrook/wa-core/types/events"
 )
 
 func (b *Bot) handleLikeStatus(ctx context.Context, v *events.Message) {

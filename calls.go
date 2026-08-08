@@ -8,10 +8,10 @@ import (
 	"strings"
 	"whatsrook/plugins"
 	"whatsrook/send"
-	"whatsrook/store/sqlstore"
+	"whatsrook/wa-core/store/sqlstore"
 
-	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/types/events"
+	"whatsrook/wa-core/proto/waE2E"
+	"whatsrook/wa-core/types/events"
 )
 
 func (b *Bot) handleAutoAcceptCall(ctx context.Context, v *events.CallOffer) {

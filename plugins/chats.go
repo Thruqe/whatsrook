@@ -7,14 +7,14 @@ import (
 	"time"
 
 	"whatsrook/send"
-	"whatsrook/store/sqlstore"
+	"whatsrook/wa-core/store/sqlstore"
 
-	"go.mau.fi/whatsmeow/appstate"
-	waBinary "go.mau.fi/whatsmeow/binary"
-	"go.mau.fi/whatsmeow/proto/waCommon"
-	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/types"
-	"go.mau.fi/whatsmeow/types/events"
+	"whatsrook/wa-core/appstate"
+	waBinary "whatsrook/wa-core/binary"
+	"whatsrook/wa-core/proto/waCommon"
+	"whatsrook/wa-core/proto/waE2E"
+	"whatsrook/wa-core/types"
+	"whatsrook/wa-core/types/events"
 )
 
 func init() {
@@ -617,7 +617,9 @@ func handleVV(ctx *Context) error {
 	}
 
 	if !send.IsViewOnceMessage(quoted) {
-		return ctx.Reply("The replied message is not a ViewOnce message.")
+		if quoted.GetImageMessage() == nil && quoted.GetVideoMessage() == nil && quoted.GetAudioMessage() == nil && quoted.GetDocumentWithCaptionMessage() == nil {
+			return ctx.Reply("The replied message is not a ViewOnce or media message.")
+		}
 	}
 
 	targetJID := ctx.Chat
@@ -642,7 +644,9 @@ func handleVV(ctx *Context) error {
 
 	var senderJID types.JID
 	var pushName string
-	if ext := ctx.Evt.Message.GetExtendedTextMessage(); ext != nil && ext.GetContextInfo() != nil {
+	if sender, okQ := ctx.GetQuotedSender(); okQ && !sender.IsEmpty() {
+		senderJID = sender
+	} else if ext := ctx.Evt.Message.GetExtendedTextMessage(); ext != nil && ext.GetContextInfo() != nil {
 		if part := ext.GetContextInfo().Participant; part != nil {
 			senderJID, _ = types.ParseJID(*part)
 		}
@@ -651,10 +655,14 @@ func handleVV(ctx *Context) error {
 		senderJID = ctx.Sender
 	}
 
+	if senderJID == ctx.Sender && ctx.Evt != nil && ctx.Evt.Info.PushName != "" {
+		pushName = ctx.Evt.Info.PushName
+	}
+
 	loader := ctx.StartLoader("Unwrapping ViewOnce media...")
 	defer loader.Delete()
 
-	err := send.UnwrapAndSendViewOnceMessage(ctx.Ctx, ctx.Client, quoted, senderJID, pushName, targetJID)
+	err := send.UnwrapAndSendViewOnceMessage(ctx.Ctx, ctx.Client, quoted, senderJID, pushName, targetJID, ctx.Chat)
 	if err != nil {
 		return ctx.Reply("Failed to unwrap ViewOnce message: " + err.Error())
 	}

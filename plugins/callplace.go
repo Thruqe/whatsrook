@@ -12,10 +12,10 @@ import (
 
 	"whatsrook/utils"
 
-	"github.com/purpshell/meowcaller"
 	"github.com/rs/zerolog"
-	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/types"
+	"whatsrook/caller"
+	"whatsrook/wa-core"
+	"whatsrook/wa-core/types"
 )
 
 // meowLogger returns a zerolog.Logger that forwards meowcaller messages to slog.

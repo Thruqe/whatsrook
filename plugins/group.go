@@ -5,19 +5,20 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"whatsrook/store/sqlstore"
+	"whatsrook/wa-core/store/sqlstore"
 
-	"go.mau.fi/whatsmeow"
-	waBinary "go.mau.fi/whatsmeow/binary"
-	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/types"
-	"go.mau.fi/whatsmeow/types/events"
+	"whatsrook/wa-core"
+	waBinary "whatsrook/wa-core/binary"
+	"whatsrook/wa-core/proto/waE2E"
+	"whatsrook/wa-core/types"
+	"whatsrook/wa-core/types/events"
 )
 
 func init() {
@@ -144,6 +145,14 @@ func init() {
 		GroupOnly:   true,
 		IsPublic:    true,
 		Handler:     handleLeave,
+	})
+	Register(&Command{
+		Name:        "join",
+		Aliases:     []string{"joingroup"},
+		Description: "Join a group using a group URL or group invite message",
+		Category:    "group",
+		IsPublic:    true,
+		Handler:     handleJoin,
 	})
 }
 
@@ -1349,4 +1358,151 @@ func handleLeave(ctx *Context) error {
 	}
 
 	return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
+}
+
+var groupInviteLinkRegex = regexp.MustCompile(`(?i)(?:https?://)?chat\.whatsapp\.com/([A-Za-z0-9_-]+)`)
+
+func handleJoin(ctx *Context) error {
+	var inviteMsg *waE2E.GroupInviteMessage
+	var isQuoted bool
+
+	if quoted := ctx.GetQuotedMessage(); quoted != nil && quoted.GetGroupInviteMessage() != nil {
+		inviteMsg = quoted.GetGroupInviteMessage()
+		isQuoted = true
+	} else if ctx.Evt != nil && ctx.Evt.Message != nil && ctx.Evt.Message.GetGroupInviteMessage() != nil {
+		inviteMsg = ctx.Evt.Message.GetGroupInviteMessage()
+	}
+
+	if inviteMsg != nil {
+		return handleJoinV4(ctx, inviteMsg, isQuoted)
+	}
+
+	code := extractGroupInviteCode(ctx)
+	if code == "" {
+		return ErrUsage("join <group_url>")
+	}
+
+	jid, err := ctx.Client.JoinGroupWithLink(ctx.GetSendContext(), code)
+	if err != nil {
+		return ctx.Reply(fmt.Sprintf("Failed to join group: %v", err))
+	}
+
+	groupName := ""
+	if info, errInfo := ctx.Client.GetGroupInfo(ctx.GetSendContext(), jid); errInfo == nil && info != nil && info.Name != "" {
+		groupName = info.Name
+	}
+
+	if groupName != "" {
+		return ctx.Reply(fmt.Sprintf("Successfully joined group: *%s*", groupName))
+	}
+	return ctx.Reply("Successfully joined the group!")
+}
+
+func handleJoinV4(ctx *Context, inviteMsg *waE2E.GroupInviteMessage, isQuoted bool) error {
+	groupJIDStr := inviteMsg.GetGroupJID()
+	groupJID, err := types.ParseJID(groupJIDStr)
+	if err != nil || groupJID.IsEmpty() {
+		return ctx.Reply("Invalid group JID in invite message.")
+	}
+
+	code := inviteMsg.GetInviteCode()
+	if code == "" {
+		return ctx.Reply("Invalid invite code in invite message.")
+	}
+
+	expiration := inviteMsg.GetInviteExpiration()
+
+	var inviterJID types.JID
+	if isQuoted {
+		if sender, ok := ctx.GetQuotedSender(); ok && !sender.IsEmpty() {
+			inviterJID = sender
+		}
+	}
+	if inviterJID.IsEmpty() {
+		if ci := inviteMsg.GetContextInfo(); ci != nil && ci.GetParticipant() != "" {
+			if parsed, errP := types.ParseJID(ci.GetParticipant()); errP == nil && !parsed.IsEmpty() {
+				inviterJID = parsed
+			}
+		}
+	}
+	if inviterJID.IsEmpty() {
+		inviterJID = ctx.Sender
+	}
+
+	err = ctx.Client.JoinGroupWithInvite(ctx.GetSendContext(), groupJID, inviterJID, code, expiration)
+	if err != nil {
+		return ctx.Reply(fmt.Sprintf("Failed to join group via invite: %v", err))
+	}
+
+	groupName := inviteMsg.GetGroupName()
+	if groupName == "" {
+		if info, errInfo := ctx.Client.GetGroupInfo(ctx.GetSendContext(), groupJID); errInfo == nil && info != nil && info.Name != "" {
+			groupName = info.Name
+		}
+	}
+
+	if groupName != "" {
+		return ctx.Reply(fmt.Sprintf("Successfully joined group: *%s*", groupName))
+	}
+	return ctx.Reply("Successfully joined the group!")
+}
+
+func extractGroupInviteCode(ctx *Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if ctx.RawArgs != "" {
+		if match := groupInviteLinkRegex.FindStringSubmatch(ctx.RawArgs); len(match) > 1 {
+			return match[1]
+		}
+		trimmed := strings.TrimSpace(ctx.RawArgs)
+		if !strings.ContainsAny(trimmed, " \t\n/\\") && len(trimmed) >= 10 && len(trimmed) <= 32 {
+			return trimmed
+		}
+	}
+
+	if quoted := ctx.GetQuotedMessage(); quoted != nil {
+		text := extractMessageText(quoted)
+		if match := groupInviteLinkRegex.FindStringSubmatch(text); len(match) > 1 {
+			return match[1]
+		}
+		trimmed := strings.TrimSpace(text)
+		if !strings.ContainsAny(trimmed, " \t\n/\\") && len(trimmed) >= 10 && len(trimmed) <= 32 {
+			return trimmed
+		}
+	}
+
+	if ctx.Evt != nil && ctx.Evt.Message != nil {
+		text := extractMessageText(ctx.Evt.Message)
+		if match := groupInviteLinkRegex.FindStringSubmatch(text); len(match) > 1 {
+			return match[1]
+		}
+	}
+
+	return ""
+}
+
+func extractMessageText(msg *waE2E.Message) string {
+	if msg == nil {
+		return ""
+	}
+	if text := msg.GetConversation(); text != "" {
+		return text
+	}
+	if ext := msg.GetExtendedTextMessage(); ext != nil && ext.GetText() != "" {
+		return ext.GetText()
+	}
+	if img := msg.GetImageMessage(); img != nil && img.GetCaption() != "" {
+		return img.GetCaption()
+	}
+	if vid := msg.GetVideoMessage(); vid != nil && vid.GetCaption() != "" {
+		return vid.GetCaption()
+	}
+	if doc := msg.GetDocumentMessage(); doc != nil && doc.GetCaption() != "" {
+		return doc.GetCaption()
+	}
+	if inv := msg.GetGroupInviteMessage(); inv != nil && inv.GetCaption() != "" {
+		return inv.GetCaption()
+	}
+	return ""
 }

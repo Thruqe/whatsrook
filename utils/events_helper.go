@@ -2,8 +2,8 @@
 package utils
 
 import (
-	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/types/events"
+	"whatsrook/wa-core/proto/waE2E"
+	"whatsrook/wa-core/types/events"
 )
 
 // ExtractTextFromProto extracts conversation text, extended text, or media caption from a waE2E.Message proto.

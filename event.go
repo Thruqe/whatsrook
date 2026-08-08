@@ -9,12 +9,12 @@ import (
 
 	"whatsrook/plugins"
 	"whatsrook/send"
-	"whatsrook/store/sqlstore"
 	"whatsrook/updater"
 	"whatsrook/utils"
+	"whatsrook/wa-core/store/sqlstore"
 
-	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/types/events"
+	"whatsrook/wa-core/proto/waE2E"
+	"whatsrook/wa-core/types/events"
 )
 
 func (b *Bot) WAEventHandler(evt any) {
@@ -41,7 +41,7 @@ func (b *Bot) WAEventHandler(evt any) {
 		b.hub.Broadcast(simpleEvent(EventDisconnected))
 
 	case *events.Connected:
-		slog.Info("connected", "session", b.cli.Session)
+		slog.Info("connected", "session", b.cfg.Session)
 		b.hub.Broadcast(simpleEvent(EventConnected))
 		go b.notifyOwnerConnected()
 
@@ -51,7 +51,7 @@ func (b *Bot) WAEventHandler(evt any) {
 		// fmt.Println(string(a))
 
 		// Skip messages sent before the bot started running
-		if b.cli.SkipOldMessages && v.Info.Timestamp.Before(b.startupTime) {
+		if b.cfg.SkipOldMessages && v.Info.Timestamp.Before(b.startupTime) {
 			return
 		}
 
@@ -159,7 +159,7 @@ func (b *Bot) notifyOwnerConnected() {
 		ownerJID.User,
 		meta.Version,
 		meta.Commit,
-		b.cli.Session,
+		b.cfg.Session,
 		meta.OS,
 		meta.Arch,
 		meta.NumCPU,

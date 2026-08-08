@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"strings"
 
-	"whatsrook/store/sqlstore"
 	"whatsrook/updater"
+	"whatsrook/wa-core/store/sqlstore"
 )
 
 func init() {

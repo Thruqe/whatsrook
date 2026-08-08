@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"go.mau.fi/whatsmeow/types"
+	"whatsrook/wa-core/types"
 )
 
 func init() {

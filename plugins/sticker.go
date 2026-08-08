@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"whatsrook/store/sqlstore"
+	"whatsrook/wa-core/store/sqlstore"
 )
 
 func init() {

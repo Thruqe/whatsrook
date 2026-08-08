@@ -6,11 +6,12 @@ import (
 	"strconv"
 	"strings"
 
-	"whatsrook/store/sqlstore"
+	"whatsrook/send"
+	"whatsrook/wa-core/store/sqlstore"
 
-	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/types"
-	"go.mau.fi/whatsmeow/types/events"
+	"whatsrook/wa-core"
+	"whatsrook/wa-core/types"
+	"whatsrook/wa-core/types/events"
 )
 
 func init() {
@@ -300,22 +301,25 @@ func sendWarnCustomizeGuide(ctx *Context) error {
 
 func extractWarnTarget(ctx *Context, args []string) types.JID {
 	if quotedSender, ok := ctx.GetQuotedSender(); ok && !quotedSender.IsEmpty() {
-		return quotedSender
+		return NormalizeUserJID(ctx.Ctx, ctx.Client, quotedSender)
 	}
 	if ci := ctx.GetContextInfo(); ci != nil && len(ci.GetMentionedJID()) > 0 {
 		for _, m := range ci.GetMentionedJID() {
-			if parsed, err := types.ParseJID(m); err == nil && !parsed.IsEmpty() {
-				return parsed
+			if parsed, err := send.ParseUserJID(m); err == nil && !parsed.IsEmpty() {
+				return NormalizeUserJID(ctx.Ctx, ctx.Client, parsed)
 			}
 		}
 	}
-	if len(args) > 0 {
-		raw := strings.TrimPrefix(args[0], "@")
-		if !strings.Contains(raw, "@") {
-			raw = raw + "@s.whatsapp.net"
+	for _, arg := range args {
+		sub := strings.ToLower(arg)
+		if sub == "customize" || sub == "custom" || sub == "help" || sub == "limit" || sub == "max" || sub == "set" {
+			continue
 		}
-		if parsed, err := types.ParseJID(raw); err == nil && !parsed.IsEmpty() {
-			return parsed
+		if _, err := strconv.Atoi(arg); err == nil {
+			continue
+		}
+		if parsed, err := send.ParseUserJID(arg); err == nil && !parsed.IsEmpty() {
+			return NormalizeUserJID(ctx.Ctx, ctx.Client, parsed)
 		}
 	}
 	return types.EmptyJID

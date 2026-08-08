@@ -13,10 +13,10 @@ import (
 	"sync"
 	"time"
 
-	"go.mau.fi/whatsmeow"
-	waBinary "go.mau.fi/whatsmeow/binary"
-	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/types"
+	"whatsrook/wa-core"
+	waBinary "whatsrook/wa-core/binary"
+	"whatsrook/wa-core/proto/waE2E"
+	"whatsrook/wa-core/types"
 )
 
 const movieAPIHost = "https://xer-movie-api-ten.vercel.app"

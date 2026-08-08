@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sync"
 
-	"whatsrook/store/sqlstore"
+	"whatsrook/wa-core/store/sqlstore"
 
-	"go.mau.fi/whatsmeow/types"
+	"whatsrook/wa-core/types"
 )
 
 // pendingCall tracks a user mid-flow: they ran !call/!videocall <target> and

@@ -7,8 +7,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"go.mau.fi/whatsmeow/types"
 	"golang.org/x/term"
+	"whatsrook/wa-core/types"
 )
 
 // RunCmd runs an arbitrary shell command and returns its combined

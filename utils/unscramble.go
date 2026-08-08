@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/types"
+	"whatsrook/wa-core"
+	"whatsrook/wa-core/types"
 )
 
 type UnscrambleState int

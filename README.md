@@ -5,8 +5,6 @@
 
 Read [Documentation](https://github.com/Thruqe/whatsrook-docs) for detailed architecture, CLI usage, WebSocket IPC specification, plugin development, and deployment guides.
 
-Real-time WhatsApp API built on [hypermeow](https://github.com/polymorfa/hypermeow).
-
 Connect your app to WhatsApp and receive live events — messages, groups, stories, channels — then send actions back programmatically.
 
 [![Go Code Quality & Tests](https://img.shields.io/github/actions/workflow/status/Thruqe/whatsrook/go-checks.yml?style=for-the-badge&logo=github&label=Go%20Checks)](https://github.com/Thruqe/whatsrook/actions/workflows/go-checks.yml)

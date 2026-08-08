@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	waLog "go.mau.fi/whatsmeow/util/log"
+	waLog "whatsrook/wa-core/util/log"
 )
 
 var levelFiles = make(map[string]*os.File)

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mau.fi/whatsmeow/types"
+	"whatsrook/wa-core/types"
 )
 
 func TestRenderUserContext(t *testing.T) {

@@ -16,13 +16,13 @@ import (
 	"unicode/utf8"
 
 	waSender "whatsrook/send"
-	"whatsrook/store/sqlstore"
 	"whatsrook/utils"
+	"whatsrook/wa-core/store/sqlstore"
 
-	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/types"
-	"go.mau.fi/whatsmeow/types/events"
+	"whatsrook/wa-core"
+	"whatsrook/wa-core/proto/waE2E"
+	"whatsrook/wa-core/types"
+	"whatsrook/wa-core/types/events"
 )
 
 const (
@@ -175,7 +175,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 	}
 
 	// 3. Auto ViewOnce Forwarding
-	if waSender.IsViewOnceMessage(evt.Message) && okStore {
+	if (evt.IsViewOnce || evt.IsViewOnceV2 || waSender.IsViewOnceMessage(evt.Message)) && okStore {
 		raw, _ := s.GetSetting(ctx, "autovv")
 		if raw == "on" {
 			mode, _ := s.GetSetting(ctx, "autovv_mode")
@@ -188,7 +188,7 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 
 			if !targetJID.IsEmpty() {
 				go func() {
-					err := waSender.UnwrapAndSendViewOnceMessage(context.Background(), client, evt.Message, evt.Info.Sender, evt.Info.PushName, targetJID)
+					err := waSender.UnwrapAndSendViewOnceMessage(context.Background(), client, evt.Message, evt.Info.Sender, evt.Info.PushName, targetJID, evt.Info.Chat)
 					if err != nil {
 						slog.Error("AutoVV forwarding failed", "chat", evt.Info.Chat.String(), "err", err)
 					}

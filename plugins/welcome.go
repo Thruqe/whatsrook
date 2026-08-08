@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode"
 
-	"whatsrook/store/sqlstore"
+	"whatsrook/wa-core/store/sqlstore"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"

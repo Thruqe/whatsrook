@@ -14,9 +14,8 @@ import (
 	"whatsrook/downloader"
 	"whatsrook/utils"
 
-	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/proto/waE2E"
-	"google.golang.org/protobuf/proto"
+	"whatsrook/wa-core"
+	"whatsrook/wa-core/proto/waE2E"
 )
 
 func init() {
@@ -264,17 +263,17 @@ func replyWithMusicAudio(ctx *Context, data []byte, mimetype string, res *downlo
 	}
 
 	adInfo := &waE2E.ContextInfo_ExternalAdReplyInfo{
-		Title:                 proto.String(title),
-		SourceURL:             proto.String(sourceURL),
+		Title:                 new(title),
+		SourceURL:             new(sourceURL),
 		MediaType:             mediaType,
-		RenderLargerThumbnail: proto.Bool(true),
-		ShowAdAttribution:     proto.Bool(false),
+		RenderLargerThumbnail: new(true),
+		ShowAdAttribution:     new(false),
 	}
 	if thumbURL != "" {
-		adInfo.ThumbnailURL = proto.String(thumbURL)
+		adInfo.ThumbnailURL = new(thumbURL)
 	}
 	if res.Author != "" {
-		adInfo.Body = proto.String(res.Author)
+		adInfo.Body = new(res.Author)
 	}
 	if len(thumb) > 0 {
 		jpegData, errConv := utils.EnsureJPEG(ctx.Ctx, thumb)
@@ -295,17 +294,17 @@ func replyWithMusicAudio(ctx *Context, data []byte, mimetype string, res *downlo
 			URL:           &uploaded.URL,
 			DirectPath:    &uploaded.DirectPath,
 			MediaKey:      uploaded.MediaKey,
-			Mimetype:      proto.String(mimetype),
+			Mimetype:      new(mimetype),
 			FileEncSHA256: uploaded.FileEncSHA256,
 			FileSHA256:    uploaded.FileSHA256,
 			FileLength:    &fileLength,
-			PTT:           proto.Bool(true),
+			PTT:           new(true),
 			ContextInfo:   cinfo,
 		},
 	}
 	if meta != nil {
 		if meta.Seconds > 0 {
-			msg.AudioMessage.Seconds = proto.Uint32(meta.Seconds)
+			msg.AudioMessage.Seconds = new(meta.Seconds)
 		}
 		if len(meta.Waveform) > 0 {
 			msg.AudioMessage.Waveform = meta.Waveform

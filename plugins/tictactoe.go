@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"whatsrook/store/sqlstore"
 	"whatsrook/utils"
+	"whatsrook/wa-core/store/sqlstore"
 
-	"go.mau.fi/whatsmeow/types"
+	"whatsrook/wa-core/types"
 )
 
 var botJID = types.NewJID("whatsrook_bot", "s.whatsapp.net")

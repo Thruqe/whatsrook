@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/tcolgate/mp3"
-	"go.mau.fi/whatsmeow/proto/waE2E"
+	"whatsrook/wa-core/proto/waE2E"
 )
 
 // AudioPTTMeta contains converted Opus OGG data, duration in seconds, and 64-bin amplitude waveform bytes.

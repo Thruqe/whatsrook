@@ -8,7 +8,7 @@ import (
 	"whatsrook/send"
 	"whatsrook/utils"
 
-	"go.mau.fi/whatsmeow/types"
+	"whatsrook/wa-core/types"
 )
 
 func init() {

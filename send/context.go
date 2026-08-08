@@ -5,9 +5,9 @@ import (
 	"strings"
 	"unicode"
 
-	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/types"
-	"go.mau.fi/whatsmeow/types/events"
+	"whatsrook/wa-core"
+	"whatsrook/wa-core/types"
+	"whatsrook/wa-core/types/events"
 )
 
 // PluginContext is passed to every command handler.

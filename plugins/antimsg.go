@@ -3,13 +3,14 @@ package plugins
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"unicode"
 
 	"whatsrook/send"
-	"whatsrook/store/sqlstore"
+	"whatsrook/wa-core/store/sqlstore"
 
-	"go.mau.fi/whatsmeow/types"
+	"whatsrook/wa-core/types"
 )
 
 func init() {
@@ -180,14 +181,9 @@ func handleAntiMsg(ctx *Context) error {
 			if err != nil || uj.IsEmpty() {
 				continue
 			}
-			isDup := false
-			for _, existing := range displayUsers {
-				if send.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, uj) {
-					isDup = true
-					break
-				}
-			}
-			if !isDup {
+			if !slices.ContainsFunc(displayUsers, func(existing types.JID) bool {
+				return send.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, uj)
+			}) {
 				displayUsers = append(displayUsers, uj)
 			}
 		}
@@ -307,12 +303,11 @@ func extractTargetParticipants(ctx *Context, args []string) []types.JID {
 			return
 		}
 		nonAD := j.ToNonAD()
-		for _, existing := range targets {
-			if send.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, nonAD) {
-				return
-			}
+		if !slices.ContainsFunc(targets, func(existing types.JID) bool {
+			return send.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, nonAD)
+		}) {
+			targets = append(targets, nonAD)
 		}
-		targets = append(targets, nonAD)
 	}
 
 	// 1. Quoted message sender
@@ -321,43 +316,22 @@ func extractTargetParticipants(ctx *Context, args []string) []types.JID {
 	}
 
 	// 2. Mentioned JIDs
-	if ctx.Evt != nil && ctx.Evt.Message != nil {
-		if ext := ctx.Evt.Message.GetExtendedTextMessage(); ext != nil {
-			if ci := ext.GetContextInfo(); ci != nil {
-				for _, m := range ci.GetMentionedJID() {
-					parsed, err := types.ParseJID(m)
-					if err == nil && !parsed.IsEmpty() {
-						addJID(parsed)
-					}
-				}
+	if ci := ctx.GetContextInfo(); ci != nil {
+		for _, m := range ci.GetMentionedJID() {
+			if parsed, err := send.ParseUserJID(m); err == nil && !parsed.IsEmpty() {
+				addJID(parsed)
 			}
 		}
 	}
 
-	// 3. Command arguments (@user or phone numbers)
+	// 3. Command arguments (@user or phone numbers or LIDs)
 	for _, arg := range args {
 		arg = strings.TrimSpace(arg)
 		if arg == "" || isSubcommand(arg) {
 			continue
 		}
-		raw := strings.TrimPrefix(arg, "@")
-		if raw == "" {
-			continue
-		}
-
-		if strings.Contains(raw, "@") {
-			parsed, err := types.ParseJID(raw)
-			if err == nil && !parsed.IsEmpty() {
-				addJID(parsed)
-			}
-			continue
-		}
-
-		if isNumericPhone(raw) {
-			parsed, err := types.ParseJID(raw + "@s.whatsapp.net")
-			if err == nil && !parsed.IsEmpty() {
-				addJID(parsed)
-			}
+		if parsed, err := send.ParseUserJID(arg); err == nil && !parsed.IsEmpty() {
+			addJID(parsed)
 		}
 	}
 

@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/proto/waCompanionReg"
-	"go.mau.fi/whatsmeow/store"
+	"whatsrook/wa-core"
+	"whatsrook/wa-core/proto/waCompanionReg"
+	"whatsrook/wa-core/store"
 )
 
 // ErrPairTimeout is returned when Whatsmoew fails to complete the pairing
@@ -21,14 +21,14 @@ var ErrPairTimeout = errors.New("pairing timed out")
 type Bot struct {
 	client      *whatsmeow.Client
 	hub         *Hub
-	cli         Arguments
+	cfg         Config
 	startupTime time.Time
 }
 
 // newBot initializes and returns a new Bot instance with the provided whatsmeow Client,
-// central Hub, and command-line execution parameters.
-func newBot(client *whatsmeow.Client, hub *Hub, cli Arguments) *Bot {
-	return &Bot{client: client, hub: hub, cli: cli, startupTime: time.Now()}
+// central Hub, and configuration.
+func newBot(client *whatsmeow.Client, hub *Hub, cfg Config) *Bot {
+	return &Bot{client: client, hub: hub, cfg: cfg, startupTime: time.Now()}
 }
 
 // run configures the client properties, attaches event handlers, manages initial connection
@@ -38,20 +38,22 @@ func (b *Bot) run(ctx context.Context) error {
 		b.WAEventHandler(evt)
 	})
 
-	switch b.cli.Client {
+	go tmpCron()
+
+	switch b.cfg.ClientType {
 	case ClientAndroid:
 		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_ANDROID_PHONE.Enum()
 		store.DeviceProps.Os = new("Android")
 	case ClientIos:
 		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_IOS_PHONE.Enum()
 		store.DeviceProps.Os = new("iOS")
-	default: // ClientChrome
+	default:
 		store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_CHROME.Enum()
 		store.DeviceProps.Os = new("Linux")
 	}
 
 	if b.client.Store.ID == nil {
-		if b.cli.Pair {
+		if b.cfg.Pair {
 			if err := b.runPairCode(ctx); err != nil {
 				return err
 			}

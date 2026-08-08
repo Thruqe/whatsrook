@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/types"
+	"whatsrook/wa-core/proto/waE2E"
+	"whatsrook/wa-core/types"
 )
 
 func (b *Bot) Controller(ctx context.Context, ctrl ControlMessage) EventMessage {
@@ -186,7 +186,7 @@ func (b *Bot) CRequestPairCode(ctx context.Context, ctrl ControlMessage) EventMe
 
 	phone := p.PhoneNumber
 	if phone == "" {
-		phone = b.cli.Session
+		phone = b.cfg.Session
 	}
 
 	if phone == "" {
@@ -194,7 +194,7 @@ func (b *Bot) CRequestPairCode(ctx context.Context, ctrl ControlMessage) EventMe
 	}
 
 	go func() {
-		b.cli.Session = phone
+		b.cfg.Session = phone
 		if err := b.runPairCode(ctx); err != nil {
 			slog.Error("requested pair code failed", "err", err)
 			b.hub.Broadcast(EventMessage{

@@ -1,7 +1,7 @@
 // Data types for the Meta AI request context passed to handler functions.
 package meta
 
-import "go.mau.fi/whatsmeow/types"
+import "whatsrook/wa-core/types"
 
 // Data contains the full context for a Meta AI request, including chat
 // metadata, user info, quoted messages, and group state.
