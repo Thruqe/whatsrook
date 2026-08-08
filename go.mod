@@ -6,7 +6,7 @@ require (
 	github.com/coder/websocket v1.8.15
 	github.com/google/uuid v1.6.0
 	github.com/rs/zerolog v1.35.1
-	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
+	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e // indirect
 	github.com/writeas/go-strip-markdown/v2 v2.1.1
 	go.mau.fi/util v0.9.12-0.20260717235539-f9ffa7eca58d
 	google.golang.org/protobuf v1.36.11
@@ -18,6 +18,7 @@ require (
 	github.com/polymorfa/libsignal-protocol-go v0.2.3-0.20260806162910-a2adef2e8a11
 	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
 	modernc.org/sqlite v1.55.0
+	whatsrook/cli v0.0.0-00010101000000-000000000000
 )
 
 require (
@@ -50,7 +51,9 @@ require (
 	golang.org/x/sync v0.22.0
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/term v0.45.0
-	golang.org/x/text v0.40.0
+	golang.org/x/text v0.40.0 // indirect
 )
 
 replace github.com/nonibytes/ffgo => github.com/obinnaokechukwu/ffgo v0.1.1
+
+replace whatsrook/cli => ./cli

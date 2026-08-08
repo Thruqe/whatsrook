@@ -8,5 +8,6 @@ whatsrook.exe
 cookie.txt
 *.cookie
 *.txt
+!utils/prompts/*.txt
 cobalt*.zip
 bin/

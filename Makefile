@@ -24,23 +24,28 @@ start: ## Run the WhatsRook CLI application (e.g. make start ARGS="-s <phone>" o
 install: ## Download and tidy Go module dependencies
 	go mod download
 	go mod tidy
+	cd cli && go mod download && go mod tidy
 
 format: ## Format all Go source files
 	go fmt ./... && gofmt -w -s .
+	cd cli && go fmt ./... && gofmt -w -s .
 
 vet: ## Run go vet static code analysis
 	go vet ./...
+	cd cli && go vet ./...
 
 test: ## Run the test suite
 	go test -v ./...
+	cd cli && go test -v ./...
 
 update: ## Upgrade all Go dependencies to their latest versions
 	go get -u ./...
 	go mod tidy
+	cd cli && go get -u ./... && go mod tidy
 
 build: ## Build binary executable into bin/whatsrook
 	mkdir -p bin
-	go build -v -o bin/whatsrook ./cli
+	cd cli && go build -v -o ../bin/whatsrook .
 
 patch: ## Re-apply WhatsRook custom patches to whatsmeow/sqlstore
 	bash patch/apply_patches.sh
