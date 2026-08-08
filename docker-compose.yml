@@ -13,11 +13,34 @@ services:
       - QRCODE=${QRCODE:-false}
       - VERBOSE=${VERBOSE:-false}
       - PORT=${PORT:-3000}
+      - DATABASE_URL=${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/whatsrook?sslmode=disable}
     volumes:
       - whatsrook_auth:/app/auth
       - whatsrook_media:/app/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    container_name: whatsrook_postgres
+    image: postgres:latest
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-whatsrook}
+    ports:
+      - "5432:5432"
+    volumes:
+      - whatsrook_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
 volumes:
   whatsrook_auth:
   whatsrook_media:
+  whatsrook_postgres_data:
