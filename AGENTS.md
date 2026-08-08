@@ -4,7 +4,7 @@ Welcome to WhatsRook.
 
 ## Core Architecture
 
-- **CLI Entrypoint**: Located in [`cli/main.go`](file:///home/thruqe/whatsrook/cli/main.go), which parses command-line arguments and initializes `whatsrook.NewRookClient(config)`.
+- **CLI Entrypoint**: Located in [`cli/main.go`](cli/main.go), which parses command-line arguments and initializes `whatsrook.NewRookClient(config)`.
 - **Package Layout**:
   - `whatsrook`: Root library package containing `RookClient`, bot lifecycle, WebSocket hub, IPC stanzas, and event routing.
   - `whatsrook/cli/plugins`: Command registration (`Register`), dispatching, and structured error handling (`cli/plugins/error.go`).
@@ -29,6 +29,6 @@ func handleCommand(ctx *plugins.Context) error {
 
 ## Relevant Documentation
 
-- [Docs](./Documentation/README.md)
+- [Docs](https://github.com/Thruqe/whatsrook-docs)
 - [Security](./SECURITY.md)
 - [Patch System](./patch/README.md)
