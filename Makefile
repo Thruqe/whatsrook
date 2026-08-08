@@ -19,7 +19,7 @@ help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-15s$(RESET) %s\n", $$1, $$2}'
 
 start: ## Run the WhatsRook CLI application (e.g. make start ARGS="-s <phone>" or make start -s <phone>)
-	@sh entrypoint.sh $(filter-out start,$(MAKECMDGOALS)) $(ARGS)
+	@cd cli && go run . $(filter-out start,$(MAKECMDGOALS)) $(ARGS)
 
 install: ## Download and tidy Go module dependencies
 	go mod download

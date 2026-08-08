@@ -20,6 +20,7 @@ type CLIArgs struct {
 }
 
 func parseCLIArgs() CLIArgs {
+	loadDotEnv(".env", "../.env")
 	fs := flag.NewFlagSet("whatsrook", flag.ExitOnError)
 
 	var (
@@ -101,4 +102,32 @@ Options:
 func getEnvBool(key string) bool {
 	v := strings.ToLower(os.Getenv(key))
 	return v == "true" || v == "1"
+}
+
+func loadDotEnv(filenames ...string) {
+	for _, filename := range filenames {
+		data, err := os.ReadFile(filename)
+		if err != nil {
+			continue
+		}
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			key := strings.TrimSpace(parts[0])
+			val := strings.TrimSpace(parts[1])
+			if len(val) >= 2 && ((val[0] == '"' && val[len(val)-1] == '"') || (val[0] == '\'' && val[len(val)-1] == '\'')) {
+				val = val[1 : len(val)-1]
+			}
+			if os.Getenv(key) == "" {
+				_ = os.Setenv(key, val)
+			}
+		}
+	}
 }
