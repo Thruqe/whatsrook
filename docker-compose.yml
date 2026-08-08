@@ -1,16 +1,23 @@
 services:
   whatsrook:
-    build: .
+    container_name: whatsrook
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "${PORT:-3000}:${PORT:-3000}"
     environment:
-      - SESSION=2348000000000
-      - PORT=3000
-      - CLIENT=chrome
-      - PAIR=true
+      - SESSION=${SESSION:-}
+      - CLIENT=${CLIENT:-chrome}
+      - PAIR=${PAIR:-true}
+      - QRCODE=${QRCODE:-false}
+      - VERBOSE=${VERBOSE:-false}
+      - PORT=${PORT:-3000}
     volumes:
       - whatsrook_auth:/app/auth
+      - whatsrook_media:/app/media
     restart: unless-stopped
 
 volumes:
   whatsrook_auth:
+  whatsrook_media:
