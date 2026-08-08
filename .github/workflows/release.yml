@@ -82,7 +82,7 @@ jobs:
           GOCACHE: ${{ github.workspace }}/.gocache-${{ matrix.target.os }}-${{ matrix.target.arch }}
         run: |
           BIN_NAME="whatsrook${{ matrix.target.ext }}"
-          go build -o "$BIN_NAME" ./cli
+          cd cli && go build -v -o "../$BIN_NAME" .
           echo "BIN_NAME=$BIN_NAME" >> "$GITHUB_ENV"
 
       - name: Verify Binary
@@ -126,7 +126,7 @@ jobs:
         run: |
           mkdir staging
           cp "$BIN_NAME" staging/
-          cp -r resources staging/ 2>/dev/null || true
+          cp -r cli/resources staging/ 2>/dev/null || true
           cp -r prompts staging/ 2>/dev/null || true
           cp LICENSE staging/ 2>/dev/null || true
           cp README.md staging/ 2>/dev/null || true
