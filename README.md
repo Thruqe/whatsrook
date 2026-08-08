@@ -23,85 +23,11 @@ Connect your app to WhatsApp and receive live events — messages, groups, stori
 
 ## Deployment
 
-### 1. Pterodactyl Deployment
+WhatsRook supports multiple deployment platforms including Pterodactyl, Heroku, Render, and Local Docker.
 
-1. [Download the installer](https://raw.githubusercontent.com/Thruqe/whatsrook/refs/heads/master/scripts/panel.zip) script.
-2. In the **Files** tab, upload the downloaded script.
-3. Open the installer file and fill in the required variables before running it.
-4. Go to the **Start Up** tab, scroll down and put
+[![Deployment Guide](https://img.shields.io/badge/Read-Deployment%20Guide-blue?style=for-the-badge&logo=readme&logoColor=white)](Documentation/DEPLOYMENT.md)
 
-```txt
-node --max-old-space-size=48 --max-semi-space-size=2 --optimize-for-size --gc-interval=100 index.js
-```
-
-inside the **COMMAND RUN** box.
-
-5. Go to the **Console** tab and click **Start**.
-
-**Setting up sessions**
-
-In **Files**, create a file named `phone.txt`. Add one phone number per line for each WhatsApp session you want whatsrook to run:
-
-```txt
-23480612345678
-23490298765432
-```
-
-- **Adding a number**: whatsrook will start a new session for it automatically. Check the **Console** tab for the pair code to link that number.
-- **Removing a number**: whatsrook will automatically log out and delete that session — no manual cleanup needed.
-
-### 2. Heroku Deployment
-
-Deploy WhatsRook directly to Heroku as a Docker container using the **Deploy to Heroku** button or Heroku CLI:
-
-[![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/Thruqe/whatsrook)
-
-#### Manual Heroku CLI Deployment:
-
-```bash
-heroku login
-heroku container:login
-heroku create whatsrook-app
-heroku stack:set container -a whatsrook-app
-heroku config:set SESSION=1234567890 -a whatsrook-app
-heroku container:push web -a whatsrook-app
-heroku container:release web -a whatsrook-app
-```
-
-### 3. Render Deployment
-
-Deploy WhatsRook to Render with persistent session volume storage using the **Deploy to Render** button:
-
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Thruqe/whatsrook)
-
-Render automatically parses [`render.yaml`](./render.yaml) to build the Docker container and attach persistent volume storage at `/app/auth`.
-
-### 3. Local Docker Deployment
-
-You can deploy WhatsRook locally or on a private VPS using Docker or Docker Compose.
-
-#### Using Docker Compose (Recommended):
-
-```bash
-# Set your SESSION phone number in docker-compose.yml or as an env var
-SESSION=1234567890 docker compose up -d --build
-```
-
-#### Using Docker CLI:
-
-```bash
-# Build Docker image
-docker build -t whatsrook .
-
-# Run container with persistent volume
-docker run -d \
-  --name whatsrook \
-  -p 3000:3000 \
-  -e SESSION=1234567890 \
-  -e PORT=3000 \
-  -v whatsrook_auth:/app/auth \
-  whatsrook
-```
+For step-by-step guides on deploying WhatsRook, see the [Deployment Documentation](Documentation/DEPLOYMENT.md).
 
 ## Contributing
 
