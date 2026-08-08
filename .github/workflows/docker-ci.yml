@@ -32,11 +32,32 @@ jobs:
         run: |
           docker compose config
 
-      - name: Test run container with Compose
+      - name: Start postgres and wait for healthy
         env:
           SESSION: "1234567890"
         run: |
-          docker compose up -d
+          docker compose up -d postgres
+          echo "Waiting for postgres to be healthy..."
+          for i in $(seq 1 30); do
+            STATUS=$(docker inspect --format='{{.State.Health.Status}}' whatsrook_postgres 2>/dev/null || echo "starting")
+            echo "  attempt $i: $STATUS"
+            if [ "$STATUS" = "healthy" ]; then
+              echo "Postgres is healthy."
+              break
+            fi
+            if [ "$i" = "30" ]; then
+              echo "Postgres never became healthy."
+              docker compose logs postgres
+              exit 1
+            fi
+            sleep 3
+          done
+
+      - name: Start whatsrook container
+        env:
+          SESSION: "1234567890"
+        run: |
+          docker compose up -d whatsrook
           sleep 5
           docker compose ps
           docker compose logs

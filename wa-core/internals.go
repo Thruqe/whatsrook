@@ -188,7 +188,7 @@ func (int *DangerousInternalClient) HandleStreamError(ctx context.Context, node 
 }
 
 func (int *DangerousInternalClient) HandleIB(ctx context.Context, node *waBinary.Node) {
-	int.c.handleIB(ctx, node)
+	int.c.handleIB(node)
 }
 
 func (int *DangerousInternalClient) HandleConnectFailure(ctx context.Context, node *waBinary.Node) {
@@ -304,7 +304,7 @@ func (int *DangerousInternalClient) QueryMediaConn(ctx context.Context) (*MediaC
 }
 
 func (int *DangerousInternalClient) HandleMediaRetryNotification(ctx context.Context, node *waBinary.Node) {
-	int.c.handleMediaRetryNotification(ctx, node)
+	int.c.handleMediaRetryNotification(node)
 }
 
 func (int *DangerousInternalClient) HandleEncryptedMessage(ctx context.Context, node *waBinary.Node) {
@@ -416,7 +416,7 @@ func (int *DangerousInternalClient) EncryptMsgSecret(ctx context.Context, ownID,
 }
 
 func (int *DangerousInternalClient) DecryptBotMessage(ctx context.Context, messageSecret []byte, msMsg messageEncryptedSecret, messageID types.MessageID, targetSenderJID types.JID, info *types.MessageInfo) ([]byte, error) {
-	return int.c.decryptBotMessage(ctx, messageSecret, msMsg, messageID, targetSenderJID, info)
+	return int.c.decryptBotMessage(messageSecret, msMsg, messageID, targetSenderJID, info)
 }
 
 func (int *DangerousInternalClient) SendMexIQ(ctx context.Context, queryID string, variables any) (json.RawMessage, error) {
@@ -436,7 +436,7 @@ func (int *DangerousInternalClient) HandleAppStateNotification(ctx context.Conte
 }
 
 func (int *DangerousInternalClient) HandlePictureNotification(ctx context.Context, node *waBinary.Node) {
-	int.c.handlePictureNotification(ctx, node)
+	int.c.handlePictureNotification(node)
 }
 
 func (int *DangerousInternalClient) HandleDeviceNotification(ctx context.Context, node *waBinary.Node) {
@@ -444,15 +444,15 @@ func (int *DangerousInternalClient) HandleDeviceNotification(ctx context.Context
 }
 
 func (int *DangerousInternalClient) HandleFBDeviceNotification(ctx context.Context, node *waBinary.Node) {
-	int.c.handleFBDeviceNotification(ctx, node)
+	int.c.handleFBDeviceNotification(node)
 }
 
 func (int *DangerousInternalClient) HandleOwnDevicesNotification(ctx context.Context, node *waBinary.Node, fromJID types.JID) {
-	int.c.handleOwnDevicesNotification(ctx, node, fromJID)
+	int.c.handleOwnDevicesNotification(node, fromJID)
 }
 
 func (int *DangerousInternalClient) HandleBlocklist(ctx context.Context, node *waBinary.Node) {
-	int.c.handleBlocklist(ctx, node)
+	int.c.handleBlocklist(node)
 }
 
 func (int *DangerousInternalClient) HandleAccountSyncNotification(ctx context.Context, node *waBinary.Node) {
@@ -468,15 +468,15 @@ func (int *DangerousInternalClient) ParseNewsletterMessages(node *waBinary.Node)
 }
 
 func (int *DangerousInternalClient) HandleNewsletterNotification(ctx context.Context, node *waBinary.Node) {
-	int.c.handleNewsletterNotification(ctx, node)
+	int.c.handleNewsletterNotification(node)
 }
 
 func (int *DangerousInternalClient) HandleMexNotification(ctx context.Context, node *waBinary.Node) {
-	int.c.handleMexNotification(ctx, node)
+	int.c.handleMexNotification(node)
 }
 
 func (int *DangerousInternalClient) HandleStatusNotification(ctx context.Context, node *waBinary.Node) {
-	int.c.handleStatusNotification(ctx, node)
+	int.c.handleStatusNotification(node)
 }
 
 func (int *DangerousInternalClient) HandleNotification(ctx context.Context, node *waBinary.Node) {
@@ -556,11 +556,11 @@ func (int *DangerousInternalClient) FetchPreKeys(ctx context.Context, users []ty
 }
 
 func (int *DangerousInternalClient) HandleChatState(ctx context.Context, node *waBinary.Node) {
-	int.c.handleChatState(ctx, node)
+	int.c.handleChatState(node)
 }
 
 func (int *DangerousInternalClient) HandlePresence(ctx context.Context, node *waBinary.Node) {
-	int.c.handlePresence(ctx, node)
+	int.c.handlePresence(node)
 }
 
 func (int *DangerousInternalClient) ParsePrivacySettings(privacyNode *waBinary.Node, settings *types.PrivacySettings) *events.PrivacySettings {

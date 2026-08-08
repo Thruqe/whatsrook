@@ -119,6 +119,11 @@ func Encrypt(key, iv, plaintext []byte) ([]byte, error) {
 	if len(lastBlock) != aes.BlockSize {
 		return nil, fmt.Errorf("last block is not the correct size: %d != %d", len(lastBlock), aes.BlockSize)
 	}
+	// Guard against integer overflow before allocating slices.
+	const maxAlloc = 1 << 30 // 1 GiB – a sane upper limit for CBC payloads
+	if len(plaintext) > maxAlloc || paddingLen > maxAlloc {
+		return nil, fmt.Errorf("plaintext too large to encrypt safely")
+	}
 
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -127,17 +132,19 @@ func Encrypt(key, iv, plaintext []byte) ([]byte, error) {
 
 	var ciphertext []byte
 	if iv == nil {
-		ciphertext = make([]byte, aes.BlockSize+len(plaintext)+paddingLen)
-		iv := ciphertext[:aes.BlockSize]
-		if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+		totalLen := aes.BlockSize + len(plaintext) + paddingLen
+		ciphertext = make([]byte, totalLen)
+		ivSlice := ciphertext[:aes.BlockSize]
+		if _, err := io.ReadFull(rand.Reader, ivSlice); err != nil {
 			return nil, err
 		}
 
-		cbc := cipher.NewCBCEncrypter(block, iv)
+		cbc := cipher.NewCBCEncrypter(block, ivSlice)
 		cbc.CryptBlocks(ciphertext[aes.BlockSize:], plaintextStart)
 		cbc.CryptBlocks(ciphertext[aes.BlockSize+len(plaintextStart):], lastBlock)
 	} else {
-		ciphertext = make([]byte, len(plaintext)+paddingLen, len(plaintext)+paddingLen+10)
+		totalLen := len(plaintext) + paddingLen
+		ciphertext = make([]byte, totalLen)
 
 		cbc := cipher.NewCBCEncrypter(block, iv)
 		cbc.CryptBlocks(ciphertext, plaintextStart)

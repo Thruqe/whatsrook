@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	waBinary "whatsrook/wa-core/binary"
@@ -717,10 +718,11 @@ func parseParticipant(childAG *waBinary.AttrUtility, child *waBinary.Node) types
 		JID:          childAG.JID("jid"),
 		DisplayName:  childAG.OptionalString("display_name"),
 	}
-	if participant.JID.Server == types.HiddenUserServer {
+	switch participant.JID.Server {
+	case types.HiddenUserServer:
 		participant.LID = participant.JID
 		participant.PhoneNumber = childAG.OptionalJIDOrEmpty("phone_number")
-	} else if participant.JID.Server == types.DefaultUserServer {
+	case types.DefaultUserServer:
 		participant.PhoneNumber = participant.JID
 		participant.LID = childAG.OptionalJIDOrEmpty("lid")
 	}
@@ -780,7 +782,11 @@ func (cli *Client) parseGroupNode(groupNode *waBinary.Node) (*types.GroupInfo, e
 			group.IsLocked = true
 		case "ephemeral":
 			group.IsEphemeral = true
-			group.DisappearingTimer = uint32(childAG.Uint64("expiration"))
+			expVal := childAG.Uint64("expiration")
+			if expVal > math.MaxUint32 {
+				expVal = math.MaxUint32
+			}
+			group.DisappearingTimer = uint32(expVal)
 		case "member_add_mode":
 			modeBytes, _ := child.Content.([]byte)
 			group.MemberAddMode = types.GroupMemberAddMode(modeBytes)
@@ -835,7 +841,8 @@ func parseParticipantList(node *waBinary.Node) (participants []types.JID, lidPai
 			continue
 		}
 		participants = append(participants, jid)
-		if jid.Server == types.HiddenUserServer {
+		switch jid.Server {
+		case types.HiddenUserServer:
 			phoneNumber, ok := child.Attrs["phone_number"].(types.JID)
 			if ok && !phoneNumber.IsEmpty() {
 				lidPairs = append(lidPairs, store.LIDMapping{
@@ -843,7 +850,7 @@ func parseParticipantList(node *waBinary.Node) (participants []types.JID, lidPai
 					PN:  phoneNumber,
 				})
 			}
-		} else if jid.Server == types.DefaultUserServer {
+		case types.DefaultUserServer:
 			lid, ok := child.Attrs["lid"].(types.JID)
 			if ok && !lid.IsEmpty() {
 				lidPairs = append(lidPairs, store.LIDMapping{
@@ -960,7 +967,11 @@ func (cli *Client) parseGroupChange(node *waBinary.Node) (*events.GroupInfo, []s
 			link := InviteLinkPrefix + cag.String("code")
 			evt.NewInviteLink = &link
 		case "ephemeral":
-			timer := uint32(cag.Uint64("expiration"))
+			expVal := cag.Uint64("expiration")
+			if expVal > math.MaxUint32 {
+				expVal = math.MaxUint32
+			}
+			timer := uint32(expVal)
 			evt.Ephemeral = &types.GroupEphemeral{
 				IsEphemeral:       true,
 				DisappearingTimer: timer,

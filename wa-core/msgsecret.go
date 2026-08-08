@@ -51,7 +51,12 @@ func generateMsgSecretKey(
 	origMsgSenderStr := origMsgSender.ToNonAD().String()
 	modificationSenderStr := modificationSender.ToNonAD().String()
 
-	useCaseSecret := make([]byte, 0, len(origMsgID)+len(origMsgSenderStr)+len(modificationSenderStr)+len(modificationType))
+	// Guard against integer overflow in capacity computation before allocating.
+	useCaseSecretCap := len(origMsgID) + len(origMsgSenderStr) + len(modificationSenderStr) + len(modificationType)
+	if useCaseSecretCap < len(origMsgID) {
+		useCaseSecretCap = 0 // overflow: fall back to zero-capacity, append will grow as needed
+	}
+	useCaseSecret := make([]byte, 0, useCaseSecretCap)
 	useCaseSecret = append(useCaseSecret, origMsgID...)
 	useCaseSecret = append(useCaseSecret, origMsgSenderStr...)
 	useCaseSecret = append(useCaseSecret, modificationSenderStr...)
@@ -164,7 +169,7 @@ func (cli *Client) encryptMsgSecret(ctx context.Context, ownID, chat, origSender
 	return ciphertext, iv, nil
 }
 
-func (cli *Client) decryptBotMessage(ctx context.Context, messageSecret []byte, msMsg messageEncryptedSecret, messageID types.MessageID, targetSenderJID types.JID, info *types.MessageInfo) ([]byte, error) {
+func (cli *Client) decryptBotMessage(messageSecret []byte, msMsg messageEncryptedSecret, messageID types.MessageID, targetSenderJID types.JID, info *types.MessageInfo) ([]byte, error) {
 	newKey, additionalData := generateMsgSecretKey("", info.Sender, messageID, targetSenderJID, applyBotMessageHKDF(messageSecret))
 
 	plaintext, err := gcmutil.Decrypt(newKey, msMsg.GetEncIV(), msMsg.GetEncPayload(), additionalData)
@@ -294,12 +299,12 @@ func (cli *Client) DecryptSecretEncryptedMessage(ctx context.Context, evt *event
 
 func getKeyFromInfo(msgInfo *types.MessageInfo) *waCommon.MessageKey {
 	creationKey := &waCommon.MessageKey{
-		RemoteJID: proto.String(msgInfo.Chat.String()),
-		FromMe:    proto.Bool(msgInfo.IsFromMe),
-		ID:        proto.String(msgInfo.ID),
+		RemoteJID: new(msgInfo.Chat.String()),
+		FromMe:    new(msgInfo.IsFromMe),
+		ID:        new(msgInfo.ID),
 	}
 	if msgInfo.IsGroup {
-		creationKey.Participant = proto.String(msgInfo.Sender.String())
+		creationKey.Participant = new(msgInfo.Sender.String())
 	}
 	return creationKey
 }
@@ -346,13 +351,13 @@ func (cli *Client) BuildPollCreation(name string, optionNames []string, selectab
 	}
 	options := make([]*waE2E.PollCreationMessage_Option, len(optionNames))
 	for i, option := range optionNames {
-		options[i] = &waE2E.PollCreationMessage_Option{OptionName: proto.String(option)}
+		options[i] = &waE2E.PollCreationMessage_Option{OptionName: new(option)}
 	}
 	return &waE2E.Message{
 		PollCreationMessage: &waE2E.PollCreationMessage{
-			Name:                   proto.String(name),
+			Name:                   new(name),
 			Options:                options,
-			SelectableOptionsCount: proto.Uint32(uint32(selectableOptionCount)),
+			SelectableOptionsCount: new(uint32(selectableOptionCount)),
 		},
 		MessageContextInfo: &waE2E.MessageContextInfo{
 			MessageSecret: msgSecret,
@@ -380,7 +385,7 @@ func (cli *Client) EncryptPollVote(ctx context.Context, pollInfo *types.MessageI
 			EncPayload: ciphertext,
 			EncIV:      iv,
 		},
-		SenderTimestampMS: proto.Int64(time.Now().UnixMilli()),
+		SenderTimestampMS: new(time.Now().UnixMilli()),
 	}, nil
 }
 
@@ -396,10 +401,10 @@ func (cli *Client) EncryptComment(ctx context.Context, rootMsgInfo *types.Messag
 	return &waE2E.Message{
 		EncCommentMessage: &waE2E.EncCommentMessage{
 			TargetMessageKey: &waCommon.MessageKey{
-				RemoteJID:   proto.String(rootMsgInfo.Chat.String()),
-				Participant: proto.String(rootMsgInfo.Sender.ToNonAD().String()),
-				FromMe:      proto.Bool(rootMsgInfo.IsFromMe),
-				ID:          proto.String(rootMsgInfo.ID),
+				RemoteJID:   new(rootMsgInfo.Chat.String()),
+				Participant: new(rootMsgInfo.Sender.ToNonAD().String()),
+				FromMe:      new(rootMsgInfo.IsFromMe),
+				ID:          new(rootMsgInfo.ID),
 			},
 			EncPayload: ciphertext,
 			EncIV:      iv,

@@ -15,7 +15,7 @@ import (
 	"whatsrook/wa-core/types/events"
 )
 
-func (cli *Client) handleChatState(ctx context.Context, node *waBinary.Node) {
+func (cli *Client) handleChatState(node *waBinary.Node) {
 	source, err := cli.parseMessageSource(node, true)
 	if err != nil {
 		cli.Log.Warnf("Failed to parse chat state update: %v", err)
@@ -36,7 +36,7 @@ func (cli *Client) handleChatState(ctx context.Context, node *waBinary.Node) {
 	}
 }
 
-func (cli *Client) handlePresence(ctx context.Context, node *waBinary.Node) {
+func (cli *Client) handlePresence(node *waBinary.Node) {
 	var evt events.Presence
 	ag := node.AttrGetter()
 	evt.From = ag.JID("from")

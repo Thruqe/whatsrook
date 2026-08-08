@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -58,6 +59,8 @@ func GetLatestVersion(ctx context.Context, httpClient *http.Client) (*store.WAVe
 		return nil, fmt.Errorf("version number not found")
 	} else if parsedVer, err := strconv.ParseInt(string(match[1]), 10, 64); err != nil {
 		return nil, fmt.Errorf("failed to parse version number: %w", err)
+	} else if parsedVer < 0 || parsedVer > math.MaxUint32 {
+		return nil, fmt.Errorf("version number out of uint32 range: %d", parsedVer)
 	} else {
 		return &store.WAVersionContainer{2, 3000, uint32(parsedVer)}, nil
 	}

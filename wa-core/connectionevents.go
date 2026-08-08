@@ -69,7 +69,7 @@ func (cli *Client) handleStreamError(ctx context.Context, node *waBinary.Node) {
 	}
 }
 
-func (cli *Client) handleIB(ctx context.Context, node *waBinary.Node) {
+func (cli *Client) handleIB(node *waBinary.Node) {
 	children := node.GetChildren()
 	for _, child := range children {
 		ag := child.AttrGetter()

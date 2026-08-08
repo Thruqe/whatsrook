@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -176,11 +177,17 @@ func ParseJID(jid string) (JID, error) {
 		if err != nil {
 			return parsedJID, fmt.Errorf("failed to parse device from JID: %w", err)
 		}
+		if agent < 0 || agent > math.MaxUint8 {
+			return parsedJID, fmt.Errorf("agent value out of uint8 range: %d", agent)
+		}
 		parsedJID.RawAgent = uint8(agent)
 		if len(parts) == 2 {
 			device, err := strconv.Atoi(parts[1])
 			if err != nil {
 				return parsedJID, fmt.Errorf("failed to parse device from JID: %w", err)
+			}
+			if device < 0 || device > math.MaxUint16 {
+				return parsedJID, fmt.Errorf("device value out of uint16 range: %d", device)
 			}
 			parsedJID.Device = uint16(device)
 		}
@@ -193,6 +200,9 @@ func ParseJID(jid string) (JID, error) {
 		device, err := strconv.Atoi(parts[1])
 		if err != nil {
 			return parsedJID, fmt.Errorf("failed to parse device from JID: %w", err)
+		}
+		if device < 0 || device > math.MaxUint16 {
+			return parsedJID, fmt.Errorf("device value out of uint16 range: %d", device)
 		}
 		parsedJID.Device = uint16(device)
 	}

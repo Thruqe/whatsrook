@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	"google.golang.org/protobuf/proto"
-
 	"whatsrook/wa-core/proto/waE2E"
 	"whatsrook/wa-core/types"
 )
@@ -14,11 +12,11 @@ import (
 func TestRecentMessageCacheStoresSerializedMessage(t *testing.T) {
 	cli := &Client{}
 	to := types.NewJID("123", types.DefaultUserServer)
-	message := &waE2E.Message{Conversation: proto.String("original")}
+	message := &waE2E.Message{Conversation: new("original")}
 	if err := cli.addRecentMessage(context.Background(), to, "message", message, nil); err != nil {
 		t.Fatalf("failed to cache message: %v", err)
 	}
-	message.Conversation = proto.String("mutated")
+	message.Conversation = new("mutated")
 
 	cached := cli.getRecentMessage(to, "message")
 	if cached.wa.GetConversation() != "original" {
@@ -32,7 +30,7 @@ func TestRecentMessageCacheStoresSerializedMessage(t *testing.T) {
 func TestRecentMessageCacheGrowsOnDemand(t *testing.T) {
 	cli := &Client{}
 	to := types.NewJID("123", types.DefaultUserServer)
-	message := &waE2E.Message{Conversation: proto.String("first")}
+	message := &waE2E.Message{Conversation: new("first")}
 	if err := cli.addRecentMessage(context.Background(), to, "message", message, nil); err != nil {
 		t.Fatalf("failed to cache message: %v", err)
 	}
@@ -45,7 +43,7 @@ func TestRecentMessageCacheDoesNotDuplicateKeys(t *testing.T) {
 	cli := &Client{}
 	to := types.NewJID("123", types.DefaultUserServer)
 	for _, text := range []string{"first", "updated"} {
-		message := &waE2E.Message{Conversation: proto.String(text)}
+		message := &waE2E.Message{Conversation: new(text)}
 		if err := cli.addRecentMessage(context.Background(), to, "message", message, nil); err != nil {
 			t.Fatalf("failed to cache message: %v", err)
 		}
@@ -63,7 +61,7 @@ func TestRecentMessageCacheEvictsOldest(t *testing.T) {
 	to := types.NewJID("123", types.DefaultUserServer)
 	for i := 0; i <= recentMessagesSize; i++ {
 		id := fmt.Sprintf("message-%d", i)
-		message := &waE2E.Message{Conversation: proto.String(id)}
+		message := &waE2E.Message{Conversation: new(id)}
 		if err := cli.addRecentMessage(context.Background(), to, id, message, nil); err != nil {
 			t.Fatalf("failed to cache message: %v", err)
 		}

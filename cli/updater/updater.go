@@ -400,21 +400,16 @@ func (u *Updater) DownloadAndApply(ctx context.Context, tag string) error {
 		}
 
 		// Prevent Zip/Tar Slip (arbitrary file access during extraction)
-		relPath := filepath.Clean(hdr.Name)
-		if strings.HasPrefix(relPath, "..") || filepath.IsAbs(hdr.Name) || strings.HasPrefix(hdr.Name, "/") || strings.HasPrefix(hdr.Name, "\\") {
+		cleanRel := filepath.Clean(hdr.Name)
+		destPath := filepath.Join(cleanExeDir, cleanRel)
+		rel, errRel := filepath.Rel(cleanExeDir, destPath)
+		if errRel != nil || strings.HasPrefix(rel, "..") || rel == ".." || filepath.IsAbs(cleanRel) || strings.HasPrefix(hdr.Name, "/") || strings.HasPrefix(hdr.Name, "\\") {
 			out.Close()
 			_ = os.Remove(tmpBinary)
 			return fmt.Errorf("illegal archive entry path (Zip Slip attempt): %s", hdr.Name)
 		}
 
-		destPath := filepath.Join(exeDir, relPath)
-		if !strings.HasPrefix(destPath, cleanExeDir+string(filepath.Separator)) && destPath != cleanExeDir {
-			out.Close()
-			_ = os.Remove(tmpBinary)
-			return fmt.Errorf("archive entry path escapes destination directory: %s", hdr.Name)
-		}
-
-		if strings.HasPrefix(relPath, "cli/resources") || strings.HasPrefix(relPath, "resources") || strings.HasPrefix(relPath, "prompts") {
+		if strings.HasPrefix(cleanRel, "cli/resources") || strings.HasPrefix(cleanRel, "resources") || strings.HasPrefix(cleanRel, "prompts") {
 			if hdr.Typeflag == tar.TypeDir {
 				_ = os.MkdirAll(destPath, 0755)
 			} else {

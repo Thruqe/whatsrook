@@ -87,7 +87,7 @@ func (cli *Client) handleAppStateNotification(ctx context.Context, node *waBinar
 	}
 }
 
-func (cli *Client) handlePictureNotification(ctx context.Context, node *waBinary.Node) {
+func (cli *Client) handlePictureNotification(node *waBinary.Node) {
 	ts := node.AttrGetter().UnixTime("t")
 	for _, child := range node.GetChildren() {
 		ag := child.AttrGetter()
@@ -95,14 +95,15 @@ func (cli *Client) handlePictureNotification(ctx context.Context, node *waBinary
 		evt.Timestamp = ts
 		evt.JID = ag.JID("jid")
 		evt.Author = ag.OptionalJIDOrEmpty("author")
-		if child.Tag == "delete" {
+		switch child.Tag {
+		case "delete":
 			evt.Remove = true
-		} else if child.Tag == "add" {
+		case "add":
 			evt.PictureID = ag.String("id")
-		} else if child.Tag == "set" {
+		case "set":
 			// TODO sometimes there's a hash and no ID?
 			evt.PictureID = ag.String("id")
-		} else {
+		default:
 			continue
 		}
 		if !ag.OK() {
@@ -186,7 +187,7 @@ func (cli *Client) handleDeviceNotification(ctx context.Context, node *waBinary.
 	}
 }
 
-func (cli *Client) handleFBDeviceNotification(ctx context.Context, node *waBinary.Node) {
+func (cli *Client) handleFBDeviceNotification(node *waBinary.Node) {
 	cli.userDevicesCacheLock.Lock()
 	defer cli.userDevicesCacheLock.Unlock()
 	jid := node.AttrGetter().JID("from")
@@ -194,7 +195,7 @@ func (cli *Client) handleFBDeviceNotification(ctx context.Context, node *waBinar
 	putBoundedCache(ensureMap(&cli.userDevicesCache), jid, userDevices, maxUserDeviceCacheEntries)
 }
 
-func (cli *Client) handleOwnDevicesNotification(ctx context.Context, node *waBinary.Node, fromJID types.JID) {
+func (cli *Client) handleOwnDevicesNotification(node *waBinary.Node, fromJID types.JID) {
 	cli.userDevicesCacheLock.Lock()
 	defer cli.userDevicesCacheLock.Unlock()
 	ownLID := cli.getOwnLID().ToNonAD()
@@ -241,7 +242,7 @@ func (cli *Client) handleOwnDevicesNotification(ctx context.Context, node *waBin
 	}
 }
 
-func (cli *Client) handleBlocklist(ctx context.Context, node *waBinary.Node) {
+func (cli *Client) handleBlocklist(node *waBinary.Node) {
 	ag := node.AttrGetter()
 	evt := events.Blocklist{
 		Action:    events.BlocklistAction(ag.OptionalString("action")),
@@ -269,14 +270,14 @@ func (cli *Client) handleAccountSyncNotification(ctx context.Context, node *waBi
 		case "privacy":
 			cli.handlePrivacySettingsNotification(ctx, &child)
 		case "devices":
-			cli.handleOwnDevicesNotification(ctx, &child, node.AttrGetter().JID("from"))
+			cli.handleOwnDevicesNotification(&child, node.AttrGetter().JID("from"))
 		case "picture":
 			cli.dispatchEvent(&events.Picture{
 				Timestamp: node.AttrGetter().UnixTime("t"),
 				JID:       cli.getOwnID().ToNonAD(),
 			})
 		case "blocklist":
-			cli.handleBlocklist(ctx, &child)
+			cli.handleBlocklist(&child)
 		default:
 			cli.Log.Debugf("Unhandled account sync item %s", child.Tag)
 		}
@@ -378,7 +379,7 @@ func (cli *Client) parseNewsletterMessages(node *waBinary.Node) []*types.Newslet
 	return output
 }
 
-func (cli *Client) handleNewsletterNotification(ctx context.Context, node *waBinary.Node) {
+func (cli *Client) handleNewsletterNotification(node *waBinary.Node) {
 	ag := node.AttrGetter()
 	liveUpdates := node.GetChildByTag("live_updates")
 	cli.dispatchEvent(&events.NewsletterLiveUpdate{
@@ -402,7 +403,7 @@ type newsletterEvent struct {
 	NotifyAccountReachoutTimelock *events.NotifyAccountReachoutTimelock `json:"xwa2_notify_account_reachout_timelock"`
 }
 
-func (cli *Client) handleMexNotification(ctx context.Context, node *waBinary.Node) {
+func (cli *Client) handleMexNotification(node *waBinary.Node) {
 	for _, child := range node.GetChildren() {
 		if child.Tag != "update" {
 			continue
@@ -437,7 +438,7 @@ func (cli *Client) handleMexNotification(ctx context.Context, node *waBinary.Nod
 	}
 }
 
-func (cli *Client) handleStatusNotification(ctx context.Context, node *waBinary.Node) {
+func (cli *Client) handleStatusNotification(node *waBinary.Node) {
 	ag := node.AttrGetter()
 	child, found := node.GetOptionalChildByTag("set")
 	if !found {
@@ -474,7 +475,7 @@ func (cli *Client) handleNotification(ctx context.Context, node *waBinary.Node) 
 	case "devices":
 		cli.handleDeviceNotification(ctx, node)
 	case "fbid:devices":
-		cli.handleFBDeviceNotification(ctx, node)
+		cli.handleFBDeviceNotification(node)
 	case "w:gp2":
 		evt, lidPairs, redactedPhones, err := cli.parseGroupNotification(node)
 		if err != nil {
@@ -491,19 +492,19 @@ func (cli *Client) handleNotification(ctx context.Context, node *waBinary.Node) 
 			cancelled = cli.dispatchEvent(evt)
 		}
 	case "picture":
-		cli.handlePictureNotification(ctx, node)
+		cli.handlePictureNotification(node)
 	case "mediaretry":
-		cli.handleMediaRetryNotification(ctx, node)
+		cli.handleMediaRetryNotification(node)
 	case "privacy_token":
 		cli.handlePrivacyTokenNotification(ctx, node)
 	case "link_code_companion_reg":
 		go cli.tryHandleCodePairNotification(ctx, node)
 	case "newsletter":
-		cli.handleNewsletterNotification(ctx, node)
+		cli.handleNewsletterNotification(node)
 	case "mex":
-		cli.handleMexNotification(ctx, node)
+		cli.handleMexNotification(node)
 	case "status":
-		cli.handleStatusNotification(ctx, node)
+		cli.handleStatusNotification(node)
 	case "passkey_prologue_request":
 		cli.handlePasskeyNotification(ctx, node)
 	case "crsc_continuation":

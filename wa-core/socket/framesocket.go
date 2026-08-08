@@ -133,8 +133,14 @@ func (fs *FrameSocket) SendFrame(data []byte) error {
 	}
 
 	headerLength := len(fs.Header)
+	// Guard against integer overflow in frame size computation.
+	// FrameMaxSize already caps dataLength, so this is an additional safety net.
+	wholeFrameLen := headerLength + FrameLengthSize + dataLength
+	if wholeFrameLen < dataLength {
+		return fmt.Errorf("frame size computation overflowed")
+	}
 	// Whole frame is header + 3 bytes for length + data
-	wholeFrame := make([]byte, headerLength+FrameLengthSize+dataLength)
+	wholeFrame := make([]byte, wholeFrameLen)
 
 	// Copy the header if it's there
 	if fs.Header != nil {

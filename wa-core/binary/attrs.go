@@ -8,6 +8,7 @@ package binary
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -148,11 +149,18 @@ func (au *AttrUtility) String(key string) string {
 
 func (au *AttrUtility) OptionalInt(key string) int {
 	val, _ := au.GetInt64(key, false)
+	if val > math.MaxInt || val < math.MinInt {
+		return 0
+	}
 	return int(val)
 }
 
 func (au *AttrUtility) Int(key string) int {
 	val, _ := au.GetInt64(key, true)
+	if val > math.MaxInt || val < math.MinInt {
+		au.Errors = append(au.Errors, fmt.Errorf("%s: value %d overflows int", key, val))
+		return 0
+	}
 	return int(val)
 }
 

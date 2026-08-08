@@ -143,8 +143,12 @@ func extractReportingTokenContent(data []byte, config []reportingField) []byte {
 				// Recursively extract subfields
 				sub := extractReportingTokenContent(data[valStart:valEnd], fieldCfg.Subfields)
 				if len(sub) > 0 {
-					// Re-encode tag and length
-					buf := make([]byte, 0, tagLen+n+len(sub))
+					// Re-encode tag and length, guard against overflow
+					safeCap := tagLen + n + len(sub)
+					if safeCap < len(sub) {
+						continue // overflow: skip malformed field
+					}
+					buf := make([]byte, 0, safeCap)
 					tagBuf := make([]byte, binary.MaxVarintLen64)
 					tagN := binary.PutUvarint(tagBuf, tag)
 					lenBuf := make([]byte, binary.MaxVarintLen64)

@@ -141,9 +141,10 @@ func (cli *Client) parseMessageSource(node *waBinary.Node, requireParticipant bo
 		source.Sender = from
 		// TODO IsFromMe?
 	} else if from.User == clientID.User || from.User == clientLID.User {
-		if from.Server == types.HostedServer {
+		switch from.Server {
+		case types.HostedServer:
 			from.Server = types.DefaultUserServer
-		} else if from.Server == types.HostedLIDServer {
+		case types.HostedLIDServer:
 			from.Server = types.HiddenUserServer
 		}
 		source.IsFromMe = true
@@ -170,9 +171,10 @@ func (cli *Client) parseMessageSource(node *waBinary.Node, requireParticipant bo
 			source.Chat = from
 		}
 	} else {
-		if from.Server == types.HostedServer {
+		switch from.Server {
+		case types.HostedServer:
 			from.Server = types.DefaultUserServer
-		} else if from.Server == types.HostedLIDServer {
+		case types.HostedLIDServer:
 			from.Server = types.HiddenUserServer
 		}
 		source.Chat = from.ToNonAD()
@@ -393,7 +395,7 @@ func (cli *Client) decryptMessages(ctx context.Context, info *types.MessageInfo,
 			} else if err = proto.Unmarshal(child.Content.([]byte), &msMsg); err != nil {
 				err = fmt.Errorf("failed to unmarshal MessageSecretMessage protobuf: %v", err)
 			} else {
-				decrypted, err = cli.decryptBotMessage(ctx, messageSecret, &msMsg, decryptMessageID, targetSenderJID, info)
+				decrypted, err = cli.decryptBotMessage(messageSecret, &msMsg, decryptMessageID, targetSenderJID, info)
 			}
 		} else {
 			cli.Log.Warnf("Unhandled encrypted message (type %s) from %s", encType, info.SourceString())
@@ -968,9 +970,10 @@ func (cli *Client) storeHistoricalMessageSecrets(ctx context.Context, conversati
 			continue
 		}
 		var userJID types.JID
-		if chatJID.Server == types.HiddenUserServer {
+		switch chatJID.Server {
+		case types.HiddenUserServer:
 			userJID = chatJID
-		} else if chatJID.Server == types.DefaultUserServer {
+		case types.DefaultUserServer:
 			userJID, _ = cli.Store.LIDs.GetLIDForPN(ctx, chatJID)
 			if userJID.IsEmpty() {
 				// Privacy token queries will check both LIDs and phone numbers, so while we prefer storing with LIDs,

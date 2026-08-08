@@ -1360,7 +1360,7 @@ func handleLeave(ctx *Context) error {
 	return sendInteractiveButtons(ctx, bodyText, fmt.Sprintf("Powered by %s", ctx.GetBotName()), buttons)
 }
 
-var groupInviteLinkRegex = regexp.MustCompile(`(?i)(?:https?://)?chat\.whatsapp\.com/([A-Za-z0-9_-]+)`)
+var groupInviteLinkRegex = regexp.MustCompile(`(?i)(?:^|\s)(?:https?://)?chat\.whatsapp\.com/([A-Za-z0-9_-]+)(?:\b|\s|$)`)
 
 func handleJoin(ctx *Context) error {
 	var inviteMsg *waE2E.GroupInviteMessage

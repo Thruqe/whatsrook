@@ -11,6 +11,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 
@@ -787,6 +788,9 @@ func parseDeviceList(user types.JID, deviceNode waBinary.Node) []types.JID {
 		if device.Tag != "device" || !ok {
 			continue
 		}
+		if deviceID < 0 || deviceID > math.MaxUint16 {
+			continue // skip devices with out-of-range IDs
+		}
 		user.Device = uint16(deviceID)
 		if isHosted {
 			hostedUser := user
@@ -810,6 +814,9 @@ func parseFBDeviceList(user types.JID, deviceList waBinary.Node) deviceCache {
 		deviceID, ok := device.AttrGetter().GetInt64("id", true)
 		if device.Tag != "device" || !ok {
 			continue
+		}
+		if deviceID < 0 || deviceID > math.MaxUint16 {
+			continue // skip devices with out-of-range IDs
 		}
 		user.Device = uint16(deviceID)
 		devices = append(devices, user)

@@ -237,9 +237,10 @@ func (cli *Client) dispatchAppState(ctx context.Context, name appstate.WAPatchNa
 
 	if len(mutation.Index) == 1 && mutation.Index[0] == appstate.IndexNCTSaltSync {
 		var err error
-		if mutation.Operation == waServerSync.SyncdMutation_SET {
+		switch mutation.Operation {
+		case waServerSync.SyncdMutation_SET:
 			err = cli.storeNCTSalt(ctx, mutation.Action.GetNctSaltSyncAction().GetSalt())
-		} else if mutation.Operation == waServerSync.SyncdMutation_REMOVE {
+		case waServerSync.SyncdMutation_REMOVE:
 			err = cli.clearNCTSalt(ctx)
 		}
 		if err != nil {

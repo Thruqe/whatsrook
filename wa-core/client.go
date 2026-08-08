@@ -309,9 +309,10 @@ func (cli *Client) SetProxyAddress(addr string, opts ...SetProxyOptions) error {
 	if err != nil {
 		return err
 	}
-	if parsed.Scheme == "http" || parsed.Scheme == "https" {
+	switch parsed.Scheme {
+	case "http", "https":
 		cli.SetProxy(http.ProxyURL(parsed), opts...)
-	} else if parsed.Scheme == "socks5" {
+	case "socks5":
 		px, err := proxy.FromURL(parsed, &net.Dialer{
 			Timeout:   30 * time.Second,
 			KeepAlive: 30 * time.Second,
@@ -320,7 +321,7 @@ func (cli *Client) SetProxyAddress(addr string, opts ...SetProxyOptions) error {
 			return err
 		}
 		cli.SetSOCKSProxy(px, opts...)
-	} else {
+	default:
 		return fmt.Errorf("unsupported proxy scheme %q", parsed.Scheme)
 	}
 	return nil
@@ -927,9 +928,9 @@ func (cli *Client) handleNode(ctx context.Context, node *waBinary.Node) {
 	case "call":
 		cli.handleCallEvent(ctx, node)
 	case "chatstate":
-		cli.handleChatState(ctx, node)
+		cli.handleChatState(node)
 	case "presence":
-		cli.handlePresence(ctx, node)
+		cli.handlePresence(node)
 	case "notification":
 		cli.handleNotification(ctx, node)
 	case "success":
@@ -941,7 +942,7 @@ func (cli *Client) handleNode(ctx context.Context, node *waBinary.Node) {
 	case "iq":
 		cli.handleIQ(ctx, node)
 	case "ib":
-		cli.handleIB(ctx, node)
+		cli.handleIB(node)
 	}
 }
 
