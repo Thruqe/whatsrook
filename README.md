@@ -28,15 +28,15 @@ WhatsRook uses PostgreSQL as its primary database engine, with automatic fallbac
 
 [![Get Free PostgreSQL on Supabase](https://img.shields.io/badge/Get%20Free%20PostgreSQL-Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
 
-Get a free managed PostgreSQL database at [Supabase](https://supabase.com) and set `DATABASE_URL` in your `.env` file. For details, see the [Database & Storage Guide](Documentation/DATABASE.md).
+Get a free managed PostgreSQL database at [Supabase](https://supabase.com) and set `DATABASE_URL` in your `.env` file. For details, see the [Database & Storage Guide](https://github.com/Thruqe/whatsrook-docs/blob/master/DATABASE.md).
 
 ## Deployment
 
 WhatsRook supports multiple deployment platforms including Pterodactyl, Heroku, Render, and Local Docker.
 
-[![Deployment Guide](https://img.shields.io/badge/Read-Deployment%20Guide-blue?style=for-the-badge&logo=readme&logoColor=white)](Documentation/DEPLOYMENT.md)
+[![Deployment Guide](https://img.shields.io/badge/Read-Deployment%20Guide-blue?style=for-the-badge&logo=readme&logoColor=white)](https://github.com/Thruqe/whatsrook-docs/blob/master/DEPLOYMENT.md)
 
-For step-by-step guides on deploying WhatsRook, see the [Deployment Documentation](Documentation/DEPLOYMENT.md).
+For step-by-step guides on deploying WhatsRook, see the [Deployment Documentation](https://github.com/Thruqe/whatsrook-docs/blob/master/DEPLOYMENT.md).
 
 ## Contributing
 
