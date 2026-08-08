@@ -9,7 +9,7 @@ import (
 
 func TestNewSQLStoreDefersCaches(t *testing.T) {
 	store := NewSQLStore(nil, types.JID{User: "123", Server: types.DefaultUserServer})
-	if store.contactCache != nil || store.identityCache != nil || store.migratedPNSessionsCache != nil || store.migratingPNSessions != nil {
+	if store.contactCache != nil || store.identityCache != nil || store.migratedPNSessionsCache.items != nil {
 		t.Fatal("SQL store allocated caches before use")
 	}
 }
@@ -51,5 +51,39 @@ func TestContactCacheIsBounded(t *testing.T) {
 	}
 	if _, ok := store.contactCache[newJID]; !ok {
 		t.Fatal("new contact was not cached")
+	}
+}
+
+func TestMigratedPNSessionsCacheIsBounded(t *testing.T) {
+	store := &SQLStore{}
+	for i := 0; i < maxMigratedPNEntries; i++ {
+		if !store.migratedPNSessionsCache.Add(fmt.Sprintf("%d:1", i)) {
+			t.Fatalf("Add returned false for a new key %d", i)
+		}
+	}
+	if !store.migratedPNSessionsCache.Add("new:1") {
+		t.Fatal("new entry was not added")
+	}
+
+	if len(store.migratedPNSessionsCache.items) != maxMigratedPNEntries {
+		t.Fatalf("cache grew to %d entries", len(store.migratedPNSessionsCache.items))
+	}
+	if _, ok := store.migratedPNSessionsCache.items["new:1"]; !ok {
+		t.Fatal("new entry was not cached")
+	}
+}
+
+func TestMigratedPNSessionsCacheAddIsIdempotent(t *testing.T) {
+	store := &SQLStore{}
+	if !store.migratedPNSessionsCache.Add("a:1") {
+		t.Fatal("first Add for a new key should return true")
+	}
+	if store.migratedPNSessionsCache.Add("a:1") {
+		t.Fatal("second Add for the same key should return false")
+	}
+
+	store.migratedPNSessionsCache.Remove("a:1")
+	if !store.migratedPNSessionsCache.Add("a:1") {
+		t.Fatal("Add after Remove should return true again")
 	}
 }

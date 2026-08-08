@@ -69,7 +69,6 @@ type SQLStore struct {
 	*Container
 	JID string
 
-	// SessionDir is the filesystem directory path where session files for this account are stored (e.g. auth/1234567890).
 	SessionDir string
 
 	preKeyLock sync.Mutex
@@ -79,9 +78,51 @@ type SQLStore struct {
 	identityCache     map[string]identityCacheEntry
 	identityCacheLock sync.RWMutex
 
-	migratedPNSessionsCache     map[string]struct{}
-	migratingPNSessions         map[string]struct{}
-	migratedPNSessionsCacheLock sync.Mutex
+	migratedPNSessionsCache boundedSet
+}
+
+// boundedSet is a simple concurrency-safe set with a max size, used to
+// remember which phone numbers have already had their PN->LID session
+// migration attempted, without needing separate "done" and "in-progress" maps.
+type boundedSet struct {
+	mu    sync.Mutex
+	items map[string]struct{}
+	limit int
+}
+
+// Add reports whether key was newly inserted. If key was already present,
+// it returns false without modifying the set — this doubles as the
+// "already migrated or migration in progress" guard that the old
+// migratedPNSessionsCache + migratingPNSessions pair provided together.
+func (b *boundedSet) Add(key string) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.items == nil {
+		b.items = make(map[string]struct{})
+	}
+	if _, exists := b.items[key]; exists {
+		return false
+	}
+	limit := b.limit
+	if limit <= 0 {
+		limit = maxMigratedPNEntries
+	}
+	if len(b.items) >= limit {
+		for oldKey := range b.items {
+			delete(b.items, oldKey)
+			break
+		}
+	}
+	b.items[key] = struct{}{}
+	return true
+}
+
+// Remove deletes key from the set, e.g. to roll back an optimistic Add
+// after the underlying operation it guarded turned out to fail.
+func (b *boundedSet) Remove(key string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	delete(b.items, key)
 }
 
 type identityCacheEntry struct {
@@ -255,6 +296,10 @@ const (
 		FROM whatsmeow_sender_keys
 		WHERE our_jid=$1 AND sender_id LIKE $2 || ':%'
 		ON CONFLICT (our_jid, chat_id, sender_id) DO UPDATE SET sender_key=excluded.sender_key
+	`
+	hasPNRowsToMigrateQuery = `
+		SELECT EXISTS(SELECT 1 FROM whatsmeow_sessions WHERE our_jid=$1 AND their_id>=$2 AND their_id<$3)
+		OR EXISTS(SELECT 1 FROM whatsmeow_identity_keys WHERE our_jid=$1 AND their_id>=$2 AND their_id<$3)
 	`
 )
 
@@ -453,22 +498,25 @@ func (s *SQLStore) DeleteSession(ctx context.Context, address string) error {
 
 func (s *SQLStore) MigratePNToLID(ctx context.Context, pn, lid types.JID) error {
 	pnSignal := pn.SignalAddressUser()
-	s.migratedPNSessionsCacheLock.Lock()
-	_, migrated := s.migratedPNSessionsCache[pnSignal]
-	_, migrating := s.migratingPNSessions[pnSignal]
-	if !migrated && !migrating {
-		if s.migratingPNSessions == nil {
-			s.migratingPNSessions = make(map[string]struct{})
-		}
-		s.migratingPNSessions[pnSignal] = struct{}{}
+	if !s.migratedPNSessionsCache.Add(pnSignal) {
+		return nil
 	}
-	s.migratedPNSessionsCacheLock.Unlock()
-	if migrated || migrating {
+	// migratedPNSessionsCache only lives in memory, so after a restart the first
+	// send to each recipient gets here even when the store was fully migrated
+	// long ago. Running the transaction unconditionally is one write transaction
+	// per recipient, which is very noticeable when sending to a lot of them.
+	// Check first and skip the transaction when there is nothing to migrate.
+	var hasPNRows bool
+	err := s.db.QueryRow(ctx, hasPNRowsToMigrateQuery, s.JID, pnSignal+":", pnSignal+";").Scan(&hasPNRows)
+	if err != nil {
+		s.log.Warnf("Failed to check for PN rows to migrate from %s: %v", pnSignal, err)
+	} else if !hasPNRows {
+		s.log.Debugf("No sessions or sender keys found to migrate from %s to %s (pre-check)", pnSignal, lid.SignalAddressUser())
 		return nil
 	}
 	var sessionsUpdated, identityKeysUpdated, senderKeysUpdated int64
 	lidSignal := lid.SignalAddressUser()
-	err := s.db.DoTxn(ctx, nil, func(ctx context.Context) error {
+	err = s.db.DoTxn(ctx, nil, func(ctx context.Context) error {
 		res, err := s.db.Exec(ctx, migratePNToLIDSessionsQuery, s.JID, pnSignal, lidSignal)
 		if err != nil {
 			return fmt.Errorf("failed to migrate sessions: %w", err)
@@ -509,21 +557,9 @@ func (s *SQLStore) MigratePNToLID(ctx context.Context, pn, lid types.JID) error 
 		}
 		return nil
 	})
-	s.migratedPNSessionsCacheLock.Lock()
-	delete(s.migratingPNSessions, pnSignal)
-	if err == nil {
-		if s.migratedPNSessionsCache == nil {
-			s.migratedPNSessionsCache = make(map[string]struct{})
-		}
-		setBoundedCacheEntry(s.migratedPNSessionsCache, pnSignal, struct{}{}, maxMigratedPNEntries)
-	}
-	s.migratedPNSessionsCacheLock.Unlock()
 	if err != nil {
 		return err
 	}
-	s.identityCacheLock.Lock()
-	clear(s.identityCache)
-	s.identityCacheLock.Unlock()
 	if sessionsUpdated > 0 || senderKeysUpdated > 0 || identityKeysUpdated > 0 {
 		s.log.Infof("Migrated %d sessions, %d identity keys and %d sender keys from %s to %s", sessionsUpdated, identityKeysUpdated, senderKeysUpdated, pnSignal, lidSignal)
 	} else {
@@ -1054,7 +1090,7 @@ const (
 
 func (s *SQLStore) PutMutedUntil(ctx context.Context, chat types.JID, mutedUntil time.Time) error {
 	var val int64
-	if mutedUntil == store.MutedForever {
+	if mutedUntil.Equal(store.MutedForever) {
 		val = -1
 	} else if !mutedUntil.IsZero() {
 		val = mutedUntil.Unix()
