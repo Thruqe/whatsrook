@@ -1,10 +1,12 @@
-FROM golang:1.24-bookworm AS builder
+FROM debian:bookworm-slim
 
+ARG TARGETARCH=amd64
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
-    git \
     tar \
     gzip \
     ffmpeg \
@@ -15,3 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+RUN curl -L "https://github.com/Thruqe/whatsrook/releases/download/alpha/whatsrook-linux-${TARGETARCH}.tar.gz" | tar -xz -C /app \
+    && chmod +x /app/whatsrook
+
+ENTRYPOINT ["/app/whatsrook"]
