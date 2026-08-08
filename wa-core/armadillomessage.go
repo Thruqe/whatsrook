@@ -15,7 +15,6 @@ import (
 	armadillo "whatsrook/wa-core/proto"
 	"whatsrook/wa-core/proto/armadilloutil"
 	"whatsrook/wa-core/proto/instamadilloTransportPayload"
-	"whatsrook/wa-core/proto/waCommon"
 	"whatsrook/wa-core/proto/waMsgApplication"
 	"whatsrook/wa-core/proto/waMsgTransport"
 	"whatsrook/wa-core/types"
@@ -85,8 +84,6 @@ func decodeFBArmadillo(transport *waMsgTransport.MessageTransport) (dec events.F
 	case *waMsgApplication.MessageApplication_Payload_ApplicationData:
 		err = fmt.Errorf("unsupported application data payload")
 	case *waMsgApplication.MessageApplication_Payload_SubProtocol:
-		var protoMsg proto.Message
-		var subData *waCommon.SubProtocol
 		switch subProtocol := typedContent.SubProtocol.GetSubProtocol().(type) {
 		case *waMsgApplication.MessageApplication_SubProtocolPayload_ConsumerMessage:
 			dec.Message, err = subProtocol.Decode()
@@ -102,12 +99,6 @@ func decodeFBArmadillo(transport *waMsgTransport.MessageTransport) (dec events.F
 			dec.Message, err = subProtocol.Decode()
 		default:
 			return dec, fmt.Errorf("unsupported subprotocol type: %T", subProtocol)
-		}
-		if protoMsg != nil {
-			err = proto.Unmarshal(subData.GetPayload(), protoMsg)
-			if err != nil {
-				return dec, fmt.Errorf("failed to unmarshal application subprotocol payload (%T v%d): %w", protoMsg, subData.GetVersion(), err)
-			}
 		}
 	default:
 		err = fmt.Errorf("unsupported application payload content type: %T", typedContent)
