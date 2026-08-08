@@ -484,6 +484,21 @@ func (ctx *PluginContext) getContextInfo() *waE2E.ContextInfo {
 	if doc := msg.GetDocumentMessage(); doc != nil {
 		return doc.GetContextInfo()
 	}
+	if btn := msg.GetButtonsResponseMessage(); btn != nil {
+		return btn.GetContextInfo()
+	}
+	if inter := msg.GetInteractiveResponseMessage(); inter != nil {
+		return inter.GetContextInfo()
+	}
+	if lst := msg.GetListResponseMessage(); lst != nil {
+		return lst.GetContextInfo()
+	}
+	if poll := msg.GetPollCreationMessage(); poll != nil {
+		return poll.GetContextInfo()
+	}
+	if evt := msg.GetEventMessage(); evt != nil {
+		return evt.GetContextInfo()
+	}
 	return nil
 }
 
@@ -504,11 +519,22 @@ func (ctx *PluginContext) GetQuotedMessage() *waE2E.Message {
 // GetQuotedSender returns the quoted message sender JID if available.
 func (ctx *PluginContext) GetQuotedSender() (types.JID, bool) {
 	ci := ctx.getContextInfo()
-	if ci != nil && ci.Participant != nil {
-		pj, err := types.ParseJID(*ci.Participant)
-		if err == nil {
-			return pj, true
+	if ci != nil {
+		if ci.Participant != nil && *ci.Participant != "" {
+			pj, err := types.ParseJID(*ci.Participant)
+			if err == nil && !pj.IsEmpty() {
+				return pj, true
+			}
 		}
+		if ci.RemoteJID != nil && *ci.RemoteJID != "" {
+			pj, err := types.ParseJID(*ci.RemoteJID)
+			if err == nil && !pj.IsEmpty() {
+				return pj, true
+			}
+		}
+	}
+	if !ctx.Chat.IsEmpty() && ctx.Chat.Server != "g.us" {
+		return ctx.Chat, true
 	}
 	return types.JID{}, false
 }

@@ -15,6 +15,7 @@ require (
 require (
 	github.com/Thruqe/htmlbuilder v1.0.0
 	github.com/beeper/argo-go v1.1.2
+	github.com/fogleman/gg v1.3.0
 	github.com/lib/pq v1.12.3
 	github.com/polymorfa/libsignal-protocol-go v0.2.3-0.20260806162910-a2adef2e8a11
 	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
@@ -25,9 +26,11 @@ require (
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/elliotchance/orderedmap/v3 v3.1.0 // indirect
+	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/vektah/gqlparser/v2 v2.5.27 // indirect
+	golang.org/x/image v0.44.0 // indirect
 	modernc.org/libc v1.74.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect

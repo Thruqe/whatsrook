@@ -372,23 +372,38 @@ func getContextInfoFromProto(msg *waE2E.Message) *waE2E.ContextInfo {
 	if msg == nil {
 		return nil
 	}
-	if msg.ExtendedTextMessage != nil {
-		return msg.ExtendedTextMessage.ContextInfo
+	if ext := msg.GetExtendedTextMessage(); ext != nil {
+		return ext.GetContextInfo()
 	}
-	if msg.ImageMessage != nil {
-		return msg.ImageMessage.ContextInfo
+	if stk := msg.GetStickerMessage(); stk != nil {
+		return stk.GetContextInfo()
 	}
-	if msg.VideoMessage != nil {
-		return msg.VideoMessage.ContextInfo
+	if img := msg.GetImageMessage(); img != nil {
+		return img.GetContextInfo()
 	}
-	if msg.AudioMessage != nil {
-		return msg.AudioMessage.ContextInfo
+	if vid := msg.GetVideoMessage(); vid != nil {
+		return vid.GetContextInfo()
 	}
-	if msg.DocumentMessage != nil {
-		return msg.DocumentMessage.ContextInfo
+	if aud := msg.GetAudioMessage(); aud != nil {
+		return aud.GetContextInfo()
 	}
-	if msg.StickerMessage != nil {
-		return msg.StickerMessage.ContextInfo
+	if doc := msg.GetDocumentMessage(); doc != nil {
+		return doc.GetContextInfo()
+	}
+	if btn := msg.GetButtonsResponseMessage(); btn != nil {
+		return btn.GetContextInfo()
+	}
+	if inter := msg.GetInteractiveResponseMessage(); inter != nil {
+		return inter.GetContextInfo()
+	}
+	if lst := msg.GetListResponseMessage(); lst != nil {
+		return lst.GetContextInfo()
+	}
+	if poll := msg.GetPollCreationMessage(); poll != nil {
+		return poll.GetContextInfo()
+	}
+	if evt := msg.GetEventMessage(); evt != nil {
+		return evt.GetContextInfo()
 	}
 	return nil
 }
