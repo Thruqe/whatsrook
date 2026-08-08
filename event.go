@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"time"
 
-	"whatsrook/plugins"
+	"whatsrook/cli/plugins"
+	"whatsrook/cli/updater"
 	"whatsrook/send"
-	"whatsrook/updater"
 	"whatsrook/utils"
 	"whatsrook/wa-core/store/sqlstore"
 

@@ -65,7 +65,10 @@ func handleCookie(ctx *Context) error {
 // SendYTCookieHelp sends the cookie update tutorial image and step-by-step instructions when YouTube bot detection occurs.
 func SendYTCookieHelp(ctx *Context) error {
 	p := ctx.GetPrefix()
-	tutorialImgPath := "/home/thruqe/Documents/whatsrook/resources/tutorials/images/cookies.png"
+	tutorialImgPath := "cli/resources/tutorials/images/cookies.png"
+	if _, err := os.Stat(tutorialImgPath); err != nil {
+		tutorialImgPath = "resources/tutorials/images/cookies.png"
+	}
 
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "⚠️ *YOUTUBE BOT DETECTION ALERT*\n\n")

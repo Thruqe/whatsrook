@@ -7,7 +7,9 @@ Welcome to WhatsRook.
 - **CLI Entrypoint**: Located in [`cli/main.go`](file:///home/thruqe/whatsrook/cli/main.go), which parses command-line arguments and initializes `whatsrook.NewRookClient(config)`.
 - **Package Layout**:
   - `whatsrook`: Root library package containing `RookClient`, bot lifecycle, WebSocket hub, IPC stanzas, and event routing.
-  - `whatsrook/plugins`: Command registration (`Register`), dispatching, and structured error handling (`plugins/error.go`).
+  - `whatsrook/cli/plugins`: Command registration (`Register`), dispatching, and structured error handling (`cli/plugins/error.go`).
+  - `whatsrook/cli/updater`: Application auto-updater and atomic rollback engine.
+  - `whatsrook/cli/resources`: Static CLI resources, audio, and tutorial media assets.
   - `whatsrook/send`: High-level sending abstractions and context management (`PluginContext`).
   - `whatsrook/wa-core`: WhatsApp protocol core library and database stores (`wa-core/store/sqlstore`).
   - `whatsrook/caller`: Local VoIP call signaling and WebRTC media engine.
@@ -15,7 +17,7 @@ Welcome to WhatsRook.
 
 ## Plugin Authoring
 
-Plugins take advantage of `plugins/error.go` for error handling:
+Plugins take advantage of `cli/plugins/error.go` for error handling:
 ```go
 func handleCommand(ctx *plugins.Context) error {
     if !ctx.HasArgs() {

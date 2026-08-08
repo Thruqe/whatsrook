@@ -9,7 +9,7 @@ import (
 	"syscall"
 
 	"whatsrook"
-	"whatsrook/updater"
+	"whatsrook/cli/updater"
 )
 
 func main() {

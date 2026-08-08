@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"whatsrook/updater"
+	"whatsrook/cli/updater"
 	"whatsrook/utils"
 	"whatsrook/wa-core/store/sqlstore"
 
@@ -254,9 +254,15 @@ func handleMenu(ctx *Context) error {
 			if _, errJpg := os.Stat(jpgPath); errJpg == nil {
 				videoPath = jpgPath
 			} else {
-				videoPath = "resources/songs/whatsrook.mp4"
+				videoPath = "cli/resources/songs/whatsrook.mp4"
 				if _, err := os.Stat(videoPath); err != nil {
-					videoPath = "resources/songs/intro.mp4"
+					videoPath = "resources/songs/whatsrook.mp4"
+					if _, err := os.Stat(videoPath); err != nil {
+						videoPath = "cli/resources/songs/intro.mp4"
+						if _, err := os.Stat(videoPath); err != nil {
+							videoPath = "resources/songs/intro.mp4"
+						}
+					}
 				}
 			}
 		}

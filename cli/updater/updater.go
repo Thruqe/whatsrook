@@ -414,7 +414,7 @@ func (u *Updater) DownloadAndApply(ctx context.Context, tag string) error {
 			return fmt.Errorf("archive entry path escapes destination directory: %s", hdr.Name)
 		}
 
-		if strings.HasPrefix(relPath, "resources") || strings.HasPrefix(relPath, "prompts") {
+		if strings.HasPrefix(relPath, "cli/resources") || strings.HasPrefix(relPath, "resources") || strings.HasPrefix(relPath, "prompts") {
 			if hdr.Typeflag == tar.TypeDir {
 				_ = os.MkdirAll(destPath, 0755)
 			} else {

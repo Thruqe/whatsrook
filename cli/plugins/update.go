@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"whatsrook/updater"
+	"whatsrook/cli/updater"
 	"whatsrook/wa-core/store/sqlstore"
 )
 

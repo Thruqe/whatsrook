@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
-	"whatsrook/plugins"
+	"whatsrook/cli/plugins"
 	"whatsrook/send"
 	"whatsrook/wa-core/store/sqlstore"
 

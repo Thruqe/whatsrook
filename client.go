@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
+	commands "whatsrook/cli/plugins"
 	"whatsrook/logger"
-	commands "whatsrook/plugins"
 	"whatsrook/utils"
 	"whatsrook/wa-core/store/sqlstore"
 
