@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode"
 
-	"whatsrook/send"
+	"whatsrook/messaging"
 	"whatsrook/wa-core/store/sqlstore"
 
 	"whatsrook/wa-core/types"
@@ -57,7 +57,7 @@ func handleAntiMsg(ctx *Context) error {
 			isAlreadyTargeted := false
 			for _, uStr := range users {
 				uJID, err := types.ParseJID(uStr)
-				if err == nil && send.IsSameUserRaw(ctx.Ctx, ctx.Client, uJID, t) {
+				if err == nil && messaging.IsSameUserRaw(ctx.Ctx, ctx.Client, uJID, t) {
 					isAlreadyTargeted = true
 					break
 				}
@@ -124,7 +124,7 @@ func handleAntiMsg(ctx *Context) error {
 			newUsers := make([]string, 0, len(users))
 			for _, uStr := range users {
 				uJID, err := types.ParseJID(uStr)
-				if err == nil && send.IsSameUserRaw(ctx.Ctx, ctx.Client, uJID, t) {
+				if err == nil && messaging.IsSameUserRaw(ctx.Ctx, ctx.Client, uJID, t) {
 					continue
 				}
 				newUsers = append(newUsers, uStr)
@@ -182,7 +182,7 @@ func handleAntiMsg(ctx *Context) error {
 				continue
 			}
 			if !slices.ContainsFunc(displayUsers, func(existing types.JID) bool {
-				return send.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, uj)
+				return messaging.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, uj)
 			}) {
 				displayUsers = append(displayUsers, uj)
 			}
@@ -304,7 +304,7 @@ func extractTargetParticipants(ctx *Context, args []string) []types.JID {
 		}
 		nonAD := j.ToNonAD()
 		if !slices.ContainsFunc(targets, func(existing types.JID) bool {
-			return send.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, nonAD)
+			return messaging.IsSameUserRaw(ctx.Ctx, ctx.Client, existing, nonAD)
 		}) {
 			targets = append(targets, nonAD)
 		}
@@ -318,7 +318,7 @@ func extractTargetParticipants(ctx *Context, args []string) []types.JID {
 	// 2. Mentioned JIDs
 	if ci := ctx.GetContextInfo(); ci != nil {
 		for _, m := range ci.GetMentionedJID() {
-			if parsed, err := send.ParseUserJID(m); err == nil && !parsed.IsEmpty() {
+			if parsed, err := messaging.ParseUserJID(m); err == nil && !parsed.IsEmpty() {
 				addJID(parsed)
 			}
 		}
@@ -330,7 +330,7 @@ func extractTargetParticipants(ctx *Context, args []string) []types.JID {
 		if arg == "" || isSubcommand(arg) {
 			continue
 		}
-		if parsed, err := send.ParseUserJID(arg); err == nil && !parsed.IsEmpty() {
+		if parsed, err := messaging.ParseUserJID(arg); err == nil && !parsed.IsEmpty() {
 			addJID(parsed)
 		}
 	}

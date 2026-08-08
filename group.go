@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"whatsrook/send"
+	"whatsrook/messaging"
 	"whatsrook/wa-core/store/sqlstore"
 
 	"whatsrook/wa-core/proto/waE2E"
@@ -55,7 +55,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 				}
 				if !info.OwnerJID.IsEmpty() {
 					ownerJIDStr = info.OwnerJID.String()
-					_, ownerName := send.ResolveMentionRaw(ctx, b.client, info.OwnerJID)
+					_, ownerName := messaging.ResolveMentionRaw(ctx, b.client, info.OwnerJID)
 					ownerStr = "@" + ownerName
 				}
 				if !info.GroupCreated.IsZero() {
@@ -64,7 +64,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 			}
 
 			for _, participant := range g.Join {
-				resolvedJID, username := send.ResolveMentionRaw(ctx, b.client, participant)
+				resolvedJID, username := messaging.ResolveMentionRaw(ctx, b.client, participant)
 				userTag := "@" + username
 				body := customMsg
 				if body == "" {
@@ -98,7 +98,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 					body += "\n\nGroup Description:\n" + groupDesc
 				}
 
-				formatted := send.FormatTextResponseRaw(body)
+				formatted := messaging.FormatTextResponseRaw(body)
 				var mentions []string
 				if tag == "on" {
 					mentions = append(mentions, resolvedJID.String())
@@ -152,7 +152,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 				}
 				if !info.OwnerJID.IsEmpty() {
 					ownerJIDStr = info.OwnerJID.String()
-					_, ownerName := send.ResolveMentionRaw(ctx, b.client, info.OwnerJID)
+					_, ownerName := messaging.ResolveMentionRaw(ctx, b.client, info.OwnerJID)
 					ownerStr = "@" + ownerName
 				}
 				if !info.GroupCreated.IsZero() {
@@ -166,7 +166,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 					continue
 				}
 
-				resolvedJID, username := send.ResolveMentionRaw(ctx, b.client, participant)
+				resolvedJID, username := messaging.ResolveMentionRaw(ctx, b.client, participant)
 				userTag := "@" + username
 				body := customMsg
 				if body == "" {
@@ -200,7 +200,7 @@ func (b *Bot) handleGroupGreetings(ctx context.Context, g *events.GroupInfo) {
 					body += "\n\nGroup Description:\n" + groupDesc
 				}
 
-				formatted := send.FormatTextResponseRaw(body)
+				formatted := messaging.FormatTextResponseRaw(body)
 				var mentions []string
 				if tag == "on" {
 					mentions = append(mentions, resolvedJID.String())
@@ -243,7 +243,7 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	var actorJID *types.JID
 	if g.Sender != nil && !g.Sender.IsEmpty() {
 		actorJID = g.Sender
-		_, actorName := send.ResolveMentionRaw(ctx, b.client, *g.Sender)
+		_, actorName := messaging.ResolveMentionRaw(ctx, b.client, *g.Sender)
 		actorTag = " by @" + actorName
 	}
 
@@ -284,7 +284,7 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	// 5. Admin Promotions
 	if len(g.Promote) > 0 {
 		for _, userJID := range g.Promote {
-			resolvedJID, username := send.ResolveMentionRaw(ctx, b.client, userJID)
+			resolvedJID, username := messaging.ResolveMentionRaw(ctx, b.client, userJID)
 			msgText := fmt.Sprintf("*Group Event*: @%s was promoted to Group Admin%s!", username, actorTag)
 			b.sendGroupEventMessageWithMentions(ctx, g.JID, msgText, []types.JID{resolvedJID})
 		}
@@ -293,7 +293,7 @@ func (b *Bot) handleGroupEventsNotification(ctx context.Context, g *events.Group
 	// 6. Admin Demotions
 	if len(g.Demote) > 0 {
 		for _, userJID := range g.Demote {
-			resolvedJID, username := send.ResolveMentionRaw(ctx, b.client, userJID)
+			resolvedJID, username := messaging.ResolveMentionRaw(ctx, b.client, userJID)
 			msgText := fmt.Sprintf("*Group Event*: @%s was demoted from Group Admin%s.", username, actorTag)
 			b.sendGroupEventMessageWithMentions(ctx, g.JID, msgText, []types.JID{resolvedJID})
 		}
@@ -309,7 +309,7 @@ func (b *Bot) sendGroupEventMessage(ctx context.Context, chatJID types.JID, text
 }
 
 func (b *Bot) sendGroupEventMessageWithMentions(ctx context.Context, chatJID types.JID, text string, targetMentions []types.JID) {
-	formatted := send.FormatTextResponseRaw(text)
+	formatted := messaging.FormatTextResponseRaw(text)
 	var mentions []string
 	for _, m := range targetMentions {
 		if !m.IsEmpty() {

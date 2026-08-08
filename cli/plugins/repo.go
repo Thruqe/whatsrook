@@ -2,7 +2,7 @@
 package plugins
 
 import (
-	"whatsrook/send"
+	"whatsrook/messaging"
 
 	"whatsrook/wa-core"
 	waBinary "whatsrook/wa-core/binary"
@@ -82,7 +82,7 @@ func handleRepo(ctx *Context) error {
 
 	_, err := ctx.Client.SendMessage(ctx.Ctx, ctx.Chat, msg, extra)
 	if err != nil {
-		return ctx.Reply(send.FormatTextResponseRaw(bodyText))
+		return ctx.Reply(messaging.FormatTextResponseRaw(bodyText))
 	}
 	return nil
 }

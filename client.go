@@ -15,7 +15,6 @@ import (
 	"time"
 
 	commands "whatsrook/cli/plugins"
-	"whatsrook/logger"
 	"whatsrook/utils"
 	"whatsrook/wa-core/store/sqlstore"
 
@@ -111,10 +110,10 @@ func (r *RookClient) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to create session dir %q: %w", sessionDir, err)
 	}
 
-	if err := logger.InitLogger(sessionDir, r.Config.Verbose); err != nil {
+	if err := utils.InitLogger(sessionDir, r.Config.Verbose); err != nil {
 		return fmt.Errorf("failed to initialize logger: %w", err)
 	}
-	defer logger.Close()
+	defer utils.CloseLogger()
 
 	dbPath := filepath.Join(sessionDir, r.Config.Session+".db")
 
@@ -209,7 +208,7 @@ func (r *RookClient) Start(ctx context.Context) error {
 
 // runSession opens the DB, creates a whatsmeow client, handles logout if configured, then runs the bot.
 func (r *RookClient) runSession(ctx context.Context, sessionDir, dbPath, waLevel string) error {
-	dbLog := logger.WhatsmeowStyle("Database", waLevel, true)
+	dbLog := utils.WhatsmeowStyle("Database", waLevel, true)
 	container, err := sqlstore.New(ctx, "sqlite", fmt.Sprintf(
 		"file:%s?_pragma=busy_timeout=5000&_pragma=journal_mode=WAL&_pragma=synchronous=NORMAL&_pragma=foreign_keys=on&_pragma=cache_size=-2000",
 		dbPath,
@@ -231,7 +230,7 @@ func (r *RookClient) runSession(ctx context.Context, sessionDir, dbPath, waLevel
 		sqlStore.SessionDir = sessionDir
 	}
 
-	clientLog := logger.WhatsmeowStyle("Client", "INFO", true)
+	clientLog := utils.WhatsmeowStyle("Client", "INFO", true)
 	client := whatsmeow.NewClient(deviceStore, clientLog)
 
 	r.mu.Lock()

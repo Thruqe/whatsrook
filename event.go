@@ -9,7 +9,7 @@ import (
 
 	"whatsrook/cli/plugins"
 	"whatsrook/cli/updater"
-	"whatsrook/send"
+	"whatsrook/messaging"
 	"whatsrook/utils"
 	"whatsrook/wa-core/store/sqlstore"
 
@@ -166,7 +166,7 @@ func (b *Bot) notifyOwnerConnected() {
 		meta.GoVersion,
 	)
 
-	formatted := send.FormatTextResponseRaw(msgText)
+	formatted := messaging.FormatTextResponseRaw(msgText)
 	if _, err := b.client.SendMessage(context.Background(), ownerJID, &waE2E.Message{
 		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
 			Text: &formatted,

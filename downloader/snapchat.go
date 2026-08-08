@@ -8,10 +8,10 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"whatsrook/logger"
+	"whatsrook/utils"
 )
 
-var snapLog = logger.WhatsmeowStyle("Downloader/Snapchat", "DEBUG", true)
+var snapLog = utils.WhatsmeowStyle("Downloader/Snapchat", "DEBUG", true)
 
 var (
 	snapSpotlightRegex = regexp.MustCompile(`<link[^>]+rel="preload"[^>]+href="([^"]+)"[^>]+as="video"`)

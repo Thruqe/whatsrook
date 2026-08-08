@@ -1,4 +1,4 @@
-package logger
+package utils
 
 import (
 	"context"
@@ -27,7 +27,7 @@ func InitLogger(sessionDir string, verbose bool) error {
 	for _, lvl := range levels {
 		f, err := os.OpenFile(filepath.Join(logDir, lvl+".log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
-			Close()
+			CloseLogger()
 			return err
 		}
 		levelFiles[lvl] = f
@@ -42,8 +42,8 @@ func InitLogger(sessionDir string, verbose bool) error {
 	return nil
 }
 
-// Close closes all open per-level log files.
-func Close() {
+// CloseLogger closes all open per-level log files.
+func CloseLogger() {
 	for lvl, f := range levelFiles {
 		if f != nil {
 			_ = f.Close()

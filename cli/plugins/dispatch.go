@@ -15,7 +15,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	waSender "whatsrook/send"
+	waSender "whatsrook/messaging"
 	"whatsrook/utils"
 	"whatsrook/wa-core/store/sqlstore"
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"whatsrook/send"
+	"whatsrook/messaging"
 	"whatsrook/utils"
 
 	"whatsrook/wa-core/types"
@@ -78,7 +78,7 @@ func handleSetGroupPP(ctx *Context) error {
 	// Check group info & admin permissions
 	groupInfo, errGroup := ctx.Client.GetGroupInfo(ctx.Ctx, ctx.Chat)
 	if errGroup == nil && groupInfo != nil {
-		isBotAdmin := send.IsAdminRaw(ctx.Ctx, ctx.Client, groupInfo, ctx.Sender)
+		isBotAdmin := messaging.IsAdminRaw(ctx.Ctx, ctx.Client, groupInfo, ctx.Sender)
 		if groupInfo.IsAnnounce && !isBotAdmin {
 			return ctx.Reply("Only group admins are allowed to edit group info.")
 		}

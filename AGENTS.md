@@ -10,10 +10,10 @@ Welcome to WhatsRook.
   - `whatsrook/cli/plugins`: Command registration (`Register`), dispatching, and structured error handling (`cli/plugins/error.go`).
   - `whatsrook/cli/updater`: Application auto-updater and atomic rollback engine.
   - `whatsrook/cli/resources`: Static CLI resources, audio, and tutorial media assets.
-  - `whatsrook/send`: High-level sending abstractions and context management (`PluginContext`).
+  - `whatsrook/messaging`: High-level sending abstractions, message dispatch, and context management (`PluginContext`).
   - `whatsrook/wa-core`: WhatsApp protocol core library and database stores (`wa-core/store/sqlstore`).
   - `whatsrook/caller`: Local VoIP call signaling and WebRTC media engine.
-  - `whatsrook/utils`: Media processing, network guards, font formatting, and waveform generators.
+  - `whatsrook/utils`: Media processing, network guards, font formatting, logging (`utils/logger.go`), and waveform generators.
 
 ## Plugin Authoring
 

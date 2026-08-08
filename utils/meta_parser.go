@@ -1,5 +1,5 @@
 // Response parsing and command-instruction generation for Meta AI requests.
-package meta
+package utils
 
 import (
 	_ "embed"

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"whatsrook/send"
+	"whatsrook/messaging"
 	"whatsrook/wa-core/store/sqlstore"
 
 	"whatsrook/wa-core/appstate"
@@ -147,7 +147,7 @@ func handlePin(ctx *Context) error {
 		quotedSender, ok := ctx.GetQuotedSender()
 		quotedFromMe := false
 		if ok && ctx.Client.Store.ID != nil {
-			quotedFromMe = send.IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, *ctx.Client.Store.ID)
+			quotedFromMe = messaging.IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, *ctx.Client.Store.ID)
 		}
 
 		var participantStr *string
@@ -210,7 +210,7 @@ func handleUnpin(ctx *Context) error {
 		quotedSender, ok := ctx.GetQuotedSender()
 		quotedFromMe := false
 		if ok && ctx.Client.Store.ID != nil {
-			quotedFromMe = send.IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, *ctx.Client.Store.ID)
+			quotedFromMe = messaging.IsSameUserRaw(ctx.Ctx, ctx.Client, quotedSender, *ctx.Client.Store.ID)
 		}
 
 		var participantStr *string
@@ -616,7 +616,7 @@ func handleVV(ctx *Context) error {
 		return sendVVMenu(ctx, s)
 	}
 
-	if !send.IsViewOnceMessage(quoted) {
+	if !messaging.IsViewOnceMessage(quoted) {
 		if quoted.GetImageMessage() == nil && quoted.GetVideoMessage() == nil && quoted.GetAudioMessage() == nil && quoted.GetDocumentWithCaptionMessage() == nil {
 			return ctx.Reply("The replied message is not a ViewOnce or media message.")
 		}
@@ -662,7 +662,7 @@ func handleVV(ctx *Context) error {
 	loader := ctx.StartLoader("Unwrapping ViewOnce media...")
 	defer loader.Delete()
 
-	err := send.UnwrapAndSendViewOnceMessage(ctx.Ctx, ctx.Client, quoted, senderJID, pushName, targetJID, ctx.Chat)
+	err := messaging.UnwrapAndSendViewOnceMessage(ctx.Ctx, ctx.Client, quoted, senderJID, pushName, targetJID, ctx.Chat)
 	if err != nil {
 		return ctx.Reply("Failed to unwrap ViewOnce message: " + err.Error())
 	}

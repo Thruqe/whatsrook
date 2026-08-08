@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"whatsrook/meta"
 	"whatsrook/utils"
 	"whatsrook/wa-core/store/sqlstore"
 
@@ -283,7 +282,7 @@ func HandlePendingBotCustomizationReply(ctx context.Context, client *whatsmeow.C
 			_ = s.PutSetting(ctx, BotNamePromptDismissedKey, "true")
 			_ = s.PutSetting(ctx, BotNameAwaitingInputPrefix+senderUser, "")
 		}
-		meta.ClearInstructionCache()
+		utils.ClearInstructionCache()
 
 		botWizardMu.Lock()
 		pendingWizardState[key] = wizardSession{Step: "thumb", UpdatedAt: time.Now()}
@@ -469,7 +468,7 @@ func handleSetBot(ctx *Context) error {
 			_ = s.PutSetting(ctx.Ctx, BotNameSettingKey, newName)
 			_ = s.PutSetting(ctx.Ctx, BotNamePromptDismissedKey, "true")
 			_ = s.PutSetting(ctx.Ctx, BotNameAwaitingInputPrefix+senderUser, "")
-			meta.ClearInstructionCache()
+			utils.ClearInstructionCache()
 			return ctx.Reply(fmt.Sprintf("Bot name successfully updated to: %q!", newName))
 
 		case "prefix", "setprefix":
@@ -501,7 +500,7 @@ func handleSetBot(ctx *Context) error {
 			_ = s.PutSetting(ctx.Ctx, "menu_thumbnail_path", "")
 			_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.mp4"))
 			_ = os.Remove(filepath.Join(authDir, "custom_menu_thumbnail.jpg"))
-			meta.ClearInstructionCache()
+			utils.ClearInstructionCache()
 			return ctx.Reply("All bot settings (Name, Thumbnail, Prefix) reset to default values.")
 
 		case "setup_customize":

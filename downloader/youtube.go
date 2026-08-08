@@ -11,10 +11,10 @@ import (
 	"regexp"
 	"strings"
 
-	"whatsrook/logger"
+	"whatsrook/utils"
 )
 
-var ytLog = logger.WhatsmeowStyle("Downloader/YouTube", "DEBUG", true)
+var ytLog = utils.WhatsmeowStyle("Downloader/YouTube", "DEBUG", true)
 var ytIDRegex = regexp.MustCompile(`(?:v=|/v/|embed/|shorts/|youtu\.be/)([a-zA-Z0-9_-]{11})`)
 
 type MediaInfo struct {

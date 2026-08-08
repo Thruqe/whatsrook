@@ -3,11 +3,11 @@ package plugins
 import (
 	"strings"
 	"sync"
-	"whatsrook/send"
+	"whatsrook/messaging"
 )
 
 // Context is passed to every command handler.
-type Context = send.PluginContext
+type Context = messaging.PluginContext
 
 // Handler is the function signature for a command handler.
 type Handler func(ctx *Context) error

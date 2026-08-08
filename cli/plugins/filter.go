@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"whatsrook/send"
+	"whatsrook/messaging"
 	"whatsrook/wa-core/store/sqlstore"
 
 	"whatsrook/wa-core/proto/waE2E"
@@ -157,7 +157,7 @@ func handleFilter(ctx *Context) error {
 	}
 
 	if responseProtoMsg != nil {
-		encoded, err := send.EncodeProtoMessage(responseProtoMsg)
+		encoded, err := messaging.EncodeProtoMessage(responseProtoMsg)
 		if err != nil {
 			return ctx.Reply(fmt.Sprintf("Failed to encode filter message: %v", err))
 		}
@@ -263,7 +263,7 @@ func handleBGM(ctx *Context) error {
 	}
 
 	if responseProtoMsg != nil {
-		encoded, err := send.EncodeProtoMessage(responseProtoMsg)
+		encoded, err := messaging.EncodeProtoMessage(responseProtoMsg)
 		if err != nil {
 			return ctx.Reply(fmt.Sprintf("Failed to encode BGM message: %v", err))
 		}
@@ -313,7 +313,7 @@ func handleMention(ctx *Context) error {
 			}
 		}
 
-		encoded, err := send.EncodeProtoMessage(quoted)
+		encoded, err := messaging.EncodeProtoMessage(quoted)
 		if err != nil {
 			return ctx.Reply(fmt.Sprintf("Failed to encode mention message: %v", err))
 		}
@@ -350,7 +350,7 @@ func handleMention(ctx *Context) error {
 			Conversation: &textVal,
 		}
 
-		encoded, err := send.EncodeProtoMessage(quoted)
+		encoded, err := messaging.EncodeProtoMessage(quoted)
 		if err != nil {
 			return ctx.Reply(fmt.Sprintf(" Failed to encode mention message: %v", err))
 		}
@@ -399,7 +399,7 @@ func handleAddFilter(ctx *Context) error {
 		}
 	}
 
-	encoded, err := send.EncodeProtoMessage(responseProtoMsg)
+	encoded, err := messaging.EncodeProtoMessage(responseProtoMsg)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf("Failed to encode filter message: %v", err))
 	}
@@ -440,7 +440,7 @@ func handleGetFilter(ctx *Context) error {
 		return ctx.Reply(fmt.Sprintf("Filter for word %q not found.", trigger))
 	}
 
-	msg, err := send.DecodeProtoMessage(filterProto)
+	msg, err := messaging.DecodeProtoMessage(filterProto)
 	if err != nil {
 		return ctx.Reply(fmt.Sprintf("Failed to decode filter: %v", err))
 	}

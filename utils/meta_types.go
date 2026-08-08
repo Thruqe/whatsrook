@@ -1,5 +1,5 @@
 // Data types for the Meta AI request context passed to handler functions.
-package meta
+package utils
 
 import "whatsrook/wa-core/types"
 

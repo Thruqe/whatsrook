@@ -5,7 +5,7 @@ import (
 	"context"
 	"strings"
 
-	"whatsrook/send"
+	"whatsrook/messaging"
 	"whatsrook/wa-core/store/sqlstore"
 
 	"whatsrook/wa-core"
@@ -20,7 +20,7 @@ func sendText(ctx *Context, text string) error {
 // sendTextRaw is like sendText but usable before a *Context exists (e.g. inside
 // HandlePendingAudioReply, which runs ahead of normal command dispatch).
 func sendTextRaw(ctx context.Context, client *whatsmeow.Client, chat types.JID, text string) error {
-	formatted := send.FormatTextResponseRaw(text)
+	formatted := messaging.FormatTextResponseRaw(text)
 	_, err := client.SendMessage(ctx, chat, &waE2E.Message{
 		Conversation: &formatted,
 	})

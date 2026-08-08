@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"whatsrook/cli/plugins"
-	"whatsrook/send"
+	"whatsrook/messaging"
 	"whatsrook/wa-core/store/sqlstore"
 
 	"whatsrook/wa-core/proto/waE2E"
@@ -95,11 +95,11 @@ func (b *Bot) handleAntiCall(ctx context.Context, v *events.CallOffer) {
 			_, _ = b.client.UpdateBlocklist(ctx, callerJID, events.BlocklistChangeActionBlock)
 			slog.Warn("anticall: caller blocked after reaching max warnings", "from", callerJID.String(), "warn_count", warnCount)
 			warnText := fmt.Sprintf("Call rejected. You have reached the maximum warning threshold (%d/%d) and have been blocked.", warnCount, maxWarn)
-			formatted := send.FormatTextResponseRaw(warnText)
+			formatted := messaging.FormatTextResponseRaw(warnText)
 			_, _ = b.client.SendMessage(ctx, callerJID, &waE2E.Message{Conversation: &formatted})
 		} else {
 			warnText := fmt.Sprintf("Call rejected. Warning %d/%d. Continued calls will result in being blocked.", warnCount, maxWarn)
-			formatted := send.FormatTextResponseRaw(warnText)
+			formatted := messaging.FormatTextResponseRaw(warnText)
 			_, _ = b.client.SendMessage(ctx, callerJID, &waE2E.Message{Conversation: &formatted})
 		}
 	}

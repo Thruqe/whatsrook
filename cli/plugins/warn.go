@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"whatsrook/send"
+	"whatsrook/messaging"
 	"whatsrook/wa-core/store/sqlstore"
 
 	"whatsrook/wa-core"
@@ -287,7 +287,7 @@ func sendWarnCustomizeGuide(ctx *Context) error {
 
 	sb.WriteString("Automated Enforcement Rules:\n")
 	sb.WriteString("1. Reaching max threshold in Group -> Blocks user & Kicks from group (requires bot admin).\n")
-	sb.WriteString("2. Reaching max threshold in Private Chat -> Blocks send.\n")
+	sb.WriteString("2. Reaching max threshold in Private Chat -> Blocks messaging.\n")
 	sb.WriteString("3. Bot Owner & Sudoers are immune to warnings.\n")
 	sb.WriteString("4. Group Admins cannot be kicked unless bot is group owner.\n\n")
 
@@ -305,7 +305,7 @@ func extractWarnTarget(ctx *Context, args []string) types.JID {
 	}
 	if ci := ctx.GetContextInfo(); ci != nil && len(ci.GetMentionedJID()) > 0 {
 		for _, m := range ci.GetMentionedJID() {
-			if parsed, err := send.ParseUserJID(m); err == nil && !parsed.IsEmpty() {
+			if parsed, err := messaging.ParseUserJID(m); err == nil && !parsed.IsEmpty() {
 				return NormalizeUserJID(ctx.Ctx, ctx.Client, parsed)
 			}
 		}
@@ -318,7 +318,7 @@ func extractWarnTarget(ctx *Context, args []string) types.JID {
 		if _, err := strconv.Atoi(arg); err == nil {
 			continue
 		}
-		if parsed, err := send.ParseUserJID(arg); err == nil && !parsed.IsEmpty() {
+		if parsed, err := messaging.ParseUserJID(arg); err == nil && !parsed.IsEmpty() {
 			return NormalizeUserJID(ctx.Ctx, ctx.Client, parsed)
 		}
 	}

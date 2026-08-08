@@ -105,7 +105,7 @@ func main() {
 		"keepalive.go", "mediaconn.go", "mediaretry.go", "message.go", "msgsecret.go",
 		"newsletter.go", "notification.go", "pair-code.go", "pair.go", "pair-passkey.go", "prekeys.go",
 		"presence.go", "privacysettings.go", "push.go", "qrchan.go", "receipt.go", "reportingtoken.go",
-		"request.go", "retry.go", "send.go", "sendfb.go", "tctoken.go", "upload.go", "user.go",
+		"request.go", "retry.go", "messaging.go", "sendfb.go", "tctoken.go", "upload.go", "user.go",
 	}
 	files := make([]*ast.File, len(fileNames))
 	for i, name := range fileNames {
