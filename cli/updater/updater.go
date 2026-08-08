@@ -401,9 +401,14 @@ func (u *Updater) DownloadAndApply(ctx context.Context, tag string) error {
 
 		// Prevent Zip/Tar Slip (arbitrary file access during extraction)
 		cleanRel := filepath.Clean(hdr.Name)
+		if filepath.IsAbs(cleanRel) || strings.HasPrefix(cleanRel, "..") || cleanRel == ".." || strings.HasPrefix(hdr.Name, "/") || strings.HasPrefix(hdr.Name, "\\") || strings.Contains(hdr.Name, "..") {
+			out.Close()
+			_ = os.Remove(tmpBinary)
+			return fmt.Errorf("illegal archive entry path (Zip Slip attempt): %s", hdr.Name)
+		}
 		destPath := filepath.Join(cleanExeDir, cleanRel)
 		rel, errRel := filepath.Rel(cleanExeDir, destPath)
-		if errRel != nil || strings.HasPrefix(rel, "..") || rel == ".." || filepath.IsAbs(cleanRel) || strings.HasPrefix(hdr.Name, "/") || strings.HasPrefix(hdr.Name, "\\") {
+		if errRel != nil || strings.HasPrefix(rel, "..") || rel == ".." {
 			out.Close()
 			_ = os.Remove(tmpBinary)
 			return fmt.Errorf("illegal archive entry path (Zip Slip attempt): %s", hdr.Name)

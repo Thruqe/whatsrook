@@ -12,6 +12,7 @@ import (
 	_ "embed"
 	"encoding/binary"
 	"encoding/json"
+	"math"
 	"sort"
 	"sync"
 
@@ -144,10 +145,11 @@ func extractReportingTokenContent(data []byte, config []reportingField) []byte {
 				sub := extractReportingTokenContent(data[valStart:valEnd], fieldCfg.Subfields)
 				if len(sub) > 0 {
 					// Re-encode tag and length, guard against overflow
-					safeCap := tagLen + n + len(sub)
-					if safeCap < len(sub) {
+					safeCap64 := uint64(tagLen) + uint64(n) + uint64(len(sub))
+					if safeCap64 > uint64(math.MaxInt) {
 						continue // overflow: skip malformed field
 					}
+					safeCap := int(safeCap64)
 					buf := make([]byte, 0, safeCap)
 					tagBuf := make([]byte, binary.MaxVarintLen64)
 					tagN := binary.PutUvarint(tagBuf, tag)

@@ -197,6 +197,11 @@ func Dispatch(ctx context.Context, client *whatsmeow.Client, evt *events.Message
 		}
 	}
 
+	// Auto AFK Response & Owner activity update
+	if HandleAFKAutoResponse(ctx, client, evt, text) {
+		return true
+	}
+
 	// Auto Mention Response
 	if isBotMentioned(client, evt) && okStore {
 		db := s.GetDB()

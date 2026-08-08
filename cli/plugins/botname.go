@@ -504,6 +504,8 @@ func handleSetBot(ctx *Context) error {
 			return ctx.Reply("All bot settings (Name, Thumbnail, Prefix) reset to default values.")
 
 		case "setup_customize":
+			_ = s.PutSetting(ctx.Ctx, BotNamePromptDismissedKey, "true")
+			_ = s.PutSetting(ctx.Ctx, BotNameAwaitingInputPrefix+senderUser, "")
 			botWizardMu.Lock()
 			pendingWizardState[key] = wizardSession{Step: "name", UpdatedAt: time.Now()}
 			botWizardMu.Unlock()

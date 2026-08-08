@@ -10,6 +10,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -52,9 +53,10 @@ func generateMsgSecretKey(
 	modificationSenderStr := modificationSender.ToNonAD().String()
 
 	// Guard against integer overflow in capacity computation before allocating.
-	useCaseSecretCap := len(origMsgID) + len(origMsgSenderStr) + len(modificationSenderStr) + len(modificationType)
-	if useCaseSecretCap < len(origMsgID) {
-		useCaseSecretCap = 0 // overflow: fall back to zero-capacity, append will grow as needed
+	useCaseSecretCap64 := uint64(len(origMsgID)) + uint64(len(origMsgSenderStr)) + uint64(len(modificationSenderStr)) + uint64(len(modificationType))
+	var useCaseSecretCap int
+	if useCaseSecretCap64 <= uint64(math.MaxInt) {
+		useCaseSecretCap = int(useCaseSecretCap64)
 	}
 	useCaseSecret := make([]byte, 0, useCaseSecretCap)
 	useCaseSecret = append(useCaseSecret, origMsgID...)

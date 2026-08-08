@@ -163,7 +163,7 @@ func (w *binaryEncoder) writeJID(jid types.JID) {
 		jid.Server == types.HostedServer || jid.Server == types.HostedLIDServer {
 		w.pushByte(token.ADJID)
 		w.pushByte(jid.ActualAgent())
-		w.pushByte(uint8(jid.Device))
+		w.pushByte(uint8(jid.Device & 0xFF))
 		w.writeString(jid.User)
 	} else if jid.Server == types.MessengerServer {
 		w.pushByte(token.FBJID)

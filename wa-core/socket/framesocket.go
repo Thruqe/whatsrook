@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -135,7 +136,11 @@ func (fs *FrameSocket) SendFrame(data []byte) error {
 	headerLength := len(fs.Header)
 	// Guard against integer overflow in frame size computation.
 	// FrameMaxSize already caps dataLength, so this is an additional safety net.
-	wholeFrameLen := headerLength + FrameLengthSize + dataLength
+	wholeFrameLen64 := uint64(headerLength) + uint64(FrameLengthSize) + uint64(dataLength)
+	if wholeFrameLen64 > uint64(math.MaxInt) {
+		return fmt.Errorf("frame size computation overflowed")
+	}
+	wholeFrameLen := int(wholeFrameLen64)
 	if wholeFrameLen < dataLength {
 		return fmt.Errorf("frame size computation overflowed")
 	}
