@@ -13,6 +13,7 @@ Connect your app to WhatsApp and receive live events — messages, groups, stori
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 [![Join WhatsApp Channel](https://img.shields.io/badge/WhatsApp-Channel-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://whatsapp.com/channel/0029Vb8Vo0k0bIdsTOTF1G2o)
 [![Join Telegram Channel](https://img.shields.io/badge/Telegram-Channel-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/whatsrook)
+[![Supabase DB](https://img.shields.io/badge/Database-Supabase%20PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
 
 ## Features
 
@@ -20,6 +21,14 @@ Connect your app to WhatsApp and receive live events — messages, groups, stori
 - Bidirectional communication — receive events, dispatch actions
 - Build bots, automations, and integrations on top of WhatsApp
 - Powered by hypermeow (no browser automation, no Puppeteer)
+
+## Database & Storage
+
+WhatsRook uses PostgreSQL as its primary database engine, with automatic fallback to embedded SQLite.
+
+[![Get Free PostgreSQL on Supabase](https://img.shields.io/badge/Get%20Free%20PostgreSQL-Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
+
+Get a free managed PostgreSQL database at [Supabase](https://supabase.com) and set `DATABASE_URL` in your `.env` file. For details, see the [Database & Storage Guide](Documentation/DATABASE.md).
 
 ## Deployment
 

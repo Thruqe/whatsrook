@@ -18,6 +18,7 @@ import (
 	"whatsrook/utils"
 	"whatsrook/wa-core/store/sqlstore"
 
+	_ "github.com/lib/pq"
 	_ "modernc.org/sqlite"
 	"whatsrook/wa-core"
 	"whatsrook/wa-core/types/events"
@@ -208,11 +209,7 @@ func (r *RookClient) Start(ctx context.Context) error {
 
 // runSession opens the DB, creates a whatsmeow client, handles logout if configured, then runs the bot.
 func (r *RookClient) runSession(ctx context.Context, sessionDir, dbPath, waLevel string) error {
-	dbLog := utils.WhatsmeowStyle("Database", waLevel, true)
-	container, err := sqlstore.New(ctx, "sqlite", fmt.Sprintf(
-		"file:%s?_pragma=busy_timeout=5000&_pragma=journal_mode=WAL&_pragma=synchronous=NORMAL&_pragma=foreign_keys=on&_pragma=cache_size=-2000",
-		dbPath,
-	), dbLog)
+	container, err := r.initStore(ctx, dbPath, waLevel)
 	if err != nil {
 		return fmt.Errorf("failed to open db: %w", err)
 	}
@@ -302,4 +299,69 @@ func WipeSession(sessionDir string) {
 	if err := os.MkdirAll(sessionDir, 0755); err != nil {
 		slog.Error("failed to recreate session directory", "path", sessionDir, "err", err)
 	}
+}
+
+func sanitizeDBURL(rawURL string) string {
+	if rawURL == "" {
+		return ""
+	}
+	if strings.HasPrefix(rawURL, "postgres://") || strings.HasPrefix(rawURL, "postgresql://") {
+		parts := strings.SplitN(rawURL, "@", 2)
+		if len(parts) == 2 {
+			schemeUser := parts[0]
+			subParts := strings.SplitN(schemeUser, ":", 3)
+			if len(subParts) == 3 {
+				return fmt.Sprintf("%s:%s:****@%s", subParts[0], subParts[1], parts[1])
+			}
+			return fmt.Sprintf("%s:****@%s", parts[0], parts[1])
+		}
+	}
+	return rawURL
+}
+
+func (r *RookClient) initStore(ctx context.Context, dbPath, waLevel string) (*sqlstore.Container, error) {
+	dbLog := utils.WhatsmeowStyle("Database", waLevel, true)
+
+	pgURL := os.Getenv("DATABASE_URL")
+	if pgURL == "" {
+		pgURL = os.Getenv("POSTGRES_URL")
+	}
+	if pgURL == "" {
+		pgURL = os.Getenv("DB_URL")
+	}
+
+	// 1. Try PostgreSQL first if explicit DATABASE_URL is set (and not "sqlite" or "none")
+	if pgURL != "" && pgURL != "sqlite" && pgURL != "none" {
+		slog.Info("attempting connection to PostgreSQL database...", "url", sanitizeDBURL(pgURL))
+		container, err := sqlstore.New(ctx, "postgres", pgURL, dbLog)
+		if err == nil && container != nil {
+			slog.Info("successfully connected to PostgreSQL database")
+			return container, nil
+		}
+		slog.Warn("PostgreSQL connection failed, falling back to SQLite", "err", err)
+	}
+
+	// Try default local postgres URL if no explicit DATABASE_URL was provided
+	if pgURL == "" {
+		defaultPG := "postgres://postgres:postgres@localhost:5432/whatsrook?sslmode=disable"
+		slog.Info("attempting connection to default PostgreSQL database...", "url", sanitizeDBURL(defaultPG))
+		container, err := sqlstore.New(ctx, "postgres", defaultPG, dbLog)
+		if err == nil && container != nil {
+			slog.Info("successfully connected to default PostgreSQL database")
+			return container, nil
+		}
+		slog.Warn("default PostgreSQL unavailable, falling back to SQLite", "err", err)
+	}
+
+	// 2. Fallback to SQLite
+	slog.Info("initializing SQLite database store", "path", dbPath)
+	sqliteURI := fmt.Sprintf(
+		"file:%s?_pragma=busy_timeout=5000&_pragma=journal_mode=WAL&_pragma=synchronous=NORMAL&_pragma=foreign_keys=on&_pragma=cache_size=-2000",
+		dbPath,
+	)
+	container, err := sqlstore.New(ctx, "sqlite", sqliteURI, dbLog)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open SQLite database: %w", err)
+	}
+	return container, nil
 }
